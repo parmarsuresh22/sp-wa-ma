@@ -28,6 +28,7 @@ import {
 } from '@/lib/whatsapp/waba-pairing'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { resolveVerifyTokenForSave } from '@/lib/whatsapp/verify-token'
+import { resolveOverrideCallbackUrl } from '@/lib/whatsapp/webhook-override'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { getT } from '@/lib/i18n/translate'
 
@@ -480,12 +481,41 @@ export async function POST(request: Request) {
     // treat it as a failed connect and say why (issue #505). Nothing
     // has been written yet, so the user just fixes the cause and saves
     // again.
+    //
+    // Optional WABA-level alternate callback URL (META_WEBHOOK_OVERRIDE_URL):
+    // pins this WABA's `messages` webhooks to wacrm even if another
+    // integration keeps rewriting the Meta App's default callback URL.
+    // Meta runs the GET handshake against it with the verify token we pass,
+    // so we need the plaintext token: the one typed into this save, or the
+    // stored one when the field was left blank. With no token we skip the
+    // override rather than have Meta fail the whole subscribe.
     let subscribedAppsAt: string | null = null
     if (waba_id) {
+      const overrideCallbackUri = resolveOverrideCallbackUrl()
+      let plainVerifyToken: string | null = null
+      if (overrideCallbackUri) {
+        const typed = typeof verify_token === 'string' ? verify_token.trim() : ''
+        if (typed) {
+          plainVerifyToken = typed
+        } else if (existing?.verify_token) {
+          try {
+            plainVerifyToken = decrypt(existing.verify_token)
+          } catch {
+            plainVerifyToken = null
+          }
+        }
+        if (!plainVerifyToken) {
+          console.warn(
+            '[whatsapp/config] META_WEBHOOK_OVERRIDE_URL is set but no verify token is available; skipping WABA callback override'
+          )
+        }
+      }
       try {
         await subscribeWabaToApp({
           wabaId: waba_id,
           accessToken: access_token,
+          overrideCallbackUri: plainVerifyToken ? overrideCallbackUri : null,
+          verifyToken: plainVerifyToken,
         })
         subscribedAppsAt = new Date().toISOString()
       } catch (err) {

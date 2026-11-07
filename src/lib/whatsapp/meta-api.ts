@@ -257,6 +257,20 @@ export async function registerPhoneNumber(
 export interface SubscribeWabaToAppArgs {
   wabaId: string
   accessToken: string
+  /**
+   * Optional WABA-level alternate callback URL. When set (together with
+   * `verifyToken`), Meta delivers this WABA's `messages` webhooks here
+   * instead of the Meta App's default callback URL — which matters when
+   * another integration (an n8n WhatsApp Trigger, say) keeps rewriting
+   * the app-level URL to its own. Meta validates the URL with the usual
+   * GET handshake, so `verifyToken` must be the plaintext token our
+   * webhook route will accept. See `webhook-override.ts`.
+   *
+   * NOTE: per Meta's docs, subscribing WITHOUT these parameters clears
+   * any override previously set on the WABA.
+   */
+  overrideCallbackUri?: string | null
+  verifyToken?: string | null
 }
 
 /**
@@ -266,12 +280,23 @@ export interface SubscribeWabaToAppArgs {
 export async function subscribeWabaToApp(
   args: SubscribeWabaToAppArgs
 ): Promise<void> {
-  const { wabaId, accessToken } = args
+  const { wabaId, accessToken, overrideCallbackUri, verifyToken } = args
   const url = `${META_API_BASE}/${wabaId}/subscribed_apps`
-  const response = await fetch(url, {
+  const init: RequestInit = {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  }
+  if (overrideCallbackUri && verifyToken) {
+    const form = new URLSearchParams()
+    form.set('override_callback_uri', overrideCallbackUri)
+    form.set('verify_token', verifyToken)
+    init.headers = {
+      ...(init.headers as Record<string, string>),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    }
+    init.body = form.toString()
+  }
+  const response = await fetch(url, init)
   if (!response.ok) {
     await throwMetaError(response, `Meta API error: ${response.status}`)
   }
