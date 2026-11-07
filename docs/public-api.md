@@ -156,6 +156,21 @@ curl -X POST https://your-crm.example.com/api/v1/messages \
 }
 ```
 
+**Quoted replies.** To send the message as a WhatsApp reply (the
+quoted bubble above it), name the parent one of two ways:
+
+- `reply_to_message_id` — wacrm's message UUID, e.g. from
+  `GET /api/v1/conversations/{id}/messages`. Must belong to the same
+  conversation or the request fails with `400`.
+- `reply_to_whatsapp_message_id` — Meta's id (`wamid.…`) as seen in the
+  webhook (`messages[0].id`). Meant for bots that never read our API.
+  wacrm looks it up in the target conversation; if it is not there yet
+  (typically a bot answering before the inbound message finished
+  saving) the message is sent **without** the quote and a warning is
+  logged, rather than failing the reply.
+
+`reply_to_message_id` wins when both are present.
+
 Response (201):
 
 ```json

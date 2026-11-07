@@ -23,6 +23,8 @@
 //       "params": ["A123"] | { "body": [...] }   // array = positional body; object = structured
 //     },
 //     "reply_to_message_id": "<uuid>",       // optional, must be in the same conversation
+//     "reply_to_whatsapp_message_id": "wamid.…", // optional alternative: Meta's id of the
+//                                                 // message to quote; ignored if not found
 //     "name": "Jane Doe"                     // optional, names a newly-created contact
 //   }
 //
@@ -36,6 +38,10 @@ import { after } from 'next/server';
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
 import { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation';
+import {
+  normalizeWamid,
+  resolveReplyTargetByWamid,
+} from '@/lib/api/v1/reply-target';
 import {
   sendMessageToConversation,
   validateSendMessageParams,
@@ -117,6 +123,34 @@ export async function POST(request: Request) {
       );
     }
 
+    // Quoted reply. Two ways to name the parent: our UUID
+    // (`reply_to_message_id`, wins when both are present) or Meta's
+    // wamid (`reply_to_whatsapp_message_id`) for callers that only saw
+    // the webhook. A wamid that isn't in this conversation yet — usually
+    // a bot replying before our inbound insert landed — sends without
+    // the quote rather than failing the whole reply.
+    let replyToMessageId: string | null =
+      typeof body.reply_to_message_id === 'string'
+        ? body.reply_to_message_id
+        : null;
+    if (!replyToMessageId) {
+      const wamid = normalizeWamid(body.reply_to_whatsapp_message_id);
+      if (wamid) {
+        const target = await resolveReplyTargetByWamid(
+          ctx.supabase,
+          resolved.conversationId,
+          wamid
+        );
+        if (target.ok) {
+          replyToMessageId = target.messageId;
+        } else {
+          console.warn(
+            `[api/v1/messages] reply_to_whatsapp_message_id ${wamid} not resolved (${target.reason}${target.detail ? `: ${target.detail}` : ''}); sending without quote`
+          );
+        }
+      }
+    }
+
     const result = await sendMessageToConversation(
       ctx.supabase,
       ctx.accountId,
@@ -132,10 +166,7 @@ export async function POST(request: Request) {
         templateParams,
         templateMessageParams,
         interactivePayload,
-        replyToMessageId:
-          typeof body.reply_to_message_id === 'string'
-            ? body.reply_to_message_id
-            : null,
+        replyToMessageId,
       }
     );
 
