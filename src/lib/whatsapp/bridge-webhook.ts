@@ -83,7 +83,77 @@ export interface BridgeMessagePayload {
   replyTo?: { id?: string } | null
   participant?: string | null
   source?: string
-  _data?: { pushName?: string; notifyName?: string; Info?: { PushName?: string } } | null
+  _data?: {
+    pushName?: string
+    notifyName?: string
+    Info?: {
+      PushName?: string
+      /** GOWS: the chat's id, possibly a `@lid`. */
+      Chat?: string
+      Sender?: string
+      /** GOWS: the sender's phone JID when `Sender` is a `@lid`. */
+      SenderAlt?: string
+      /** GOWS: the recipient's phone JID when the chat is a `@lid`. */
+      RecipientAlt?: string
+    }
+  } | null
+}
+
+export function isLidChatId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.endsWith('@lid')
+}
+
+/** Asks the bridge which phone a `@lid` belongs to; null if unknown. */
+export type LidResolver = (lid: string) => Promise<string | null>
+
+/**
+ * WhatsApp now addresses many chats by a "linked id" (`<digits>@lid`)
+ * instead of the phone number, and the GOWS engine passes that through:
+ * `from` is the lid and `to` is null. The phone is still knowable — the
+ * raw payload carries `SenderAlt` / `RecipientAlt`, and the bridge keeps
+ * a lid→phone table — so rewrite `from` / `to` to `<digits>@c.us` before
+ * translation. Anything that cannot be resolved is left as is and the
+ * translators skip it.
+ */
+export async function normalizeBridgeAddressing(
+  payload: BridgeMessagePayload,
+  resolveLid: LidResolver,
+): Promise<BridgeMessagePayload> {
+  const info = payload._data?.Info
+  const toCus = (jid: string | null | undefined): string | null =>
+    chatIdToPhone(jid ?? null) ? `${chatIdToPhone(jid ?? null)!.slice(1)}@c.us` : null
+
+  const out: BridgeMessagePayload = { ...payload }
+  const chatLid = isLidChatId(payload.from)
+    ? payload.from!
+    : isLidChatId(info?.Chat)
+      ? info!.Chat!
+      : null
+
+  if (payload.fromMe) {
+    // Our own message: the customer is the recipient. `to` is null on
+    // GOWS for lid chats; RecipientAlt or the chat's lid names them.
+    if (!toCus(out.to)) {
+      const alt = toCus(info?.RecipientAlt)
+      if (alt) out.to = alt
+      else if (chatLid) {
+        const resolved = await resolveLid(chatLid).catch(() => null)
+        if (resolved) out.to = resolved
+      }
+    }
+    return out
+  }
+
+  // Customer message: `from` must become the phone chat id.
+  if (!toCus(out.from)) {
+    const alt = toCus(info?.SenderAlt)
+    if (alt) out.from = alt
+    else if (chatLid) {
+      const resolved = await resolveLid(chatLid).catch(() => null)
+      if (resolved) out.from = resolved
+    }
+  }
+  return out
 }
 
 /** Pick the message payload out of the envelope, or null if malformed. */

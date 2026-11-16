@@ -316,6 +316,22 @@ export function createWahaClient(cfg: WahaClientConfig) {
     async startTyping(session: string, chatId: string) {
       await call('POST', '/api/startTyping', { session, chatId })
     },
+    /**
+     * Resolve a WhatsApp "linked id" (`<digits>@lid`) to the phone chat
+     * id (`<digits>@c.us`). Null when the bridge does not know it.
+     */
+    async resolveLid(session: string, lid: string): Promise<string | null> {
+      try {
+        const r = await call<{ pn?: string | null }>(
+          'GET',
+          `/api/${encodeURIComponent(session)}/lids/${encodeURIComponent(lid)}`,
+        )
+        return typeof r?.pn === 'string' && r.pn ? r.pn : null
+      } catch (err) {
+        if (err instanceof WahaError && err.status === 404) return null
+        throw err
+      }
+    },
     /** Download a media file the bridge stored (payload.media.url). */
     async downloadMedia(url: string): Promise<{ buffer: Buffer; contentType: string | null }> {
       const controller = new AbortController()

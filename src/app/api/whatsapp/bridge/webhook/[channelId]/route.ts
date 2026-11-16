@@ -5,6 +5,7 @@ import {
   ackToStatus,
   bridgeMessagePayload,
   bridgeOwnPhone,
+  normalizeBridgeAddressing,
   parseBridgeEnvelope,
   sessionStatusFromPayload,
   translateBridgeEcho,
@@ -109,8 +110,11 @@ async function processBridgeEvent(channel: ChannelRow, env: BridgeEnvelope) {
   switch (env.event) {
     case 'message':
     case 'message.any': {
-      const payload = bridgeMessagePayload(env.payload)
-      if (!payload) return
+      const raw = bridgeMessagePayload(env.payload)
+      if (!raw) return
+      // Linked-id chats (`@lid`) → phone chat ids, via the raw payload
+      // or the bridge's lookup table.
+      const payload = await normalizeBridgeAddressing(raw, lidResolver(channel))
       if (payload.fromMe) {
         // `message` never carries fromMe on most engines; `message.any`
         // does. Handle echoes once, from whichever event brings them.
@@ -161,6 +165,21 @@ async function processBridgeEvent(channel: ChannelRow, env: BridgeEnvelope) {
     }
     default:
       return
+  }
+}
+
+/** lid → `<digits>@c.us` through the bridge's lookup endpoint. */
+function lidResolver(channel: ChannelRow) {
+  return async (lid: string): Promise<string | null> => {
+    if (!channel.bridge_base_url || !channel.bridge_session) return null
+    let apiKey: string
+    try {
+      apiKey = decrypt(channel.access_token)
+    } catch {
+      return null
+    }
+    const client = createWahaClient({ baseUrl: channel.bridge_base_url, apiKey })
+    return client.resolveLid(channel.bridge_session, lid)
   }
 }
 

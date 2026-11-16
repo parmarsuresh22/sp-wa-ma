@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ackToStatus,
   bridgeOwnPhone,
+  normalizeBridgeAddressing,
   parseBridgeEnvelope,
   sessionStatusFromPayload,
   translateBridgeEcho,
@@ -188,5 +189,59 @@ describe('envelope helpers', () => {
     expect(sessionStatusFromPayload({ status: 'WHATEVER' })).toBeNull()
     expect(bridgeOwnPhone(ENV)).toBe('+919999999999')
     expect(bridgeOwnPhone({ ...ENV, me: null })).toBeNull()
+  })
+})
+
+describe('normalizeBridgeAddressing (linked ids)', () => {
+  const never = async () => null
+
+  it('uses SenderAlt from the raw payload for a customer message on a @lid chat', async () => {
+    const out = await normalizeBridgeAddressing(
+      {
+        id: 'false_325@lid_A',
+        from: '32598936015048@lid',
+        fromMe: false,
+        to: null as unknown as undefined,
+        body: 'Hi',
+        _data: { Info: { Chat: '32598936015048@lid', Sender: '32598936015048@lid', SenderAlt: '919782048273@s.whatsapp.net' } },
+      },
+      never,
+    )
+    expect(out.from).toBe('919782048273@c.us')
+    expect(translateBridgeInbound(ENV, out)?.phone).toBe('+919782048273')
+  })
+
+  it('falls back to the bridge lookup when the raw payload has no alt', async () => {
+    const calls: string[] = []
+    const out = await normalizeBridgeAddressing(
+      { id: 'x', from: '32598936015048@lid', fromMe: false, body: 'Hi' },
+      async (lid) => {
+        calls.push(lid)
+        return '919782048273@c.us'
+      },
+    )
+    expect(calls).toEqual(['32598936015048@lid'])
+    expect(out.from).toBe('919782048273@c.us')
+  })
+
+  it('resolves the recipient of our own message from RecipientAlt or the chat lid', async () => {
+    const viaAlt = await normalizeBridgeAddressing(
+      { id: 'y', from: '32598936015048@lid', fromMe: true, body: 'Ok', _data: { Info: { Chat: '32598936015048@lid', RecipientAlt: '919782048273@s.whatsapp.net' } } },
+      never,
+    )
+    expect(viaAlt.to).toBe('919782048273@c.us')
+    const viaLookup = await normalizeBridgeAddressing(
+      { id: 'z', from: '32598936015048@lid', fromMe: true, body: 'Ok' },
+      async () => '919782048273@c.us',
+    )
+    expect(viaLookup.to).toBe('919782048273@c.us')
+    expect(translateBridgeEcho(ENV, viaLookup)?.phone).toBe('+919782048273')
+  })
+
+  it('leaves phone-addressed payloads untouched and unresolvable lids skipped', async () => {
+    const same = await normalizeBridgeAddressing({ id: 'p', from: '911234567890@c.us', body: 'hi' }, never)
+    expect(same.from).toBe('911234567890@c.us')
+    const unknown = await normalizeBridgeAddressing({ id: 'q', from: '1@lid', body: 'hi' }, never)
+    expect(translateBridgeInbound(ENV, unknown)).toBeNull()
   })
 })
