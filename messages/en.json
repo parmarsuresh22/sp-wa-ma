@@ -2022,7 +2022,12 @@
         "cancel": "Cancel",
         "create": "Link",
         "creating": "Linking…",
-        "save": "Save"
+        "save": "Save",
+        "webhookMismatchTitle": "Bridge is posting to the wrong address",
+        "webhookMismatchDesc": "The bridge sends events to the URL below, but this deployment lives somewhere else, so inbound messages never arrive. Usually NEXT_PUBLIC_SITE_URL was wrong when the number was linked. Fix it here, then correct the variable so new numbers get the right address.",
+        "webhookCurrent": "Current",
+        "webhookExpected": "Expected",
+        "fixWebhook": "Fix webhook"
       },
       "readOnlyHint": "Only admins can change WhatsApp numbers."
     },

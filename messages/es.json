@@ -2022,7 +2022,12 @@
         "cancel": "Cancelar",
         "create": "Vincular",
         "creating": "Vinculando…",
-        "save": "Guardar"
+        "save": "Guardar",
+        "webhookMismatchTitle": "El puente envía a una dirección incorrecta",
+        "webhookMismatchDesc": "El puente envía los eventos a la URL de abajo, pero esta instalación está en otro sitio, así que los mensajes entrantes nunca llegan. Normalmente NEXT_PUBLIC_SITE_URL era incorrecta al vincular el número. Corrígelo aquí y luego ajusta la variable para que los nuevos números reciban la dirección correcta.",
+        "webhookCurrent": "Actual",
+        "webhookExpected": "Esperada",
+        "fixWebhook": "Corregir webhook"
       },
       "readOnlyHint": "Solo los administradores pueden cambiar los números de WhatsApp."
     },

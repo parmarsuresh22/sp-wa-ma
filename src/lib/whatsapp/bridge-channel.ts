@@ -178,6 +178,12 @@ export interface BridgeState {
   qr: string | null
   /** The same QR as a PNG data URL, straight into an <img>. */
   qrImage: string | null
+  /** Where the bridge currently posts events for this session. */
+  webhookUrl: string | null
+  /** Where it should post them (this deployment's bridge route). */
+  expectedWebhookUrl: string | null
+  /** False when the two differ — messages are going somewhere else. */
+  webhookOk: boolean | null
   error: string | null
 }
 
@@ -185,6 +191,8 @@ export interface BridgeState {
 export async function inspectBridgeChannel(
   db: SupabaseClient,
   channel: ChannelRow,
+  /** Public origin of this deployment; enables the webhook check. */
+  origin?: string | null,
 ): Promise<BridgeState> {
   if (channel.provider !== 'waha' || !channel.bridge_base_url || !channel.bridge_session) {
     throw new BridgeChannelError('Not a bridge channel', 400)
@@ -208,6 +216,9 @@ export async function inspectBridgeChannel(
         pushName: null,
         qr: null,
         qrImage: null,
+        webhookUrl: null,
+        expectedWebhookUrl: null,
+        webhookOk: null,
         error: 'Session not found on the bridge',
       }
     }
@@ -217,6 +228,9 @@ export async function inspectBridgeChannel(
       pushName: null,
       qr: null,
       qrImage: null,
+      webhookUrl: null,
+      expectedWebhookUrl: null,
+      webhookOk: null,
       error: err instanceof Error ? err.message : String(err),
     }
   }
@@ -231,22 +245,36 @@ export async function inspectBridgeChannel(
     qrImage = await client.getQrImage(channel.bridge_session).catch(() => null)
     if (!qrImage) qr = await client.getQrValue(channel.bridge_session).catch(() => null)
   }
+  // The bridge posts events wherever its session config says. A wrong
+  // NEXT_PUBLIC_SITE_URL at link time (or a moved deployment) leaves it
+  // pointing at a dead address and every message silently vanishes —
+  // so report the mismatch for the settings page to show and repair.
+  const webhookUrl = info.config?.webhooks?.find((w) => typeof w?.url === 'string')?.url ?? null
+  const expectedWebhookUrl = origin ? bridgeWebhookUrl(origin, channel.id) : null
+  const webhookOk =
+    expectedWebhookUrl && webhookUrl ? webhookUrl === expectedWebhookUrl : null
+
   return {
     status,
     phone: chatIdToPhone(info.me?.id ?? null) ?? channel.display_phone,
     pushName: info.me?.pushName ?? null,
     qr,
     qrImage,
+    webhookUrl,
+    expectedWebhookUrl,
+    webhookOk,
     error: null,
   }
 }
 
-export type BridgeAction = 'start' | 'stop' | 'restart' | 'logout'
+export type BridgeAction = 'start' | 'stop' | 'restart' | 'logout' | 'repair_webhook'
 
 export async function runBridgeAction(
   db: SupabaseClient,
   channel: ChannelRow,
   action: BridgeAction,
+  /** Public origin of this deployment; required for `repair_webhook`. */
+  origin?: string | null,
 ): Promise<void> {
   if (channel.provider !== 'waha' || !channel.bridge_base_url || !channel.bridge_session) {
     throw new BridgeChannelError('Not a bridge channel', 400)
@@ -263,6 +291,18 @@ export async function runBridgeAction(
     else if (action === 'logout') {
       await client.logoutSession(name)
       await client.startSession(name).catch(() => undefined)
+    } else if (action === 'repair_webhook') {
+      // Re-point the session at this deployment with the HMAC key we
+      // already hold. WAHA restarts the session (keeping its login).
+      if (!origin) throw new BridgeChannelError('Cannot determine the public URL of this deployment', 500)
+      if (!channel.bridge_webhook_secret) {
+        throw new BridgeChannelError('This channel has no webhook key; remove and link it again', 400)
+      }
+      await client.updateSessionWebhook(name, {
+        url: bridgeWebhookUrl(origin, channel.id),
+        events: [...BRIDGE_WEBHOOK_EVENTS],
+        hmacKey: decrypt(channel.bridge_webhook_secret),
+      })
     }
   } catch (err) {
     throw new BridgeChannelError(

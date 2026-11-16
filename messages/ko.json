@@ -2022,7 +2022,12 @@
         "cancel": "취소",
         "create": "연결",
         "creating": "연결 중…",
-        "save": "저장"
+        "save": "저장",
+        "webhookMismatchTitle": "브리지가 잘못된 주소로 전송 중",
+        "webhookMismatchDesc": "브리지가 아래 URL로 이벤트를 보내지만 이 배포는 다른 곳에 있어 수신 메시지가 도착하지 않습니다. 보통 번호를 연결할 때 NEXT_PUBLIC_SITE_URL이 잘못된 경우입니다. 여기서 고친 뒤 변수도 수정하여 새 번호가 올바른 주소를 받도록 하세요.",
+        "webhookCurrent": "현재",
+        "webhookExpected": "예상",
+        "fixWebhook": "웹훅 수정"
       },
       "readOnlyHint": "관리자만 WhatsApp 번호를 변경할 수 있습니다."
     },

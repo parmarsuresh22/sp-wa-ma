@@ -286,6 +286,9 @@ interface BridgeState {
   pushName: string | null;
   qr: string | null;
   qrImage: string | null;
+  webhookUrl?: string | null;
+  expectedWebhookUrl?: string | null;
+  webhookOk?: boolean | null;
   error: string | null;
 }
 
@@ -350,7 +353,7 @@ function BridgeChannelPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastStatus]);
 
-  const act = async (action: 'start' | 'restart' | 'logout' | 'stop') => {
+  const act = async (action: 'start' | 'restart' | 'logout' | 'stop' | 'repair_webhook') => {
     setBusy(action);
     try {
       const res = await fetch(`/api/whatsapp/channels/${channel.id}/bridge`, {
@@ -407,6 +410,36 @@ function BridgeChannelPanel({
                   : t('bridgeDisconnectedDesc')}
           </AlertDescription>
         </Alert>
+
+        {state?.webhookOk === false && (
+          <Alert className="bg-amber-950/40 border-amber-600/40">
+            <AlertTitle className="text-amber-200">{t('webhookMismatchTitle')}</AlertTitle>
+            <AlertDescription className="text-amber-100/80 text-xs leading-relaxed">
+              <p>{t('webhookMismatchDesc')}</p>
+              <p className="mt-1 break-all font-mono text-[11px]">
+                {t('webhookCurrent')}: {state.webhookUrl}
+              </p>
+              <p className="break-all font-mono text-[11px]">
+                {t('webhookExpected')}: {state.expectedWebhookUrl}
+              </p>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  disabled={!!busy}
+                  onClick={() => void act('repair_webhook')}
+                  className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {busy === 'repair_webhook' ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="size-4" />
+                  )}
+                  {t('fixWebhook')}
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {pairing && (
           <Card>

@@ -106,6 +106,7 @@ export interface WahaSessionInfo {
   status: string
   me?: { id?: string; pushName?: string } | null
   engine?: { engine?: string } | null
+  config?: { webhooks?: { url?: string; events?: string[] }[] | null } | null
 }
 
 export interface WahaWebhookConfig {

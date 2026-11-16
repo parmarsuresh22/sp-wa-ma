@@ -91,7 +91,12 @@ and configures that session's webhook itself (`message`, `message.any`,
 `message.ack`, `session.status`, signed with a per-channel HMAC key). You
 do not need to set `WHATSAPP_HOOK_URL` on the container. If you set
 `NEXT_PUBLIC_SITE_URL` on wacrm, that origin is used for the webhook URL;
-otherwise the request's forwarded host is.
+otherwise the request's forwarded host is. **Make sure that variable is
+your real address or unset** — a placeholder such as
+`https://crm.example.com` sends every inbound message into the void. The
+channel panel compares the bridge's webhook with the expected address on
+every status check and shows a "Bridge is posting to the wrong address"
+warning with a **Fix webhook** button when they differ.
 
 ## Security
 
