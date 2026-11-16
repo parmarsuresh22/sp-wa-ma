@@ -45,6 +45,8 @@ export default function NewBroadcastPage() {
   >({});
   const [headerMediaUrl, setHeaderMediaUrl] = useState('');
   const [name, setName] = useState('');
+  // "Send from" — null means the account's default Meta number.
+  const [channelId, setChannelId] = useState<string | null>(null);
 
   async function handleSend() {
     if (!template) return;
@@ -62,6 +64,7 @@ export default function NewBroadcastPage() {
         },
         variables,
         headerMediaUrl,
+        channelId,
       });
       if (interruption === 'lease_lost') toast.warning(t('toastSendTakenOver'));
       if (interruption === 'lease_error') toast.error(t('toastSendInterrupted'));
@@ -106,6 +109,7 @@ export default function NewBroadcastPage() {
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
       account_id: accountId,
+      channel_id: channelId,
       name: name.trim(),
       template_name: template.name,
       template_language: template.language ?? 'en_US',
@@ -223,6 +227,8 @@ export default function NewBroadcastPage() {
               onNameChange={setName}
               template={template}
               audience={audience}
+              channelId={channelId}
+              onChannelChange={setChannelId}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
               onBack={() => setCurrentStep(2)}

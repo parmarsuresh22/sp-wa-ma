@@ -18,7 +18,11 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { BroadcastError, type BroadcastPlan } from '@/lib/whatsapp/broadcast-core';
+import {
+  BroadcastError,
+  resolveBroadcastChannel,
+  type BroadcastPlan,
+} from '@/lib/whatsapp/broadcast-core';
 import { DELIVERY_LOCK_STALE_MS } from '@/lib/whatsapp/broadcast-delivery-lease';
 import { chunk } from '@/lib/supabase/paged-query';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -144,7 +148,7 @@ export async function planBroadcastResume(
 ): Promise<ResumePlan> {
   const { data: broadcast, error: bcError } = await db
     .from('broadcasts')
-    .select('id, template_name, template_language')
+    .select('id, template_name, template_language, channel_id')
     .eq('id', broadcastId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -225,17 +229,25 @@ export async function planBroadcastResume(
     );
   }
 
-  const { data: config, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .single();
-  if (configError || !config) {
-    throw new BroadcastError(
-      'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
+  // Resume from the number the campaign was started on; a campaign
+  // from before migration 061 (no channel_id) uses the default Meta
+  // channel. A deleted channel falls back the same way.
+  let config;
+  try {
+    config = await resolveBroadcastChannel(
+      db,
+      accountId,
+      (broadcast as { channel_id?: string | null }).channel_id ?? null
     );
+  } catch (err) {
+    if (
+      err instanceof BroadcastError &&
+      err.code === 'channel_not_found'
+    ) {
+      config = await resolveBroadcastChannel(db, accountId, null);
+    } else {
+      throw err;
+    }
   }
 
   const resolvedTemplate = await resolveTemplateRow(
@@ -254,9 +266,10 @@ export async function planBroadcastResume(
 
   const plan: BroadcastPlan = {
     broadcastId,
+    channelId: config.id,
     templateName: broadcast.template_name,
     templateLanguage: resolvedTemplate.language,
-    phoneNumberId: config.phone_number_id,
+    phoneNumberId: config.phone_number_id!,
     accessToken: decrypt(config.access_token),
     templateRow: resolvedTemplate.row,
     planned: slice.map((row) => ({

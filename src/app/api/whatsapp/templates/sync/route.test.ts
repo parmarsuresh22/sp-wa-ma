@@ -54,8 +54,14 @@ function makeSupabaseMock() {
       }
       return result()
     })
-    b.then = (resolve: (v: unknown) => unknown) =>
-      resolve(pendingUpdate || table !== 'message_templates' ? { data: null, error: null } : result())
+    b.then = (resolve: (v: unknown) => unknown) => {
+      // The channel list (whatsapp_config, migration 061) is awaited bare.
+      if (table === 'whatsapp_config' && !pendingUpdate) {
+        const r = result() as { data: Record<string, unknown> | null }
+        return resolve({ data: r.data ? [{ provider: 'meta', ...r.data }] : [], error: null })
+      }
+      return resolve(pendingUpdate || table !== 'message_templates' ? { data: null, error: null } : result())
+    }
     return b
   }
 
@@ -111,7 +117,7 @@ describe('POST /api/whatsapp/templates/sync', () => {
   it('updates an existing row without taking over its author', async () => {
     localTemplates = [{ id: 'local-1' }]
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/whatsapp/templates/sync', { method: 'POST' }))
     const body = await res.json()
 
     expect(body).toMatchObject({ success: true, updated: 1, inserted: 0 })
@@ -126,7 +132,7 @@ describe('POST /api/whatsapp/templates/sync', () => {
   })
 
   it('records the syncing admin as the author of a newly imported row', async () => {
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/whatsapp/templates/sync', { method: 'POST' }))
     const body = await res.json()
 
     expect(body).toMatchObject({ success: true, inserted: 1, updated: 0 })
@@ -140,7 +146,7 @@ describe('POST /api/whatsapp/templates/sync', () => {
   it('still syncs when the account holds duplicate rows for the same name and language', async () => {
     localTemplates = [{ id: 'newest' }, { id: 'older' }]
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/whatsapp/templates/sync', { method: 'POST' }))
     const body = await res.json()
 
     expect(body).toMatchObject({ success: true, updated: 1, errors: [] })

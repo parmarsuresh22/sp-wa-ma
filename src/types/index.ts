@@ -172,6 +172,8 @@ export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
+  /** The WhatsApp number (whatsapp_config row) this thread runs on. */
+  channel_id?: string | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
@@ -294,11 +296,32 @@ export interface MessageReaction {
   created_at: string;
 }
 
+export type WhatsAppChannelProvider = 'meta' | 'waha';
+
+/**
+ * One WhatsApp number ("channel") of an account — a `whatsapp_config`
+ * row. Since migration 061 an account may hold several: Meta Cloud API
+ * numbers (`provider: 'meta'`) and WhatsApp Web sessions on a self-run
+ * WAHA bridge (`provider: 'waha'`).
+ */
 export interface WhatsAppConfig {
   id: string;
   user_id: string;
-  phone_number_id: string;
-  waba_id?: string;
+  account_id?: string;
+  provider?: WhatsAppChannelProvider;
+  /** Free-text name shown in the inbox dropdown and channel list. */
+  label?: string | null;
+  /** Human-readable number, e.g. "+91 98765 43210". */
+  display_phone?: string | null;
+  /** The channel used when a send names none. Exactly one per account. */
+  is_default?: boolean;
+  /** Meta only; null for a bridge channel. */
+  phone_number_id: string | null;
+  waba_id?: string | null;
+  /** WAHA bridge channels (provider 'waha'). */
+  bridge_base_url?: string | null;
+  bridge_session?: string | null;
+  bridge_status?: string | null;
   access_token: string;
   verify_token?: string;
   status: 'connected' | 'disconnected';

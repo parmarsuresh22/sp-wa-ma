@@ -12,7 +12,7 @@ import { SendMessageError } from './send-message';
 type ContactRow = { id: string; phone: string; name?: string | null };
 
 interface Script {
-  config?: { user_id: string } | null; // whatsapp_config.maybeSingle
+  config?: { user_id: string } | null; // whatsapp_config channel row (null → none)
   contactCandidates?: ContactRow[];
   /** Per-call results — overrides contactCandidates. Lets a
    *  test simulate "miss, then hit" for the unique-race path. */
@@ -21,7 +21,7 @@ interface Script {
   insertContactError?: { code?: string } | null;
   /** Conversation lookup result (oldest-first `.order().limit(1)`).
    *  A single row or null; wrapped into a one-element array internally. */
-  existingConversation?: { id: string } | null; // conversations select.limit(1)
+  existingConversation?: { id: string; channel_id?: string | null } | null; // conversations select.limit(1)
   /** Per-call conversation lookup results — overrides existingConversation.
    *  Lets a test simulate "miss, then hit" for the unique-race path. */
   existingConversationByCall?: (({ id: string } | null))[];
@@ -48,6 +48,8 @@ function makeDb(script: Script): SupabaseClient {
       return builder;
     },
     eq: () => builder,
+    or: () => builder,
+    is: () => builder,
     order: () => builder,
     limit: () => {
       // Only the conversation lookup terminates on `.limit(1)`.
@@ -97,9 +99,18 @@ function makeDb(script: Script): SupabaseClient {
       }
       return Promise.resolve({ data: null, error: null });
     },
-    // Thenable: `await db.from().update().eq()` lands here.
-    then: (resolve: (v: { data: null; error: null }) => void) =>
-      resolve({ data: null, error: null }),
+    // Thenable: `await db.from().update().eq()` lands here, and so does
+    // the channel list (`whatsapp_config` select, migration 061).
+    then: (resolve: (v: { data: unknown; error: null }) => void) =>
+      resolve({
+        data:
+          table === 'whatsapp_config' && mode === 'select'
+            ? script.config
+              ? [{ id: 'cfg-1', provider: 'meta', ...script.config }]
+              : []
+            : null,
+        error: null,
+      }),
   };
 
   return {
@@ -168,6 +179,7 @@ describe('resolveConversationByPhone', () => {
     expect(res).toEqual({
       conversationId: 'cv1',
       contactId: 'c1',
+      channelId: 'cfg-1',
       contactCreated: false,
       conversationCreated: false,
     });
@@ -190,6 +202,7 @@ describe('resolveConversationByPhone', () => {
     expect(res).toEqual({
       conversationId: 'cv2',
       contactId: 'c2',
+      channelId: 'cfg-1',
       contactCreated: true,
       conversationCreated: true,
     });
@@ -200,7 +213,8 @@ describe('resolveConversationByPhone', () => {
     const db = makeDb({
       config: { user_id: 'owner-1' },
       contactCandidates: [{ id: 'c1', phone: '14155550123', name: 'Jane Doe' }],
-      existingConversation: { id: 'cv1' },
+      // Already on the channel, so no channel_id adoption write either.
+      existingConversation: { id: 'cv1', channel_id: 'cfg-1' },
       updatedTables,
     });
     const res = await resolveConversationByPhone(
@@ -224,6 +238,7 @@ describe('resolveConversationByPhone', () => {
     expect(res).toEqual({
       conversationId: 'cv-new',
       contactId: 'c1',
+      channelId: 'cfg-1',
       contactCreated: false,
       conversationCreated: true,
     });
@@ -261,6 +276,7 @@ describe('resolveConversationByPhone', () => {
     expect(res).toEqual({
       conversationId: 'cv-raced',
       contactId: 'c1',
+      channelId: 'cfg-1',
       contactCreated: false,
       conversationCreated: false,
     });

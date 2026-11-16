@@ -61,15 +61,16 @@ function makeDb(rpcResult: { data: unknown; error: unknown }) {
   const database = {
     from(table: string) {
       if (table === 'whatsapp_config') {
+        // Channel rows (migration 061): `select('*').eq('account_id')` awaited.
         return {
           select: () => ({
-            eq: () => ({
-              single: () =>
-                Promise.resolve({
-                  data: { phone_number_id: 'pn-1', access_token: 'enc' },
-                  error: null,
-                }),
-            }),
+            eq: () =>
+              Promise.resolve({
+                data: [
+                  { id: 'cfg-1', provider: 'meta', phone_number_id: 'pn-1', access_token: 'enc' },
+                ],
+                error: null,
+              }),
           }),
         };
       }
@@ -82,13 +83,19 @@ function makeDb(rpcResult: { data: unknown; error: unknown }) {
         return chain;
       }
       if (table === 'broadcasts' || table === 'broadcast_recipients') {
-        calls.usedDirectInsert++;
         return {
-          insert: () => ({
-            select: () => ({
-              single: () =>
-                Promise.resolve({ data: { id: 'orphan' }, error: null }),
-            }),
+          insert: () => {
+            calls.usedDirectInsert++;
+            return {
+              select: () => ({
+                single: () =>
+                  Promise.resolve({ data: { id: 'orphan' }, error: null }),
+              }),
+            };
+          },
+          // "send from" stamp after the atomic create (migration 061).
+          update: () => ({
+            eq: () => Promise.resolve({ data: null, error: null }),
           }),
         };
       }

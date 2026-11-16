@@ -7,11 +7,7 @@ import { buildSystemPrompt } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
-import {
-  engineSendText,
-  loadAccountMetaCredentials,
-} from '@/lib/flows/meta-send'
-import { sendTypingIndicator } from '@/lib/whatsapp/meta-api'
+import { engineSendText, loadConversationSender } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
 interface DispatchArgs {
@@ -119,7 +115,7 @@ export async function dispatchInboundToAiReply(
     // nothing to undo on the handoff / no-text path. Strictly
     // best-effort: a failed indicator must never cost us the reply.
     if (inboundMessageId) {
-      await showTypingIndicator(db, accountId, inboundMessageId)
+      await showTypingIndicator(db, accountId, conversationId, contactId, inboundMessageId)
     }
 
     // Ground the reply in the account's knowledge base (best-effort).
@@ -244,24 +240,34 @@ async function hasNewerInbound(
 
 /**
  * Best-effort "typing…" for the inbound we're about to answer. Swallows
- * every failure (no WhatsApp config, bad token, Meta 4xx) with a warning
- * — the indicator is cosmetic, the reply is not.
+ * every failure (no WhatsApp config, bad token, provider 4xx) with a
+ * warning — the indicator is cosmetic, the reply is not.
+ *
+ * Goes through the conversation's channel so a thread on a WhatsApp Web
+ * bridge shows the indicator too (the bridge wants the chat id, Meta
+ * wants the inbound wamid; the sender takes both).
  */
 async function showTypingIndicator(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
+  conversationId: string,
+  contactId: string,
   inboundMessageId: string,
 ): Promise<void> {
   try {
-    const { phoneNumberId, accessToken } = await loadAccountMetaCredentials(
-      db,
-      accountId,
-    )
-    await sendTypingIndicator({
-      phoneNumberId,
-      accessToken,
-      messageId: inboundMessageId,
-    })
+    const sender = await loadConversationSender(db, accountId, conversationId)
+    let to = ''
+    if (sender.provider !== 'meta') {
+      const { data: contact } = await db
+        .from('contacts')
+        .select('phone')
+        .eq('id', contactId)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      to = (contact as { phone?: string } | null)?.phone ?? ''
+      if (!to) return
+    }
+    await sender.markReadAndTyping({ to, inboundMessageId })
   } catch (err) {
     console.warn('[ai auto-reply] typing indicator failed (continuing):', err)
   }

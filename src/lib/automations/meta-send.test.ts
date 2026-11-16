@@ -15,6 +15,7 @@ vi.mock('./admin-client', () => ({
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
+        is: () => builder,
         update: () => builder,
         insert: (row: Record<string, unknown>) => {
           if (table === 'messages') state.insertedMessage = row
@@ -35,7 +36,13 @@ vi.mock('./admin-client', () => ({
         },
         then: (resolve: (r: { data: unknown; error: null }) => unknown) =>
           resolve({
-            data: table === 'message_templates' ? state.templateRows : null,
+            data:
+              table === 'message_templates'
+                ? state.templateRows
+                : table === 'whatsapp_config'
+                  ? // Channel rows (migration 061): the account's one Meta number.
+                    [{ id: 'cfg-1', provider: 'meta', phone_number_id: 'pn-1', access_token: 'token' }]
+                  : null,
             error: null,
           }),
       }

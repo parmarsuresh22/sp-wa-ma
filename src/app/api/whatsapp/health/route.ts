@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { getPhoneNumberHealth } from '@/lib/whatsapp/meta-api'
+import { loadChannel, loadDefaultChannel } from '@/lib/whatsapp/channels'
 import {
   parseMessagingLimit,
   parseQualityRating,
@@ -21,20 +22,40 @@ const EMPTY: Omit<PhoneHealth, 'state'> = {
   limit: null,
 }
 
-export async function GET() {
+/**
+ * GET /api/whatsapp/health?channel_id=<uuid>
+ *
+ * Health of one channel (default channel when `channel_id` is omitted).
+ * Meta numbers report Meta's quality rating and messaging tier; a
+ * WhatsApp Web bridge reports connected/disconnected from its session
+ * status with the number it is logged in as.
+ */
+export async function GET(request: Request) {
   try {
     const { supabase, accountId, userId } = await getCurrentAccount()
 
     const limit = checkRateLimit(`whatsapp-health:${userId}`, RATE_LIMITS.whatsappHealth)
     if (!limit.success) return rateLimitResponse(limit)
 
-    const { data: config } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token, status')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    const channelId = new URL(request.url).searchParams.get('channel_id')
+    const config = channelId
+      ? await loadChannel(supabase, accountId, channelId)
+      : await loadDefaultChannel(supabase, accountId)
 
-    if (!config || config.status !== 'connected' || !config.phone_number_id) {
+    if (!config || config.status !== 'connected') {
+      return reply({ state: 'disconnected', ...EMPTY })
+    }
+
+    if (config.provider === 'waha') {
+      return reply({
+        state: config.bridge_status === 'WORKING' ? 'connected' : 'disconnected',
+        displayPhoneNumber: config.display_phone ?? null,
+        quality: 'UNKNOWN',
+        limit: null,
+      })
+    }
+
+    if (!config.phone_number_id) {
       return reply({ state: 'disconnected', ...EMPTY })
     }
 

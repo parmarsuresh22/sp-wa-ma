@@ -188,6 +188,16 @@ function planDb(fx: PlanFixture, writes: PlanWrites = {}): SupabaseClient {
           if (table === 'message_templates') {
             return resolve({ data: fx.templates ?? [], error: null });
           }
+          if (table === 'whatsapp_config') {
+            // Channel rows (migration 061): one Meta number on the account.
+            return resolve({
+              data:
+                fx.config === undefined
+                  ? []
+                  : [{ id: 'cfg-1', provider: 'meta', ...fx.config }],
+              error: null,
+            });
+          }
           return resolve({ data: [], error: null });
         },
       };

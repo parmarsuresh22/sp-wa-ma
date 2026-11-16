@@ -348,7 +348,9 @@
       "clearAll": "모두 지우기",
       "noConversations": "대화를 찾을 수 없습니다",
       "noMessagesYet": "아직 메시지가 없습니다",
-      "unknown": "알 수 없음"
+      "unknown": "알 수 없음",
+      "allNumbers": "모든 번호",
+      "number": "번호"
     },
     "messageThread": {
       "backToConversations": "대화 목록으로 돌아가기",
@@ -1084,7 +1086,9 @@
         "estimatedReach": "예상 도달 수",
         "language": "언어",
         "confirmTitle": "브로드캐스트 확인",
-        "confirmDesc": "<b>{template}</b> 템플릿으로 연락처 <b>{count, number}</b>명에게 이 브로드캐스트를 보내려고 합니다. 이 작업은 되돌릴 수 없습니다."
+        "confirmDesc": "<b>{template}</b> 템플릿으로 연락처 <b>{count, number}</b>명에게 이 브로드캐스트를 보내려고 합니다. 이 작업은 되돌릴 수 없습니다.",
+        "sendFrom": "발신 번호",
+        "sendFromDefault": "기본"
       }
     },
     "sending": {
@@ -1955,7 +1959,72 @@
       "phoneNumberIdNotNumeric": "전화번호 ID는 숫자만 포함해야 합니다. 전화번호가 아닌, Meta → WhatsApp → API 설정에 표시된 숫자 ID를 복사하세요.",
       "wabaIdNotNumeric": "WhatsApp 비즈니스 계정 ID는 숫자만 포함해야 합니다. Meta → WhatsApp → API 설정에서 복사하세요.",
       "wabaSubscribed": "WhatsApp 비즈니스 계정이 이 앱에 구독되어 있어 수신 웹훅을 받을 수 있습니다.",
-      "wabaNotSubscribed": "WhatsApp 비즈니스 계정이 이 앱에 구독되어 있지 않아 Meta가 수신 웹훅을 전달하지 않습니다. 액세스 토큰을 다시 입력하고 저장해 구독하세요."
+      "wabaNotSubscribed": "WhatsApp 비즈니스 계정이 이 앱에 구독되어 있지 않아 Meta가 수신 웹훅을 전달하지 않습니다. 액세스 토큰을 다시 입력하고 저장해 구독하세요.",
+      "channels": {
+        "title": "WhatsApp 번호",
+        "description": "팀이 사용하는 모든 번호입니다. Meta Business API 번호를 추가하거나 자체 WAHA 브리지로 WhatsApp Web 세션을 연결하세요. 답장은 항상 고객이 보낸 번호에서 발송됩니다.",
+        "addMeta": "Business API 번호 추가",
+        "addBridge": "WhatsApp Web 연결",
+        "default": "기본 번호",
+        "providerMeta": "Business API",
+        "providerWaha": "WhatsApp Web",
+        "connected": "연결됨",
+        "disconnected": "연결 안 됨",
+        "actions": "채널 작업",
+        "rename": "이름 변경",
+        "renameDesc": "받은편지함 드롭다운과 각 대화에 표시되는 짧은 이름입니다.",
+        "setDefault": "기본으로 설정",
+        "remove": "번호 삭제",
+        "removeConfirm": "\"{name}\"을(를) 삭제할까요? 기존 대화는 기록을 유지하며 새 답장은 기본 번호로 발송됩니다.",
+        "removed": "번호가 삭제되었습니다",
+        "removeFailed": "번호를 삭제할 수 없습니다",
+        "updateFailed": "번호를 업데이트할 수 없습니다",
+        "defaultSet": "\"{name}\"이(가) 기본 번호가 되었습니다",
+        "newMetaTitle": "Business API 번호 추가 중",
+        "newMetaDesc": "아래에 새 번호의 자격 증명을 입력하세요. 같은 WABA의 번호는 템플릿을 공유하며, 다른 WABA의 번호는 별도 템플릿 동기화가 필요합니다.",
+        "bridgeConnected": "WhatsApp Web 연결됨",
+        "bridgePairing": "QR 스캔 대기 중",
+        "bridgeDisconnected": "연결되지 않음",
+        "bridgeConnectedDesc": "{phone} {name}으로 로그인됨. 이 번호로 온 메시지는 받은편지함에 도착하고 답장은 브리지를 통해 발송됩니다.",
+        "bridgePairingDesc": "휴대폰에서 WhatsApp을 열고 아래 코드를 스캔하세요. 코드는 20초마다 바뀌며 이 페이지가 자동으로 갱신합니다.",
+        "bridgeDisconnectedDesc": "브리지 세션이 실행 중이 아닙니다. 시작하면 QR 코드가 표시됩니다.",
+        "scanTitle": "스캔하여 연결",
+        "scanDesc": "브라우저의 WhatsApp Web과 같은 방식입니다.",
+        "qrRawHint": "브리지가 이미지를 반환하지 않았습니다. 이 값을 QR 생성기에 붙여 넣고 결과를 스캔하세요.",
+        "scanStep1": "휴대폰에서 WhatsApp → 설정 → 연결된 기기를 엽니다.",
+        "scanStep2": "\"기기 연결\"을 누르고 이 코드를 스캔합니다.",
+        "scanStep3": "휴대폰을 온라인 상태로 유지하세요. WhatsApp Web 세션에 필요합니다.",
+        "sessionTitle": "세션",
+        "sessionDesc": "브리지의 WhatsApp Web 세션 제어.",
+        "start": "시작",
+        "restart": "재시작",
+        "relink": "연결 해제 후 다시 페어링",
+        "relinkConfirm": "이 세션에서 휴대폰을 로그아웃할까요? 새 QR 코드를 스캔해야 합니다.",
+        "actionFailed": "브리지가 작업을 거부했습니다",
+        "actionDone": "완료 — 세션을 업데이트하는 중",
+        "bridgeDetailsTitle": "브리지",
+        "bridgeUrl": "브리지 URL",
+        "sessionName": "세션 이름",
+        "linkedNumber": "연결된 번호",
+        "bridgeLimitsTitle": "제한 사항",
+        "bridgeLimitsDesc": "WhatsApp Web 채널은 비공식입니다. 템플릿과 대량 발송을 사용할 수 없고, 버튼은 번호가 매겨진 텍스트로 전송되며, 대량 발송 시 WhatsApp이 번호를 정지할 수 있습니다. 마케팅이 아닌 대화형 지원에 사용하세요.",
+        "addBridgeTitle": "WhatsApp Web 번호 연결",
+        "addBridgeDesc": "wacrm은 직접 호스팅하는 WAHA 브리지(Docker: devlikeapro/waha)와 통신합니다. 실행 위치와 API 키를 입력하면 세션이 생성되고 QR 코드가 표시됩니다.",
+        "labelField": "이름",
+        "labelPlaceholder": "예: 영업 라인",
+        "bridgeUrlHint": "WAHA 컨테이너의 공개 https URL (끝에 경로 없음).",
+        "bridgeApiKey": "브리지 API 키",
+        "optional": "(선택)",
+        "sessionNameHint": "비워 두면 새 세션을 만듭니다. 기존 세션 이름을 입력하면 해당 세션을 연결하고 웹훅을 wacrm으로 변경합니다.",
+        "bridgeFieldsRequired": "브리지 URL과 API 키는 필수입니다",
+        "createFailed": "브리지를 연결할 수 없습니다",
+        "created": "브리지 연결됨 — QR 코드를 스캔하여 완료하세요",
+        "cancel": "취소",
+        "create": "연결",
+        "creating": "연결 중…",
+        "save": "저장"
+      },
+      "readOnlyHint": "관리자만 WhatsApp 번호를 변경할 수 있습니다."
     },
     "sections": {
       "overview": "개요",
@@ -2560,7 +2629,8 @@
       "notConfigured": "이 계정에 WhatsApp이 설정되어 있지 않습니다",
       "dbInsertFailed": "Meta로 전송되었지만 DB 저장에 실패했습니다: {message}",
       "conversationLookupFailed": "대화 조회에 실패했습니다: {message}",
-      "conversationNotFound": "이 계정에서 대화를 찾을 수 없습니다"
+      "conversationNotFound": "이 계정에서 대화를 찾을 수 없습니다",
+      "templatesUnsupportedOnChannel": "WhatsApp Web 채널에서는 메시지 템플릿을 사용할 수 없습니다"
     },
     "engine": {
       "needsContact": "{step}에는 연락처가 필요합니다",
@@ -2887,7 +2957,8 @@
       "phoneCheckFailed": "전화번호 메타데이터 확인 실패: {message}",
       "wabaNoApps": "WABA에 구독된 앱이 없습니다. 설정을 다시 저장해 구독하세요.",
       "wabaCheckFailed": "WABA 구독 확인 실패: {message}",
-      "noWabaId": "등록된 WABA ID가 없습니다 — WABA ID 없이는 웹훅을 연결할 수 없습니다. 양식에 추가한 후 다시 저장하세요."
+      "noWabaId": "등록된 WABA ID가 없습니다 — WABA ID 없이는 웹훅을 연결할 수 없습니다. 양식에 추가한 후 다시 저장하세요.",
+      "channelNotFound": "이 계정에 해당 channel_id의 WhatsApp 번호가 없습니다"
     },
     "media": {
       "idRequired": "미디어 ID는 필수입니다",
@@ -2906,7 +2977,8 @@
     "send": {
       "idsRequired": "conversation_id 또는 contact_id와 message_type이 필요합니다",
       "contactNotFound": "연락처를 찾을 수 없습니다",
-      "openConversationFailed": "이 연락처와 대화를 열지 못했습니다"
+      "openConversationFailed": "이 연락처와 대화를 열지 못했습니다",
+      "channelNotFound": "이 계정에 해당 channel_id의 WhatsApp 번호가 없습니다"
     },
     "templates": {
       "invalidId": "잘못된 템플릿 ID입니다.",

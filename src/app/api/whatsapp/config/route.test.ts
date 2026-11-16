@@ -56,7 +56,18 @@ function makeSupabaseMock() {
     })
     b.single = vi.fn(async () => result())
     b.maybeSingle = vi.fn(async () => result())
-    b.then = (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null })
+    // The channel list (whatsapp_config, migration 061) is awaited bare.
+    b.then = (resolve: (v: unknown) => unknown) =>
+      resolve(
+        table === 'whatsapp_config'
+          ? {
+              data: storedConfig
+                ? [{ provider: 'meta', account_id: 'acct-1', is_default: true, ...storedConfig }]
+                : [],
+              error: null,
+            }
+          : { data: null, error: null },
+      )
     return b
   }
 
@@ -199,7 +210,7 @@ describe('POST /api/whatsapp/config registration state', () => {
     })
     meta.listWabaPhoneNumbers.mockResolvedValueOnce([{ id: '999888777' }])
 
-    const res = await saveConfig({ phone_number_id: '999888777', pin: undefined })
+    const res = await saveConfig({ phone_number_id: '999888777', pin: undefined, channel_id: 'cfg-1' })
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -235,7 +246,7 @@ describe('DELETE /api/whatsapp/config', () => {
     callerRole = role
     storedConfig = STORED_CONFIG
 
-    const res = await DELETE()
+    const res = await DELETE(new Request('http://localhost/api/whatsapp/config', { method: 'DELETE' }))
 
     expect(res.status).toBe(403)
     expect(configDeletes).toBe(0)
@@ -244,7 +255,7 @@ describe('DELETE /api/whatsapp/config', () => {
   it('lets an admin reset the configuration', async () => {
     storedConfig = STORED_CONFIG
 
-    const res = await DELETE()
+    const res = await DELETE(new Request('http://localhost/api/whatsapp/config', { method: 'DELETE' }))
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ success: true })
@@ -257,7 +268,7 @@ describe('GET /api/whatsapp/config', () => {
     callerRole = 'viewer'
     storedConfig = STORED_CONFIG
 
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/whatsapp/config'))
     const body = await res.json()
 
     expect(res.status).toBe(200)

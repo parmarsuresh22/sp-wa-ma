@@ -207,13 +207,16 @@ function InboxPageInner() {
         return;
       }
 
+      // Several numbers per account (migration 061): connected when
+      // any one of them is.
       const { data } = await supabase
         .from("whatsapp_config")
-        .select("status")
+        .select("id")
         .eq("account_id", accountId)
-        .maybeSingle();
+        .eq("status", "connected")
+        .limit(1);
 
-      setWhatsappConnected(data?.status === "connected");
+      setWhatsappConnected(Array.isArray(data) && data.length > 0);
     };
 
     checkConnection();

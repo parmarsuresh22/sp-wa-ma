@@ -6,6 +6,7 @@ import {
   toErrorResponse,
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { loadChannel, loadDefaultMetaChannel } from '@/lib/whatsapp/channels'
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
 import type { TemplateButton, TemplateSampleValues } from '@/types'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
@@ -131,7 +132,7 @@ function extractSampleValues(
   return sv
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     // Syncing rewrites the account-wide template catalog, which is
     // settings-class data: `canEditSettings` and the message_templates
@@ -142,13 +143,14 @@ export async function POST() {
     const limit = checkRateLimit(`whatsapp-admin:${userId}`, RATE_LIMITS.whatsappAdmin)
     if (!limit.success) return rateLimitResponse(limit)
 
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', accountId)
-      .single()
+    // Templates live on a WABA, so the account's default Meta channel
+    // owns them. `?channel_id=` picks another Meta number explicitly.
+    const channelId = new URL(request.url).searchParams.get('channel_id')
+    const config = channelId
+      ? await loadChannel(supabase, accountId, channelId)
+      : await loadDefaultMetaChannel(supabase, accountId)
 
-    if (configError || !config) {
+    if (!config || config.provider !== 'meta') {
       return NextResponse.json(
         {
           error:

@@ -15,14 +15,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useChannels, channelLabel } from '@/hooks/use-channels';
 
 interface Step4Props {
   name: string;
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
+  /** "Send from" — null = the account's default Meta number. */
+  channelId?: string | null;
+  onChannelChange?: (channelId: string | null) => void;
   onSend: () => void;
   onSaveDraft?: () => void;
   onBack: () => void;
@@ -35,6 +46,8 @@ export function Step4ScheduleSend({
   onNameChange,
   template,
   audience,
+  channelId = null,
+  onChannelChange,
   onSend,
   onSaveDraft,
   onBack,
@@ -42,6 +55,12 @@ export function Step4ScheduleSend({
   progress,
 }: Step4Props) {
   const t = useTranslations('Broadcasts.wizard');
+  // Broadcasts are template sends, so only Meta numbers qualify; a
+  // WhatsApp Web bridge channel is never offered here.
+  const { channels } = useChannels();
+  const metaChannels = (channels ?? []).filter((c) => c.provider !== 'waha');
+  const defaultMeta = metaChannels.find((c) => c.is_default) ?? metaChannels[0] ?? null;
+  const selectedChannel = channelId ? metaChannels.find((c) => c.id === channelId) ?? null : defaultMeta;
   const [showConfirm, setShowConfirm] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
@@ -89,6 +108,31 @@ export function Step4ScheduleSend({
           className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
         />
       </div>
+
+      {/* Send from — only when the account has more than one Meta number */}
+      {metaChannels.length > 1 && (
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
+            {t('scheduleSend.sendFrom')}
+          </label>
+          <Select
+            value={selectedChannel?.id ?? ''}
+            onValueChange={(v) => onChannelChange?.(v && v !== defaultMeta?.id ? String(v) : null)}
+          >
+            <SelectTrigger className="w-full sm:w-80">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {metaChannels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {channelLabel(c)}
+                  {c.is_default ? ` · ${t('scheduleSend.sendFromDefault')}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Summary Card */}
       <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">

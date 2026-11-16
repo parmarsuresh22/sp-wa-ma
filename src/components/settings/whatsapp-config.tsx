@@ -60,8 +60,23 @@ type WabaSubscription = {
   error?: string;
 };
 
-export function WhatsAppConfig() {
+export interface WhatsAppConfigProps {
+  /**
+   * Which Meta channel this form edits (migration 061):
+   *   - a channel id → that channel,
+   *   - `null`       → a blank form that creates a new Meta number,
+   *   - omitted      → the account's default Meta channel (legacy).
+   */
+  channelId?: string | null;
+  /** Rendered inside the channel list — no panel heading of its own. */
+  embedded?: boolean;
+  /** Fired after a save / reset so the channel list can refresh. */
+  onChanged?: (channelId: string | null) => void;
+}
+
+export function WhatsAppConfig({ channelId, embedded = false, onChanged }: WhatsAppConfigProps = {}) {
   const t = useTranslations('Settings.whatsapp');
+  const creating = channelId === null;
   const supabase = createClient();
   // After multi-user, whatsapp_config is one-row-per-account, not
   // one-row-per-user. We pull `accountId` straight off the auth
@@ -149,14 +164,23 @@ export function WhatsAppConfig() {
       // account sees the same saved configuration. UNIQUE(account_id)
       // on the table guarantees the .maybeSingle() return type
       // remains accurate.
-      const { data, error } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', acctId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Failed to load config row:', error);
+      // Several channels per account since migration 061: load the one
+      // this form edits, or none when creating a new Meta number.
+      let data: WhatsAppConfigType | null = null;
+      if (!creating) {
+        let query = supabase
+          .from('whatsapp_config')
+          .select('*')
+          .eq('account_id', acctId)
+          .eq('provider', 'meta');
+        query = channelId
+          ? query.eq('id', channelId)
+          : query.order('is_default', { ascending: false }).order('created_at', { ascending: true });
+        const { data: rows, error } = await query.limit(1);
+        if (error) {
+          console.error('Failed to load config row:', error);
+        }
+        data = ((rows ?? [])[0] as WhatsAppConfigType | undefined) ?? null;
       }
 
       if (data) {
@@ -191,7 +215,9 @@ export function WhatsAppConfig() {
       // Then verify health via the API (decrypts token + pings Meta)
       if (data) {
         try {
-          const res = await fetch('/api/whatsapp/config', { method: 'GET' });
+          const res = await fetch(`/api/whatsapp/config?channel_id=${encodeURIComponent(data.id)}`, {
+            method: 'GET',
+          });
           const payload = await res.json();
 
           if (payload.connected) {
@@ -224,7 +250,7 @@ export function WhatsAppConfig() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, t]);
+  }, [supabase, t, channelId, creating]);
 
   useEffect(() => {
     // Need both the auth session (`!authLoading`) AND the profile
@@ -238,10 +264,12 @@ export function WhatsAppConfig() {
       setLoading(false);
       return;
     }
-    if (loadedAccountIdRef.current === accountId) return;
-    loadedAccountIdRef.current = accountId;
+    // Keyed on the channel too, so switching channels in the list reloads.
+    const key = `${accountId}:${channelId ?? (creating ? 'new' : 'default')}`;
+    if (loadedAccountIdRef.current === key) return;
+    loadedAccountIdRef.current = key;
     fetchConfig(accountId);
-  }, [authLoading, profileLoading, user?.id, accountId, fetchConfig]);
+  }, [authLoading, profileLoading, user?.id, accountId, channelId, creating, fetchConfig]);
 
   async function handleToggleMirrorMedia(next: boolean) {
     if (!config || !accountId || savingMirror) return;
@@ -254,6 +282,7 @@ export function WhatsAppConfig() {
       const { error } = await supabase
         .from('whatsapp_config')
         .update({ mirror_inbound_media: next })
+        .eq('id', config.id)
         .eq('account_id', accountId);
       if (error) throw new Error(error.message);
       setConfig({ ...config, mirror_inbound_media: next });
@@ -306,6 +335,8 @@ export function WhatsAppConfig() {
         // requires it on first save or when changing numbers; for a
         // simple token rotation, leaving it blank skips re-register.
         pin: pin.trim() || null,
+        // Which channel this save edits; null creates a new one (061).
+        channel_id: config?.id ?? null,
       };
 
       if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
@@ -379,7 +410,12 @@ export function WhatsAppConfig() {
         setPin('');
       }
 
-      if (accountId) await fetchConfig(accountId);
+      const savedId: string | null =
+        (typeof data.channel_id === 'string' ? data.channel_id : null) ?? config?.id ?? null;
+      onChanged?.(savedId);
+      // A freshly created channel is re-mounted by the list under its
+      // id; an existing one just reloads in place.
+      if (!creating && accountId) await fetchConfig(accountId);
     } catch (err) {
       console.error('Save error:', err);
       toast.error(t('saveFailed'));
@@ -391,7 +427,10 @@ export function WhatsAppConfig() {
   async function handleTestConnection() {
     try {
       setTesting(true);
-      const res = await fetch('/api/whatsapp/config', { method: 'GET' });
+      const res = await fetch(
+        config ? `/api/whatsapp/config?channel_id=${encodeURIComponent(config.id)}` : '/api/whatsapp/config',
+        { method: 'GET' },
+      );
       const payload = await res.json();
 
       if (payload.connected) {
@@ -426,9 +465,12 @@ export function WhatsAppConfig() {
     setVerifyingRegistration(true);
     setRegistrationProbe(null);
     try {
-      const res = await fetch('/api/whatsapp/config/verify-registration', {
-        method: 'GET',
-      });
+      const res = await fetch(
+        config
+          ? `/api/whatsapp/config/verify-registration?channel_id=${encodeURIComponent(config.id)}`
+          : '/api/whatsapp/config/verify-registration',
+        { method: 'GET' },
+      );
       const data = (await res.json()) as RegistrationProbe;
       setRegistrationProbe(data);
       if (data.live) {
@@ -455,7 +497,10 @@ export function WhatsAppConfig() {
 
     try {
       setResetting(true);
-      const res = await fetch('/api/whatsapp/config', { method: 'DELETE' });
+      const res = await fetch(
+        config ? `/api/whatsapp/config?channel_id=${encodeURIComponent(config.id)}` : '/api/whatsapp/config',
+        { method: 'DELETE' },
+      );
       const data = await res.json();
 
       if (!res.ok) {
@@ -464,6 +509,7 @@ export function WhatsAppConfig() {
       }
 
       toast.success(t('resetDone'));
+      onChanged?.(null);
       setConfig(null);
       setPhoneNumberId('');
       setWabaId('');
@@ -493,10 +539,12 @@ export function WhatsAppConfig() {
   if (loading) {
     return (
       <section className="animate-in fade-in-50 duration-200">
-        <SettingsPanelHead
-          title={t("title")}
-          description={t("description")}
-        />
+        {!embedded && (
+          <SettingsPanelHead
+            title={t("title")}
+            description={t("description")}
+          />
+        )}
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-primary" />
         </div>
@@ -541,10 +589,12 @@ export function WhatsAppConfig() {
 
   return (
     <section className="animate-in fade-in-50 duration-200">
-      <SettingsPanelHead
-        title={t("title")}
-        description={t("description")}
-      />
+      {!embedded && (
+        <SettingsPanelHead
+          title={t("title")}
+          description={t("description")}
+        />
+      )}
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
       {/* Main config form */}
       <div className="space-y-6">

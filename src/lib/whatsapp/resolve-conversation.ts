@@ -24,10 +24,13 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
 import { parseInternationalPhone } from '@/lib/whatsapp/phone-utils';
 import { SendMessageError } from '@/lib/whatsapp/send-message';
 import { resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts';
+import { resolveSendChannel } from '@/lib/whatsapp/channels';
 
 export interface ResolvedConversation {
   conversationId: string;
   contactId: string;
+  /** The channel (whatsapp_config row) the conversation runs on. */
+  channelId: string;
   /** True if this call created the contact (vs matched an existing one). */
   contactCreated: boolean;
   conversationCreated: boolean;
@@ -35,15 +38,17 @@ export interface ResolvedConversation {
 
 /**
  * Find or create the contact + conversation for `phone` within
- * `accountId`. Throws `SendMessageError` (shared with the send core,
- * so the route maps one error family) on a bad phone, a missing
- * WhatsApp config, or a DB failure.
+ * `accountId`, on `channelId` (or the account's default channel).
+ * Throws `SendMessageError` (shared with the send core, so the route
+ * maps one error family) on a bad phone, a missing WhatsApp config, an
+ * unknown channel, or a DB failure.
  */
 export async function resolveConversationByPhone(
   db: SupabaseClient,
   accountId: string,
   phone: string,
-  name?: string | null
+  name?: string | null,
+  channelId?: string | null
 ): Promise<ResolvedConversation> {
   // Raw integrator input: the leading `+` is required so the country
   // code is explicit — "4155551212" would otherwise be delivered to
@@ -58,17 +63,16 @@ export async function resolveConversationByPhone(
   }
 
   // Fail fast (and create nothing) when the account has no WhatsApp
-  // connected — the same error the send would raise anyway.
-  const { data: config } = await db
-    .from('whatsapp_config')
-    .select('id')
-    .eq('account_id', accountId)
-    .maybeSingle();
-  if (!config) {
+  // connected, or names a channel it does not own — the same errors
+  // the send would raise anyway.
+  const channel = await resolveSendChannel(db, accountId, { channelId });
+  if (!channel) {
     throw new SendMessageError(
-      'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
+      channelId ? 'channel_not_found' : 'whatsapp_not_configured',
+      channelId
+        ? 'channel_id does not name a WhatsApp number on this account'
+        : 'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      channelId ? 404 : 400
     );
   }
 
@@ -135,21 +139,24 @@ export async function resolveConversationByPhone(
   }
 
   // ---- conversation -------------------------------------------
-  // One conversation per (account, contact) — same convention as the
-  // webhook. Order oldest-first and take one row rather than
+  // One conversation per (account, contact, channel) — same convention
+  // as the webhook. Order oldest-first and take one row rather than
   // `.maybeSingle()`, which errors on ≥2 rows: if duplicates predate the
-  // unique index (migration 036), we resolve to the canonical survivor
-  // instead of falling through and creating yet another (issue #363).
+  // unique index (migration 036/061), we resolve to the canonical
+  // survivor instead of falling through and creating yet another
+  // (issue #363).
   const conversation = await findOrCreateConversationRow(
     db,
     accountId,
     contactId,
-    ownerUserId
+    ownerUserId,
+    channel.id
   );
 
   return {
     conversationId: conversation.id,
     contactId,
+    channelId: channel.id,
     contactCreated,
     conversationCreated: conversation.created,
   };
@@ -157,31 +164,49 @@ export async function resolveConversationByPhone(
 
 /**
  * Find (oldest-first) or create the single conversation for
- * `(accountId, contactId)`. Handles the unique-index race the same way
- * the inbound webhook does: on a 23505 from a concurrent create,
- * re-resolve the winning row rather than failing the send.
+ * `(accountId, contactId, channelId)`. Handles the unique-index race
+ * the same way the inbound webhook does: on a 23505 from a concurrent
+ * create, re-resolve the winning row rather than failing the send.
+ *
+ * A thread created before migration 061 has `channel_id IS NULL`; it
+ * is adopted (and stamped) rather than duplicated when the account's
+ * channel is looked up, so existing inboxes do not fork on upgrade.
  */
-async function findOrCreateConversationRow(
+export async function findOrCreateConversationRow(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-  ownerUserId: string
+  ownerUserId: string,
+  channelId: string
 ): Promise<{ id: string; created: boolean }> {
-  const { data: existing, error: findErr } = await db
-    .from('conversations')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .order('created_at', { ascending: true })
-    .limit(1);
+  const lookup = async () => {
+    const { data, error } = await db
+      .from('conversations')
+      .select('id, channel_id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .or(`channel_id.eq.${channelId},channel_id.is.null`)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    if (error) {
+      console.error('[resolve-conversation] conversation lookup error:', error);
+      throw new SendMessageError('db_error', 'Failed to resolve conversation', 500);
+    }
+    type Row = { id: string; channel_id?: string | null };
+    const rows: Row[] = Array.isArray(data) ? (data as Row[]) : data ? [data as Row] : [];
+    return rows[0] ?? null;
+  };
 
-  if (findErr) {
-    console.error('[resolve-conversation] conversation lookup error:', findErr);
-    throw new SendMessageError('db_error', 'Failed to resolve conversation', 500);
-  }
-
-  if (existing && existing.length > 0) {
-    return { id: existing[0].id, created: false };
+  const existing = await lookup();
+  if (existing) {
+    if (!existing.channel_id) {
+      await db
+        .from('conversations')
+        .update({ channel_id: channelId })
+        .eq('id', existing.id)
+        .is('channel_id', null);
+    }
+    return { id: existing.id, created: false };
   }
 
   const { data: newConv, error: convErr } = await db
@@ -190,22 +215,15 @@ async function findOrCreateConversationRow(
       account_id: accountId,
       user_id: ownerUserId,
       contact_id: contactId,
+      channel_id: channelId,
     })
     .select('id')
     .single();
 
   if (convErr || !newConv) {
     if (isUniqueViolation(convErr)) {
-      const { data: raced } = await db
-        .from('conversations')
-        .select('id')
-        .eq('account_id', accountId)
-        .eq('contact_id', contactId)
-        .order('created_at', { ascending: true })
-        .limit(1);
-      if (raced && raced.length > 0) {
-        return { id: raced[0].id, created: false };
-      }
+      const raced = await lookup();
+      if (raced) return { id: raced.id, created: false };
     }
     console.error('[resolve-conversation] conversation create error:', convErr);
     throw new SendMessageError('db_error', 'Failed to create conversation', 500);

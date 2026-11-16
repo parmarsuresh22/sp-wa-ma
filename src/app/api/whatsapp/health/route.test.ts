@@ -18,6 +18,12 @@ vi.mock('@/lib/auth/account', async () => {
           b.select = () => b
           b.eq = () => b
           b.maybeSingle = async () => ({ data: storedConfig, error: null })
+          // Channel list (whatsapp_config, migration 061) awaited bare.
+          b.then = (resolve: (v: unknown) => unknown) =>
+            resolve({
+              data: storedConfig ? [{ id: 'cfg-1', provider: 'meta', ...storedConfig }] : [],
+              error: null,
+            })
           return b
         },
       },
@@ -39,7 +45,7 @@ beforeEach(() => {
 
 describe('GET /api/whatsapp/health', () => {
   it('reports disconnected without calling Meta when no number is connected', async () => {
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/whatsapp/health'))
     expect(await res.json()).toMatchObject({ state: 'disconnected', quality: 'UNKNOWN', limit: null })
     expect(getPhoneNumberHealth).not.toHaveBeenCalled()
   })
@@ -52,7 +58,7 @@ describe('GET /api/whatsapp/health', () => {
       quality_rating: 'GREEN',
       whatsapp_business_manager_messaging_limit: 'TIER_2K',
     })
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/whatsapp/health'))
     expect(getPhoneNumberHealth).toHaveBeenCalledWith({ phoneNumberId: 'pn-1', accessToken: 'plain:enc' })
     expect(res.headers.get('Cache-Control')).toBe('private, max-age=300')
     expect(await res.json()).toEqual({
@@ -67,7 +73,7 @@ describe('GET /api/whatsapp/health', () => {
     storedConfig = { phone_number_id: 'pn-1', access_token: 'enc', status: 'connected' }
     getPhoneNumberHealth.mockRejectedValue(new Error('expired token'))
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/whatsapp/health'))
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ state: 'unavailable' })
   })

@@ -25,7 +25,10 @@ clone or fork it to run your own CRM.
 
 - **Shared inbox** on the official WhatsApp Business API — multiple
   agents working one number, per-conversation assignment, status, and
-  notes.
+  notes. **Several numbers per account**: add more Business API numbers
+  or link a WhatsApp Web session via a self-hosted WAHA bridge (QR
+  scan); every thread is badged with its number and replies always go
+  out from it. See [docs/channels.md](./docs/channels.md).
 - **Contacts + tags + custom fields**, CSV import, deduplication.
 - **Sales pipelines** (Kanban) with deals linked to conversations.
 - **Broadcasts** with Meta-approved templates, delivery + read
@@ -161,6 +164,9 @@ Key pages:
 - [WhatsApp connection troubleshooting](./docs/whatsapp-connection-troubleshooting.md)
   — what each "Save Configuration" error means, and the Meta code /
   trace id to quote to Meta support
+- [Several WhatsApp numbers per account](./docs/channels.md) — Meta
+  numbers and WhatsApp Web (WAHA bridge) channels side by side, how
+  threads and defaults work, how to run the bridge
 - [Several WABAs on one deployment](./docs/multi-waba.md) — one Meta
   App or several; how `META_APP_SECRET` takes a comma-separated list
 - [Auth emails](./docs/auth-emails.md) — what Supabase must allow so

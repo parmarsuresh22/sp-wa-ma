@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { loadChannel, loadDefaultMetaChannel } from '@/lib/whatsapp/channels'
 import {
   getSubscribedApps,
   verifyPhoneNumber,
@@ -32,7 +33,7 @@ const t = getT('Api')
  * rather than a generic error toast. The combined `live` flag is
  * what the UI badges on.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -62,13 +63,14 @@ export async function GET() {
     })
   }
 
-  const { data: config } = await supabase
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .maybeSingle()
+  // `?channel_id=` picks one of the account's Meta numbers; the default
+  // Meta channel otherwise. Bridge channels have no Meta registration.
+  const channelId = new URL(request.url).searchParams.get('channel_id')
+  const config = channelId
+    ? await loadChannel(supabase, accountId, channelId)
+    : await loadDefaultMetaChannel(supabase, accountId)
 
-  if (!config) {
+  if (!config || config.provider !== 'meta' || !config.phone_number_id) {
     return NextResponse.json({
       live: false,
       checks: { config_exists: false },

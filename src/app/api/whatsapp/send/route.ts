@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import {
   checkRateLimit,
@@ -11,7 +10,8 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
-import { isUniqueViolation } from '@/lib/contacts/dedupe'
+import { findOrCreateConversationRow } from '@/lib/whatsapp/resolve-conversation'
+import { resolveSendChannel } from '@/lib/whatsapp/channels'
 import { getT } from '@/lib/i18n/translate'
 
 const t = getT('Api')
@@ -62,7 +62,12 @@ export async function POST(request: Request) {
       template_message_params,
       interactive_payload,
       reply_to_message_id,
+      // Optional: which of the account's WhatsApp numbers to send from.
+      // Defaults to the conversation's own channel, then the account
+      // default (see @/lib/whatsapp/channels).
+      channel_id,
     } = body
+    const channelId = typeof channel_id === 'string' && channel_id ? channel_id : null
 
     if ((!conversationIdInput && !contact_id) || !message_type) {
       return NextResponse.json(
@@ -130,19 +135,36 @@ export async function POST(request: Request) {
         )
       }
 
-      const resolved = await findOrCreateConversation(
-        supabase,
-        accountId,
-        userId,
-        contact_id
-      )
-      if (!resolved) {
+      // The new thread lives on the requested channel, else the account
+      // default — a contact-detail "send template" from an account with
+      // two numbers must not land on a random one.
+      const channel = await resolveSendChannel(supabase, accountId, { channelId })
+      if (!channel) {
+        return NextResponse.json(
+          { error: channelId ? t('send.channelNotFound') : t('common.whatsappNotConfiguredDot') },
+          { status: channelId ? 404 : 400 }
+        )
+      }
+
+      try {
+        const resolved = await findOrCreateConversationRow(
+          supabase,
+          accountId,
+          contact_id,
+          userId,
+          channel.id
+        )
+        conversationId = resolved.id
+      } catch (err) {
+        console.error(
+          'Error creating conversation for contact send:',
+          err instanceof Error ? err.message : err
+        )
         return NextResponse.json(
           { error: t('send.openConversationFailed') },
           { status: 500 }
         )
       }
-      conversationId = resolved
     }
 
     if (!conversationId) {
@@ -170,6 +192,7 @@ export async function POST(request: Request) {
         interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
         senderId: userId,
+        channelId,
       })
 
       return NextResponse.json({
@@ -192,54 +215,4 @@ export async function POST(request: Request) {
     console.error('Error in WhatsApp send POST:', error)
     return toErrorResponse(error)
   }
-}
-
-type SendSupabase = Awaited<ReturnType<typeof createClient>>
-
-/**
- * Return the contact's conversation id in this account, creating one if
- * it doesn't exist yet. Mirrors the webhook's find-or-create so an
- * inbound-then-outbound (or outbound-first) sequence converges on a single
- * thread per contact. Runs under the caller's RLS — the conversations_insert
- * policy requires account agent membership, which the caller already is.
- */
-async function findOrCreateConversation(
-  supabase: SendSupabase,
-  accountId: string,
-  userId: string,
-  contactId: string,
-): Promise<string | null> {
-  const findExisting = async () => {
-    const { data } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('contact_id', contactId)
-      .maybeSingle()
-    return data?.id ?? null
-  }
-
-  const existingId = await findExisting()
-  if (existingId) return existingId
-
-  const { data: created, error } = await supabase
-    .from('conversations')
-    .insert({
-      account_id: accountId,
-      user_id: userId,
-      contact_id: contactId,
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    if (isUniqueViolation(error)) {
-      const racedId = await findExisting()
-      if (racedId) return racedId
-    }
-    console.error('Error creating conversation for contact send:', error.message)
-    return null
-  }
-
-  return created.id
 }

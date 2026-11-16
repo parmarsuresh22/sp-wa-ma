@@ -220,6 +220,7 @@ function sendPathDb(
   };
   const config = {
     id: 'cfg-1',
+    provider: 'meta',
     phone_number_id: 'pn-1',
     access_token: 'token',
   };
@@ -248,10 +249,16 @@ function sendPathDb(
           }
           return { data: null, error: null };
         },
-        // Bare-await result — only message_templates is read this way.
+        // Bare-await result — message_templates and the channel list
+        // (whatsapp_config, migration 061) are read this way.
         then: (resolve: (r: { data: unknown[]; error: null }) => unknown) =>
           resolve({
-            data: table === 'message_templates' ? templateRows : [],
+            data:
+              table === 'message_templates'
+                ? templateRows
+                : table === 'whatsapp_config'
+                  ? [config]
+                  : [],
             error: null,
           }),
       };

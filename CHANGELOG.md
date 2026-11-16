@@ -11,11 +11,37 @@ and polish.
 
 ## [Unreleased]
 
-> **Migration required:** apply `supabase/migrations/060_ai_gemini.sql`
-> (extends the provider allow-list on `ai_configs` and `ai_usage_log`
-> with `gemini`; nothing else changes).
+> **Migration required:** apply, in order,
+> `supabase/migrations/060_ai_gemini.sql` (extends the AI provider
+> allow-list with `gemini`) and `supabase/migrations/061_channels.sql`
+> (several WhatsApp numbers per account: drops the one-config-per-account
+> unique, adds `provider` / `label` / `is_default` / bridge columns to
+> `whatsapp_config`, adds `channel_id` to `conversations` and
+> `broadcasts`, and re-keys the conversation unique index to
+> (account, contact, channel); existing rows are backfilled so a
+> single-number install behaves exactly as before).
 
 ### Added
+
+- **Several WhatsApp numbers per account.** Settings → WhatsApp is now a
+  list of *channels*. Add more Meta Business API numbers, or **link a
+  WhatsApp Web session** through a self-hosted [WAHA](https://waha.devlike.pro)
+  bridge by scanning a QR code — no Meta approval, any ordinary number.
+  Every number gets its own threads (one conversation per contact per
+  channel), replies always leave from the number the customer wrote to,
+  and one channel is the account **default** for sends that name none.
+  The inbox gains a number dropdown and per-row badge when the account
+  has more than one number; the broadcast wizard gains a "Send from"
+  picker. Flows, automations, the AI auto-reply, reactions, typing
+  indicators and quoted replies all work on both kinds; templates and
+  broadcasts stay Meta-only (bridge channels refuse them, and buttons
+  degrade to a numbered text list whose typed answer still advances the
+  flow). Messages typed on the phone itself appear in the inbox. New
+  endpoints: `GET/POST /api/whatsapp/channels`, `PATCH/DELETE
+  /api/whatsapp/channels/[id]`, `GET/POST /api/whatsapp/channels/[id]/bridge`,
+  `POST /api/whatsapp/bridge/webhook/[channelId]`; `channel_id` on
+  `POST /api/v1/messages` and `POST /api/v1/broadcasts`. See
+  `docs/channels.md`.
 
 - **Google Gemini as an AI provider.** Settings → AI Assistant now
   offers "Google Gemini" next to OpenAI, Anthropic and OpenAI-compatible.

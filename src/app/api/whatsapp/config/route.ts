@@ -29,6 +29,12 @@ import {
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { resolveVerifyTokenForSave } from '@/lib/whatsapp/verify-token'
 import { resolveOverrideCallbackUrl } from '@/lib/whatsapp/webhook-override'
+import {
+  listChannels,
+  loadChannel,
+  loadDefaultMetaChannel,
+  type ChannelRow,
+} from '@/lib/whatsapp/channels'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { getT } from '@/lib/i18n/translate'
 
@@ -107,7 +113,7 @@ function metaFailure(err: unknown, step: MetaConnectStep, ctx: MetaErrorContext)
  *   { connected: false, reason: 'meta_api_error',   message: '...',
  *     meta: { code, subcode, fbtrace_id, step, field, message } }
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient()
 
@@ -132,21 +138,14 @@ export async function GET() {
       )
     }
 
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, waba_id, access_token, status')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    // `?channel_id=` names one of the account's Meta numbers; the default
+    // Meta channel otherwise (migration 061).
+    const channelId = new URL(request.url).searchParams.get('channel_id')
+    const config = channelId
+      ? await loadChannel(supabase, accountId, channelId)
+      : await loadDefaultMetaChannel(supabase, accountId)
 
-    if (configError) {
-      console.error('Error fetching whatsapp_config:', configError)
-      return NextResponse.json(
-        { connected: false, reason: 'db_error', message: t('whatsappConfig.fetchFailed') },
-        { status: 200 }
-      )
-    }
-
-    if (!config) {
+    if (!config || config.provider !== 'meta' || !config.phone_number_id) {
       return NextResponse.json(
         {
           connected: false,
@@ -248,8 +247,11 @@ export async function GET() {
 /**
  * POST /api/whatsapp/config
  *
- * Saves or updates the WhatsApp config for the authenticated user.
- * Verifies credentials with Meta first, then encrypts and stores.
+ * Saves a Meta Cloud API channel for the caller's account: an existing
+ * one (`channel_id`, or a row already holding this phone_number_id) or
+ * a new one. Verifies credentials with Meta first, then encrypts and
+ * stores. WhatsApp Web (bridge) channels go through
+ * POST /api/whatsapp/channels instead.
  *
  * Every Meta failure answers `{ error, meta: { code, subcode,
  * fbtrace_id, step, field, message } }` — `error` is the actionable
@@ -264,7 +266,10 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit)
 
     const body = await request.json()
-    const { phone_number_id, waba_id, access_token, verify_token, pin } = body
+    const { phone_number_id, waba_id, access_token, verify_token, pin, channel_id, label } = body
+    const channelId = typeof channel_id === 'string' && channel_id ? channel_id : null
+    const channelLabel =
+      typeof label === 'string' && label.trim() ? label.trim().slice(0, 80) : undefined
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
@@ -384,17 +389,30 @@ export async function POST(request: Request) {
       }
     }
 
-    // Look up any pre-existing row for this account. Two reasons: we need
-    // to know whether this number is already registered with Meta (so we
-    // can skip /register when the user didn't provide a PIN this time
+    // Look up the row this save targets. Two reasons: we need to know
+    // whether this number is already registered with Meta (so we can
+    // skip /register when the user didn't provide a PIN this time
     // around), and we need the stored verify_token — the settings form
     // never shows it, so a save that leaves the field blank must keep it
     // rather than null it out.
-    const { data: existing } = await supabase
-      .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id, verify_token')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    //
+    // Several channels per account since migration 061: an explicit
+    // `channel_id` edits that channel; otherwise a row already holding
+    // this phone_number_id on the account is updated; otherwise a new
+    // channel is created (default when it is the account's first).
+    const accountChannels = await listChannels(supabase, accountId)
+    let existing: ChannelRow | null = null
+    if (channelId) {
+      existing = accountChannels.find((c) => c.id === channelId) ?? null
+      if (!existing || existing.provider !== 'meta') {
+        return NextResponse.json({ error: t('whatsappConfig.channelNotFound') }, { status: 404 })
+      }
+    } else {
+      existing =
+        accountChannels.find(
+          (c) => c.provider === 'meta' && c.phone_number_id === phone_number_id,
+        ) ?? null
+    }
 
     // Encrypt sensitive tokens before storing
     let encryptedAccessToken: string
@@ -428,7 +446,7 @@ export async function POST(request: Request) {
     // when the same number is already registered and no PIN was
     // supplied — re-registering an already-active number with a
     // stale PIN would actually fail and undo the active subscription.
-    let registeredAt: string | null = sameNumber ? existing.registered_at : null
+    let registeredAt: string | null = sameNumber ? (existing?.registered_at ?? null) : null
     let registrationError: string | null = null
     let registrationMeta: ReturnType<typeof metaErrorPayload> | null = null
     // True when registration was deliberately skipped because no PIN
@@ -528,6 +546,8 @@ export async function POST(request: Request) {
     // user through a retry.
     const baseRow = {
       phone_number_id,
+      display_phone: phoneInfo?.display_phone_number ?? null,
+      ...(channelLabel !== undefined ? { label: channelLabel } : {}),
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
@@ -539,10 +559,12 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }
 
+    let savedChannelId: string | null = existing?.id ?? null
     if (existing) {
       const { error: updateError } = await supabase
         .from('whatsapp_config')
         .update(baseRow)
+        .eq('id', existing.id)
         .eq('account_id', accountId)
 
       if (updateError) {
@@ -557,13 +579,20 @@ export async function POST(request: Request) {
       // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
       // up-front), `user_id` is the audit column identifying which
       // member of the account saved the config.
-      const { error: insertError } = await supabase
+      const { data: insertedRow, error: insertError } = await supabase
         .from('whatsapp_config')
         .insert({
           account_id: accountId,
           user_id: userId,
+          provider: 'meta',
+          // The account's first channel is its default; later ones are
+          // promoted explicitly from the channel list.
+          is_default: accountChannels.length === 0,
           ...baseRow,
         })
+        .select('id')
+        .single()
+      savedChannelId = (insertedRow as { id?: string } | null)?.id ?? null
 
       if (insertError) {
         console.error('Error inserting whatsapp_config:', insertError)
@@ -581,6 +610,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: false,
         saved: true,
+        channel_id: savedChannelId,
         registered: false,
         registration_error: registrationError,
         error: registrationError,
@@ -592,6 +622,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       saved: true,
+      channel_id: savedChannelId,
       registered: registeredAt != null,
       // Credentials are valid and saved, but inbound webhook
       // registration was skipped because no PIN was supplied (e.g. a
@@ -616,13 +647,24 @@ export async function POST(request: Request) {
  * Used by the "Reset Configuration" button to recover from a corrupted
  * encrypted token (mismatched ENCRYPTION_KEY across environments).
  */
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
     const { supabase, accountId } = await requireRole('admin')
+
+    // `?channel_id=` removes one Meta channel; without it, the default
+    // Meta channel (the pre-061 "the config" behaviour).
+    const channelId = new URL(request.url).searchParams.get('channel_id')
+    const target = channelId
+      ? await loadChannel(supabase, accountId, channelId)
+      : await loadDefaultMetaChannel(supabase, accountId)
+    if (!target) {
+      return NextResponse.json({ success: true })
+    }
 
     const { error: deleteError } = await supabase
       .from('whatsapp_config')
       .delete()
+      .eq('id', target.id)
       .eq('account_id', accountId)
 
     if (deleteError) {
@@ -631,6 +673,18 @@ export async function DELETE() {
         { error: t('whatsappConfig.deleteFailed') },
         { status: 500 }
       )
+    }
+
+    // Keep exactly one default while any channel remains.
+    if (target.is_default) {
+      const remaining = await listChannels(supabase, accountId)
+      if (remaining.length > 0 && !remaining.some((c) => c.is_default)) {
+        await supabase
+          .from('whatsapp_config')
+          .update({ is_default: true })
+          .eq('id', remaining[0].id)
+          .eq('account_id', accountId)
+      }
     }
 
     return NextResponse.json({ success: true })

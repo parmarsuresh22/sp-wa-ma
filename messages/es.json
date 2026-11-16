@@ -348,7 +348,9 @@
       "clearAll": "Limpiar todo",
       "noConversations": "No se encontraron conversaciones",
       "noMessagesYet": "Aún no hay mensajes",
-      "unknown": "Desconocido"
+      "unknown": "Desconocido",
+      "allNumbers": "Todos los números",
+      "number": "Número"
     },
     "messageThread": {
       "backToConversations": "Volver a las conversaciones",
@@ -1084,7 +1086,9 @@
         "estimatedReach": "Alcance estimado",
         "language": "Idioma",
         "confirmTitle": "Confirmar difusión",
-        "confirmDesc": "Estás a punto de enviar esta difusión a <b>{count, number}</b> {count, plural, =1 {contacto} other {contactos}} con la plantilla <b>{template}</b>. Esta acción no se puede deshacer."
+        "confirmDesc": "Estás a punto de enviar esta difusión a <b>{count, number}</b> {count, plural, =1 {contacto} other {contactos}} con la plantilla <b>{template}</b>. Esta acción no se puede deshacer.",
+        "sendFrom": "Enviar desde",
+        "sendFromDefault": "predeterminado"
       }
     },
     "sending": {
@@ -1955,7 +1959,72 @@
       "phoneNumberIdNotNumeric": "El Phone Number ID debe contener solo dígitos. Copia el id numérico desde Meta → WhatsApp → Configuración de la API, no el número de teléfono en sí.",
       "wabaIdNotNumeric": "El ID de la cuenta de WhatsApp Business debe contener solo dígitos. Cópialo desde Meta → WhatsApp → Configuración de la API.",
       "wabaSubscribed": "La cuenta de WhatsApp Business está suscrita a esta app: los webhooks entrantes pueden entregarse.",
-      "wabaNotSubscribed": "La cuenta de WhatsApp Business no está suscrita a esta app, así que Meta no entregará webhooks entrantes. Vuelve a ingresar el token de acceso y guarda de nuevo para suscribirla."
+      "wabaNotSubscribed": "La cuenta de WhatsApp Business no está suscrita a esta app, así que Meta no entregará webhooks entrantes. Vuelve a ingresar el token de acceso y guarda de nuevo para suscribirla.",
+      "channels": {
+        "title": "Números de WhatsApp",
+        "description": "Todos los números por los que habla tu equipo. Añade un número de la API de Meta Business o vincula una sesión de WhatsApp Web con tu propio puente WAHA. Las respuestas salen siempre del número al que escribió el cliente.",
+        "addMeta": "Añadir número Business API",
+        "addBridge": "Vincular WhatsApp Web",
+        "default": "Número predeterminado",
+        "providerMeta": "Business API",
+        "providerWaha": "WhatsApp Web",
+        "connected": "Conectado",
+        "disconnected": "Desconectado",
+        "actions": "Acciones del canal",
+        "rename": "Renombrar",
+        "renameDesc": "Un nombre corto que se muestra en el desplegable de la bandeja y en cada conversación.",
+        "setDefault": "Hacer predeterminado",
+        "remove": "Quitar número",
+        "removeConfirm": "¿Quitar \"{name}\"? Las conversaciones conservan su historial y usarán el número predeterminado para nuevas respuestas.",
+        "removed": "Número eliminado",
+        "removeFailed": "No se pudo quitar el número",
+        "updateFailed": "No se pudo actualizar el número",
+        "defaultSet": "\"{name}\" es ahora el número predeterminado",
+        "newMetaTitle": "Añadiendo otro número Business API",
+        "newMetaDesc": "Introduce abajo las credenciales del nuevo número. Los números de la misma WABA comparten plantillas; uno de otra WABA necesita su propia sincronización.",
+        "bridgeConnected": "WhatsApp Web vinculado",
+        "bridgePairing": "Esperando escaneo del QR",
+        "bridgeDisconnected": "Sin vincular",
+        "bridgeConnectedDesc": "Sesión iniciada como {phone} {name}. Los mensajes a este número llegan a la bandeja; las respuestas salen por el puente.",
+        "bridgePairingDesc": "Abre WhatsApp en el teléfono y escanea el código. Los códigos cambian cada 20 segundos; esta página los actualiza sola.",
+        "bridgeDisconnectedDesc": "La sesión del puente no está en marcha. Iníciala para obtener un código QR.",
+        "scanTitle": "Escanear para vincular",
+        "scanDesc": "El mismo flujo que WhatsApp Web en un navegador.",
+        "qrRawHint": "El puente no devolvió una imagen. Pega este valor en cualquier generador de QR y escanea el resultado.",
+        "scanStep1": "En el teléfono, abre WhatsApp → Ajustes → Dispositivos vinculados.",
+        "scanStep2": "Toca \"Vincular un dispositivo\" y escanea este código.",
+        "scanStep3": "Mantén el teléfono conectado: las sesiones de WhatsApp Web lo necesitan.",
+        "sessionTitle": "Sesión",
+        "sessionDesc": "Controles de la sesión de WhatsApp Web en tu puente.",
+        "start": "Iniciar",
+        "restart": "Reiniciar",
+        "relink": "Desvincular y volver a emparejar",
+        "relinkConfirm": "¿Cerrar la sesión del teléfono? Tendrás que escanear un nuevo código QR.",
+        "actionFailed": "El puente rechazó la acción",
+        "actionDone": "Listo: la sesión se está actualizando",
+        "bridgeDetailsTitle": "Puente",
+        "bridgeUrl": "URL del puente",
+        "sessionName": "Nombre de la sesión",
+        "linkedNumber": "Número vinculado",
+        "bridgeLimitsTitle": "Conoce los límites",
+        "bridgeLimitsDesc": "Los canales de WhatsApp Web no son oficiales. Sin plantillas ni difusiones, los botones se envían como texto numerado y WhatsApp puede suspender números que envían en masa. Úsalos para soporte conversacional, no para marketing.",
+        "addBridgeTitle": "Vincular un número de WhatsApp Web",
+        "addBridgeDesc": "wacrm se comunica con un puente WAHA que tú alojas (Docker: devlikeapro/waha). Indica dónde corre y su clave de API; se crea una sesión y aparece un código QR.",
+        "labelField": "Nombre",
+        "labelPlaceholder": "p. ej. Línea de ventas",
+        "bridgeUrlHint": "URL https pública de tu contenedor WAHA, sin ruta final.",
+        "bridgeApiKey": "Clave de API del puente",
+        "optional": "(opcional)",
+        "sessionNameHint": "Déjalo vacío para crear una sesión nueva. Escribe el nombre de una sesión existente para adjuntarla; su webhook se redirige a wacrm.",
+        "bridgeFieldsRequired": "La URL del puente y la clave de API son obligatorias",
+        "createFailed": "No se pudo vincular el puente",
+        "created": "Puente vinculado: escanea el código QR para terminar",
+        "cancel": "Cancelar",
+        "create": "Vincular",
+        "creating": "Vinculando…",
+        "save": "Guardar"
+      },
+      "readOnlyHint": "Solo los administradores pueden cambiar los números de WhatsApp."
     },
     "sections": {
       "overview": "Resumen",
@@ -2560,7 +2629,8 @@
       "notConfigured": "WhatsApp no está configurado para esta cuenta",
       "dbInsertFailed": "enviado a Meta, pero falló el guardado en la base de datos: {message}",
       "conversationLookupFailed": "falló la búsqueda de la conversación: {message}",
-      "conversationNotFound": "conversación no encontrada en esta cuenta"
+      "conversationNotFound": "conversación no encontrada en esta cuenta",
+      "templatesUnsupportedOnChannel": "Las plantillas no están disponibles en un canal de WhatsApp Web"
     },
     "engine": {
       "needsContact": "{step} necesita un contacto",
@@ -2887,7 +2957,8 @@
       "phoneCheckFailed": "Falló la verificación de los datos del número: {message}",
       "wabaNoApps": "La WABA no tiene apps suscritas. Vuelve a guardar la configuración para suscribirla.",
       "wabaCheckFailed": "Falló la verificación de la suscripción de la WABA: {message}",
-      "noWabaId": "No hay ningún WABA ID registrado; los webhooks no se pueden conectar sin él. Agrégalo en el formulario y vuelve a guardar."
+      "noWabaId": "No hay ningún WABA ID registrado; los webhooks no se pueden conectar sin él. Agrégalo en el formulario y vuelve a guardar.",
+      "channelNotFound": "No hay ningún número de WhatsApp con ese channel_id en esta cuenta"
     },
     "media": {
       "idRequired": "El ID del archivo multimedia es obligatorio",
@@ -2906,7 +2977,8 @@
     "send": {
       "idsRequired": "Se requiere conversation_id o contact_id, además de message_type",
       "contactNotFound": "Contacto no encontrado",
-      "openConversationFailed": "Error al abrir una conversación con este contacto"
+      "openConversationFailed": "Error al abrir una conversación con este contacto",
+      "channelNotFound": "No hay ningún número de WhatsApp con ese channel_id en esta cuenta"
     },
     "templates": {
       "invalidId": "ID de plantilla no válido.",

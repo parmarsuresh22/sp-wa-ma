@@ -323,10 +323,15 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
     )
     return
   }
-  const rows = (configs ?? []) as { account_id: string; user_id: string }[]
+  // Several numbers under one WABA on the same account are one owner
+  // (migration 061); the same WABA on two accounts is still ambiguous.
+  const allRows = (configs ?? []) as { account_id: string; user_id: string }[]
+  const rows = allRows.filter(
+    (r, i) => allRows.findIndex((o) => o.account_id === r.account_id) === i,
+  )
   if (rows.length !== 1) {
     console.warn(
-      `[template-webhook] ${kind} for unknown template ${where} — ${rows.length === 0 ? 'no' : rows.length} whatsapp_config rows match that WABA id; not creating a stub. Run "Sync from Meta" for the owning account.`,
+      `[template-webhook] ${kind} for unknown template ${where} — ${rows.length === 0 ? 'no' : rows.length} accounts match that WABA id; not creating a stub. Run "Sync from Meta" for the owning account.`,
     )
     return
   }

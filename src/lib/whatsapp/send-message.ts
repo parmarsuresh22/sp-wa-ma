@@ -5,8 +5,10 @@
 //
 // Given a conversation and message params, this:
 //   1. validates the params for the message type,
-//   2. loads the conversation + contact + WhatsApp config,
-//   3. sends to Meta (with phone-variant retry + contact auto-fix),
+//   2. loads the conversation + contact + the channel (WhatsApp number)
+//      the thread runs on — see `@/lib/whatsapp/channels`,
+//   3. sends through the channel's provider (Meta Cloud API or a WAHA
+//      bridge; phone-variant retry + contact auto-fix on Meta),
 //   4. persists the message + updates the conversation,
 //   5. pauses any active Flow run for the contact (agent stepped in).
 //
@@ -21,20 +23,19 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import {
-  sendTextMessage,
-  sendTemplateMessage,
-  sendMediaMessage,
-  sendInteractiveButtons,
-  sendInteractiveList,
-  type MediaKind,
-} from '@/lib/whatsapp/meta-api';
+import type { MediaKind } from '@/lib/whatsapp/meta-api';
+import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder';
 import {
   validateInteractivePayload,
   interactivePayloadPreviewText,
   type InteractiveMessagePayload,
 } from '@/lib/whatsapp/interactive';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
+import { resolveSendChannel } from '@/lib/whatsapp/channels';
+import {
+  senderForChannel,
+  UnsupportedOnChannelError,
+} from '@/lib/whatsapp/providers';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import {
   phoneVariants,
@@ -90,6 +91,12 @@ export interface SendMessageParams {
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
   senderId?: string | null;
+  /**
+   * Send from a specific channel (whatsapp_config row). Defaults to the
+   * conversation's own channel, then the account default. Only honoured
+   * when the channel belongs to `accountId`.
+   */
+  channelId?: string | null;
 }
 
 export interface SendMessageResult {
@@ -204,6 +211,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    channelId: requestedChannelId,
   } = params;
 
   if (!conversationId) {
@@ -258,29 +266,31 @@ export async function sendMessageToConversation(
   const hasValidPhone = resolvedTarget.isPhone;
   const sanitizedPhone = hasValidPhone ? sendTarget : '';
 
-  // WhatsApp config, account-scoped.
-  const { data: config, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .single();
+  // The channel (WhatsApp number) this send leaves from: an explicit
+  // channel_id, else the conversation's own, else the account default.
+  const channel = await resolveSendChannel(db, accountId, {
+    channelId: requestedChannelId ?? null,
+    conversationChannelId:
+      (conversation as { channel_id?: string | null }).channel_id ?? null,
+  });
 
-  if (configError || !config) {
+  if (!channel) {
     throw new SendMessageError(
-      'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
+      requestedChannelId ? 'channel_not_found' : 'whatsapp_not_configured',
+      requestedChannelId
+        ? 'channel_id does not name a WhatsApp number on this account'
+        : 'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      requestedChannelId ? 404 : 400
     );
   }
 
-  const accessToken = decrypt(config.access_token);
-
   // Self-heal legacy CBC ciphertexts. Fire-and-forget; idempotent.
-  if (isLegacyFormat(config.access_token)) {
+  if (isLegacyFormat(channel.access_token)) {
+    const plain = decrypt(channel.access_token);
     void db
       .from('whatsapp_config')
-      .update({ access_token: encrypt(accessToken) })
-      .eq('id', config.id)
+      .update({ access_token: encrypt(plain) })
+      .eq('id', channel.id)
       .then(({ error }: { error: { message: string } | null }) => {
         if (error) {
           console.warn(
@@ -289,6 +299,16 @@ export async function sendMessageToConversation(
           );
         }
       });
+  }
+
+  const sender = senderForChannel(channel);
+
+  if (messageType === 'template' && !sender.capabilities.templates) {
+    throw new SendMessageError(
+      'unsupported_on_channel',
+      'Message templates can only be sent from a WhatsApp Business API number, not a WhatsApp Web channel',
+      400
+    );
   }
 
   // Resolve the reply target to its Meta message_id. The parent must
@@ -345,23 +365,19 @@ export async function sendMessageToConversation(
 
   const attempt = async (phone: string): Promise<string> => {
     if (messageType === 'template') {
-      const result = await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+      const result = await sender.sendTemplate({
         to: phone,
         templateName: templateName!,
         language: sendLanguage,
         template: templateRow ?? undefined,
-        messageParams: templateMessageParams ?? undefined,
+        messageParams: (templateMessageParams as SendTimeParams | undefined) ?? undefined,
         params: templateParams || [],
         contextMessageId,
       });
       return result.messageId;
     }
     if (isMediaKind) {
-      const result = await sendMediaMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+      const result = await sender.sendMedia({
         to: phone,
         kind: messageType as MediaKind,
         link: mediaUrl!,
@@ -372,36 +388,14 @@ export async function sendMessageToConversation(
       return result.messageId;
     }
     if (messageType === 'interactive') {
-      const p = interactivePayload!;
-      if (p.kind === 'buttons') {
-        const result = await sendInteractiveButtons({
-          phoneNumberId: config.phone_number_id,
-          accessToken,
-          to: phone,
-          bodyText: p.body,
-          headerText: p.header || undefined,
-          footerText: p.footer || undefined,
-          buttons: p.buttons,
-          contextMessageId,
-        });
-        return result.messageId;
-      }
-      const result = await sendInteractiveList({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+      const result = await sender.sendInteractive({
         to: phone,
-        bodyText: p.body,
-        buttonLabel: p.button_label,
-        headerText: p.header || undefined,
-        footerText: p.footer || undefined,
-        sections: p.sections,
+        payload: interactivePayload!,
         contextMessageId,
       });
       return result.messageId;
     }
-    const result = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+    const result = await sender.sendText({
       to: phone,
       text: contentText!,
       contextMessageId,
@@ -409,15 +403,20 @@ export async function sendMessageToConversation(
     return result.messageId;
   };
 
-  // Send via Meta — retry across phone-number variants if Meta rejects
-  // with "recipient not in allowed list"; persist a working variant
-  // back to the contact so the next send goes straight through.
+  // Send via the channel's provider. On Meta, retry across phone-number
+  // variants if it rejects with "recipient not in allowed list", and
+  // persist a working variant back to the contact so the next send goes
+  // straight through. A bridge has no allow-list, so one attempt.
   let waMessageId = '';
   let workingPhone = sendTarget;
+  const providerLabel = sender.provider === 'meta' ? 'Meta API' : 'Bridge';
   try {
     // Variants only make sense for a phone number — a BSUID is opaque
     // and has exactly one correct form, so it gets a single attempt.
-    const variants = hasValidPhone ? phoneVariants(sanitizedPhone) : [sendTarget];
+    const variants =
+      hasValidPhone && sender.capabilities.variantRetry
+        ? phoneVariants(sanitizedPhone)
+        : [sendTarget];
     let lastError: unknown = null;
 
     for (const variant of variants) {
@@ -440,10 +439,17 @@ export async function sendMessageToConversation(
 
     if (lastError) throw lastError;
   } catch (err) {
+    if (err instanceof UnsupportedOnChannelError) {
+      throw new SendMessageError('unsupported_on_channel', err.message, 400);
+    }
     const message =
-      err instanceof Error ? err.message : 'Unknown Meta API error';
-    console.error('[send-message] Meta send failed for all variants:', message);
-    throw new SendMessageError('meta_error', `Meta API error: ${message}`, 502);
+      err instanceof Error ? err.message : `Unknown ${providerLabel} error`;
+    console.error(`[send-message] ${providerLabel} send failed for all variants:`, message);
+    throw new SendMessageError(
+      sender.provider === 'meta' ? 'meta_error' : 'provider_error',
+      `${providerLabel} error: ${message}`,
+      502
+    );
   }
 
   if (hasValidPhone && workingPhone !== sanitizedPhone) {
@@ -515,12 +521,18 @@ export async function sendMessageToConversation(
       ? interactivePayloadPreviewText(interactivePayload!)
       : persistedText || `[${messageType}]`;
 
+  // A thread created before migration 061 (or whose channel was deleted)
+  // has no channel_id; stamp the one it just went out on so the inbox
+  // badge and the next reply agree.
+  const conversationChannelId =
+    (conversation as { channel_id?: string | null }).channel_id ?? null;
   await db
     .from('conversations')
     .update({
       last_message_text: lastMessageText,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      ...(conversationChannelId ? {} : { channel_id: channel.id }),
     })
     .eq('id', conversationId);
 

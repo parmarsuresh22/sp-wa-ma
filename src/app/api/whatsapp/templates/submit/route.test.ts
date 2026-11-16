@@ -45,6 +45,15 @@ function makeSupabaseMock() {
     }
     b.single = vi.fn(async () => result())
     b.maybeSingle = vi.fn(async () => result())
+    // The channel list (whatsapp_config, migration 061) is awaited bare.
+    b.then = (resolve: (v: unknown) => unknown) => {
+      const r = result() as { data: unknown; error: unknown }
+      return resolve(
+        table === 'whatsapp_config'
+          ? { data: r.data ? [{ id: 'cfg-1', provider: 'meta', ...(r.data as object) }] : [], error: null }
+          : r,
+      )
+    }
     return b
   }
 

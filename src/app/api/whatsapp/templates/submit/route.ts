@@ -7,6 +7,7 @@ import {
   toErrorResponse,
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { loadDefaultMetaChannel } from '@/lib/whatsapp/channels'
 import { submitMessageTemplate } from '@/lib/whatsapp/meta-api'
 import {
   validateTemplatePayload,
@@ -188,12 +189,9 @@ export async function POST(request: Request) {
       metaTemplateId = `dry-run-${crypto.randomUUID()}`
       metaStatus = 'PENDING'
     } else {
-      const { data: config, error: configError } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', accountId)
-        .single()
-      if (configError || !config) {
+      // Templates are a WABA-level object: the default Meta channel owns them.
+      const config = await loadDefaultMetaChannel(supabase, accountId)
+      if (!config) {
         return NextResponse.json(
           {
             error:

@@ -74,12 +74,23 @@ export async function resolveAuditUserId(
   db: SupabaseClient,
   accountId: string
 ): Promise<string> {
-  const { data: config } = await db
+  // Several channels per account since migration 061 — take the
+  // default one's owner (then the oldest), never `.maybeSingle()`.
+  const { data: configData } = await db
     .from('whatsapp_config')
-    .select('user_id')
-    .eq('account_id', accountId)
-    .maybeSingle();
-  const configOwner = config?.user_id as string | undefined;
+    .select('user_id, is_default, created_at')
+    .eq('account_id', accountId);
+  type OwnerRow = { user_id?: string; is_default?: boolean; created_at?: string };
+  const configRows: OwnerRow[] = Array.isArray(configData)
+    ? (configData as OwnerRow[])
+    : configData
+      ? [configData as OwnerRow]
+      : [];
+  configRows.sort((a, b) => {
+    if (!!a.is_default !== !!b.is_default) return a.is_default ? -1 : 1;
+    return (a.created_at ?? '').localeCompare(b.created_at ?? '');
+  });
+  const configOwner = configRows[0]?.user_id;
   if (configOwner) return configOwner;
 
   const { data: account } = await db

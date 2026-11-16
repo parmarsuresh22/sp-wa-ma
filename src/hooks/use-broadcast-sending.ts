@@ -51,6 +51,11 @@ interface BroadcastPayload {
    * falls back to the template's stored URL only when this is empty.
    */
   headerMediaUrl?: string;
+  /**
+   * "Send from": which of the account's Meta numbers delivers the
+   * campaign (migration 061). Omitted → the default Meta channel.
+   */
+  channelId?: string | null;
 }
 
 export type BroadcastSendInterruption = 'lease_lost' | 'lease_error';
@@ -339,6 +344,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           template_name: payload.template.name,
           template_language: payload.template.language ?? 'en_US',
           template_variables: payload.variables,
+          channel_id: payload.channelId ?? null,
           audience_filter: {
             type: payload.audience.type,
             tagIds: payload.audience.tagIds,
@@ -501,6 +507,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
                 recipients: apiRecipients,
                 template_name: payload.template.name,
                 template_language: payload.template.language ?? 'en_US',
+                channel_id: payload.channelId ?? null,
               }),
             });
 

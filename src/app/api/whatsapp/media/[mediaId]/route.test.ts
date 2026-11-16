@@ -34,6 +34,15 @@ vi.mock('@/lib/supabase/server', () => ({
           data: table === 'whatsapp_config' ? { access_token: 'enc-token' } : null,
           error: null,
         }),
+        // Channel list (whatsapp_config, migration 061) awaited bare.
+        then: (resolve: (v: unknown) => unknown) =>
+          resolve({
+            data:
+              table === 'whatsapp_config'
+                ? [{ id: 'cfg-1', provider: 'meta', phone_number_id: 'pn-1', access_token: 'enc-token' }]
+                : null,
+            error: null,
+          }),
       }
       return chain
     },

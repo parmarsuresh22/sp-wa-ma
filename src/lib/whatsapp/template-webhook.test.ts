@@ -378,7 +378,7 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
     const message = String(warn.mock.calls[0][0]);
     expect(message).toContain('WABA WABA-NOBODY');
     expect(message).toContain('557');
-    expect(message).toContain('no whatsapp_config rows');
+    expect(message).toContain('no accounts match');
   });
 
   it('refuses to guess the tenant when several configs share the WABA id', async () => {
@@ -402,7 +402,7 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
       stub,
     );
     expect(calls.some((c) => c.insert)).toBe(false);
-    expect(String(warn.mock.calls[0][0])).toContain('2 whatsapp_config rows');
+    expect(String(warn.mock.calls[0][0])).toContain('2 accounts match');
   });
 
   it('inserts a stub with quality_score (and no status) for a 0-row quality update', async () => {

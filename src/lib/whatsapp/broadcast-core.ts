@@ -28,6 +28,11 @@ import {
 import { resolveTemplateRow } from '@/lib/whatsapp/template-body';
 import type { MessageTemplate } from '@/types';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
+import {
+  loadChannel,
+  loadDefaultMetaChannel,
+  type ChannelRow,
+} from '@/lib/whatsapp/channels';
 
 /** Thrown by createBroadcast on a caller-visible failure; route maps it. */
 export class BroadcastError extends Error {
@@ -39,6 +44,38 @@ export class BroadcastError extends Error {
     this.code = code;
     this.status = status;
   }
+}
+
+/**
+ * The Meta channel a broadcast goes out from: the requested one (must
+ * be this account's, must be Meta) or the account's default Meta
+ * channel. Throws the caller-visible BroadcastError family.
+ */
+export async function resolveBroadcastChannel(
+  db: SupabaseClient,
+  accountId: string,
+  channelId?: string | null
+): Promise<ChannelRow> {
+  const channel = channelId
+    ? await loadChannel(db, accountId, channelId)
+    : await loadDefaultMetaChannel(db, accountId);
+  if (!channel) {
+    throw new BroadcastError(
+      channelId ? 'channel_not_found' : 'whatsapp_not_configured',
+      channelId
+        ? 'channel_id does not name a WhatsApp number on this account'
+        : 'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      channelId ? 404 : 400
+    );
+  }
+  if (channel.provider !== 'meta' || !channel.phone_number_id) {
+    throw new BroadcastError(
+      'unsupported_on_channel',
+      'Broadcasts need a WhatsApp Business API number; they cannot be sent from a WhatsApp Web channel',
+      400
+    );
+  }
+  return channel;
 }
 
 export interface BroadcastRecipientInput {
@@ -53,6 +90,13 @@ export interface CreateBroadcastParams {
   templateName: string;
   templateLanguage?: string | null;
   recipients: BroadcastRecipientInput[];
+  /**
+   * "Send from": which of the account's Meta numbers delivers the
+   * campaign. Omitted → the default Meta channel. Bridge (WhatsApp
+   * Web) channels are refused — bulk sends from a personal number are
+   * the fastest route to a ban.
+   */
+  channelId?: string | null;
 }
 
 interface PlannedRecipient {
@@ -63,6 +107,8 @@ interface PlannedRecipient {
 
 export interface BroadcastPlan {
   broadcastId: string;
+  /** The Meta channel (whatsapp_config row) delivering the campaign. */
+  channelId: string;
   templateName: string;
   templateLanguage: string;
   phoneNumberId: string;
@@ -111,20 +157,8 @@ export async function createBroadcast(
     );
   }
 
-  // Config (fail fast + provides the audit trail owner already resolved
-  // by the caller). Meta send needs phone_number_id + decrypted token.
-  const { data: config, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .single();
-  if (configError || !config) {
-    throw new BroadcastError(
-      'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
-    );
-  }
+  // Channel (fail fast). Meta send needs phone_number_id + decrypted token.
+  const config = await resolveBroadcastChannel(db, accountId, params.channelId);
   const accessToken = decrypt(config.access_token);
 
   // Template row (once) for header/button components; guard a
@@ -227,6 +261,13 @@ export async function createBroadcast(
 
   const broadcastId = createdRows[0].broadcast_id as string;
 
+  // Record "send from" on the campaign so a later resume delivers from
+  // the same number. Best-effort: the RPC predates the column.
+  await db
+    .from('broadcasts')
+    .update({ channel_id: config.id })
+    .eq('id', broadcastId);
+
   // Pair each inserted recipient row back to its phone/params by
   // contact_id — unambiguous now that duplicates are collapsed.
   const byContact = new Map(deduped.map((r) => [r.contactId, r]));
@@ -239,9 +280,10 @@ export async function createBroadcast(
 
   return {
     broadcastId,
+    channelId: config.id,
     templateName,
     templateLanguage: resolvedTemplate.language,
-    phoneNumberId: config.phone_number_id,
+    phoneNumberId: config.phone_number_id!,
     accessToken,
     templateRow,
     planned,
