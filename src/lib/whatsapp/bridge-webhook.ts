@@ -364,3 +364,24 @@ export function sessionStatusFromPayload(payload: unknown): BridgeSessionStatus 
 export function bridgeOwnPhone(env: BridgeEnvelope): string | null {
   return chatIdToPhone(env.me?.id ?? null)
 }
+
+/**
+ * WAHA message ids are `<fromMe>_<chat>_<id>`. On a linked-id chat the
+ * bridge acks with the `@lid` chat while the id it returned for our own
+ * send carried the `@c.us` chat, so a read receipt never matched the
+ * stored row. Parse the id so the route can try both spellings.
+ */
+export function parseBridgeMessageId(
+  id: string,
+): { fromMe: boolean; chat: string; rest: string } | null {
+  const m = /^(true|false)_([^_]+)_(.+)$/.exec(id)
+  if (!m) return null
+  return { fromMe: m[1] === 'true', chat: m[2], rest: m[3] }
+}
+
+/** The same message id addressed to another chat id. */
+export function bridgeMessageIdWithChat(id: string, chat: string): string | null {
+  const p = parseBridgeMessageId(id)
+  if (!p) return null
+  return `${p.fromMe ? 'true' : 'false'}_${chat}_${p.rest}`
+}

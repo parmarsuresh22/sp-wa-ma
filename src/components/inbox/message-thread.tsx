@@ -558,6 +558,13 @@ export function MessageThread({
       .then(({ error }) => {
         if (error) console.error("Failed to reset unread_count:", error);
       });
+    // Tell WhatsApp too, so the customer sees blue ticks. Best-effort.
+    void fetch("/api/whatsapp/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation_id: conversationId, action: "seen" }),
+      keepalive: true,
+    }).catch(() => undefined);
   }, [conversationId, hasUnread]);
 
   // Auto-scroll to bottom on new messages

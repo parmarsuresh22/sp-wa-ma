@@ -475,6 +475,9 @@ export function createWahaSender(cfg: WahaSenderConfig): ChannelSender {
       await client.sendSeen(session, chatId, args.inboundMessageId)
       await client.startTyping(session, chatId)
     },
+    async markRead(args: TypingArgs): Promise<void> {
+      await client.sendSeen(session, toWahaChatId(args.to), args.inboundMessageId)
+    },
   }
 }
 

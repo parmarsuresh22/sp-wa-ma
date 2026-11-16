@@ -245,3 +245,19 @@ describe('normalizeBridgeAddressing (linked ids)', () => {
     expect(translateBridgeInbound(ENV, unknown)).toBeNull()
   })
 })
+
+describe('bridge message id helpers', () => {
+  it('parses WAHA ids and re-addresses them to another chat', async () => {
+    const { parseBridgeMessageId, bridgeMessageIdWithChat } = await import('./bridge-webhook')
+    expect(parseBridgeMessageId('true_32598936015048@lid_3EB084348C0DDEE9E3B768')).toEqual({
+      fromMe: true,
+      chat: '32598936015048@lid',
+      rest: '3EB084348C0DDEE9E3B768',
+    })
+    expect(
+      bridgeMessageIdWithChat('true_32598936015048@lid_3EB084348C0DDEE9E3B768', '919782048273@c.us'),
+    ).toBe('true_919782048273@c.us_3EB084348C0DDEE9E3B768')
+    expect(parseBridgeMessageId('wamid.HBgM')).toBeNull()
+    expect(bridgeMessageIdWithChat('garbage', 'x@c.us')).toBeNull()
+  })
+})

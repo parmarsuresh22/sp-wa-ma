@@ -261,12 +261,23 @@ export function MessageComposer({
     [handleSend, enterSends]
   );
 
+  // "typing…" for the customer, at most once every 8 s while the agent
+  // is actually typing (WhatsApp clears it by itself). Best-effort.
+  const lastTypingPingRef = useRef(0);
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setText(e.target.value);
       adjustHeight();
+      if (e.target.value.trim() && Date.now() - lastTypingPingRef.current > 8_000) {
+        lastTypingPingRef.current = Date.now();
+        void fetch("/api/whatsapp/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversation_id: conversationId, action: "typing" }),
+        }).catch(() => undefined);
+      }
     },
-    [adjustHeight]
+    [adjustHeight, conversationId]
   );
 
   // Ask the AI assistant for a suggested reply and drop it into the

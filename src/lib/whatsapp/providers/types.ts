@@ -92,6 +92,8 @@ export interface ChannelSender {
   sendReaction(args: SendReactionArgs): Promise<void>
   /** Best-effort read receipt + typing indicator. */
   markReadAndTyping(args: TypingArgs): Promise<void>
+  /** Best-effort read receipt only (blue ticks for the customer). */
+  markRead(args: TypingArgs): Promise<void>
 }
 
 /** Thrown when a caller asks a channel for something it cannot do. */

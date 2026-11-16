@@ -9,6 +9,7 @@ import {
   sendTemplateMessage,
   sendTextMessage,
   sendTypingIndicator,
+  markMessageRead,
 } from '@/lib/whatsapp/meta-api'
 import type {
   ChannelSender,
@@ -115,6 +116,13 @@ export function createMetaSender(cfg: MetaSenderConfig): ChannelSender {
     },
     async markReadAndTyping(args: TypingArgs): Promise<void> {
       await sendTypingIndicator({
+        phoneNumberId,
+        accessToken,
+        messageId: args.inboundMessageId,
+      })
+    },
+    async markRead(args: TypingArgs): Promise<void> {
+      await markMessageRead({
         phoneNumberId,
         accessToken,
         messageId: args.inboundMessageId,

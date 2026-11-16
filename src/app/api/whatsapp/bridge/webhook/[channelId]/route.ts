@@ -3,7 +3,10 @@ import { decrypt } from '@/lib/whatsapp/encryption'
 import { readCappedBody } from '@/lib/whatsapp/webhook-body'
 import {
   ackToStatus,
+  bridgeMessageIdWithChat,
   bridgeMessagePayload,
+  isLidChatId,
+  parseBridgeMessageId,
   bridgeOwnPhone,
   normalizeBridgeAddressing,
   parseBridgeEnvelope,
@@ -139,10 +142,23 @@ async function processBridgeEvent(channel: ChannelRow, env: BridgeEnvelope) {
       const ack = ackToStatus(env.payload)
       if (!ack) return
       const ts = typeof env.timestamp === 'number' ? Math.floor(env.timestamp / 1000) : Math.floor(Date.now() / 1000)
-      await handleStatusUpdate(
-        { id: ack.id, status: ack.status, timestamp: String(ts), recipient_id: '' },
-        channel.account_id,
-      )
+      // Our own sends are stored under the `@c.us` form of the id (what
+      // the bridge returned), but acks on linked-id chats arrive under
+      // the `@lid` form. Apply the phone form first when we can map it.
+      const ids: string[] = []
+      const parsed = parseBridgeMessageId(ack.id)
+      if (parsed && isLidChatId(parsed.chat)) {
+        const phoneChat = await lidResolver(channel)(parsed.chat).catch(() => null)
+        const alt = phoneChat ? bridgeMessageIdWithChat(ack.id, phoneChat) : null
+        if (alt) ids.push(alt)
+      }
+      ids.push(ack.id)
+      for (const id of ids) {
+        await handleStatusUpdate(
+          { id, status: ack.status, timestamp: String(ts), recipient_id: '' },
+          channel.account_id,
+        )
+      }
       return
     }
     case 'session.status': {

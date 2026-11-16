@@ -935,6 +935,33 @@ export async function sendTypingIndicator(
   }
 }
 
+/**
+ * Mark an inbound message as read (blue ticks on the customer's side)
+ * without showing "typing…". Same endpoint as the typing indicator,
+ * minus the indicator field.
+ */
+export async function markMessageRead(
+  args: SendTypingIndicatorArgs
+): Promise<void> {
+  const { phoneNumberId, accessToken, messageId } = args
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+    }),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+}
+
 // ============================================================
 // Interactive (button replies + list messages)
 // ============================================================
