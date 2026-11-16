@@ -2135,7 +2135,7 @@
     },
     "aiConfig": {
       "title": "에이전트 설정",
-      "description": "OpenAI, Anthropic 또는 OpenAI 호환 API 키를 직접 사용하세요. wacrm은 입력한 키로 제공업체를 직접 호출하므로 좌석당 AI 요금이 없으며 데이터는 그대로 유지됩니다. 받은 키는 받은편지함 AI 초안, 자동 응답 봇, Playground에 사용됩니다.",
+      "description": "OpenAI, Anthropic, Google Gemini 또는 OpenAI 호환 API 키를 직접 사용하세요. wacrm은 입력한 키로 제공업체를 직접 호출하므로 좌석당 AI 요금이 없으며 데이터는 그대로 유지됩니다. 받은 키는 받은편지함 AI 초안, 자동 응답 봇, Playground에 사용됩니다.",
       "adminOnlyConfig": "관리자와 소유자만 AI 설정을 변경할 수 있습니다.",
       "loadFailed": "AI 설정을 불러오지 못했습니다",
       "providerAndKey": "공급자 & 키",
@@ -2794,7 +2794,7 @@
       "pausedRequired": "paused(불리언)는 필수입니다",
       "updateConversationFailed": "대화를 업데이트하지 못했습니다",
       "loadConfigFailed": "AI 설정을 불러오지 못했습니다",
-      "providerInvalid": "제공자는 \"openai\", \"anthropic\" 또는 \"openai_compatible\"이어야 합니다",
+      "providerInvalid": "제공자는 \"openai\", \"anthropic\", \"gemini\" 또는 \"openai_compatible\"이어야 합니다",
       "baseUrlRequired": "openai_compatible에는 base_url이 필수입니다",
       "baseUrlInvalid": "base_url은 올바른 http(s) URL이어야 합니다",
       "modelRequired": "모델은 필수입니다",

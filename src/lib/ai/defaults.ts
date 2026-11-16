@@ -14,6 +14,9 @@ export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
   openai: 'gpt-5.4-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   openai_compatible: 'model-id',
+  // Stable flash tier as of Nov 2026. Avoid `gemini-2.5-*`: Google
+  // auto-routes those ids to newer models from 1 Dec 2026.
+  gemini: 'gemini-3.8-flash',
 }
 
 /**

@@ -9,6 +9,35 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [Unreleased]
+
+> **Migration required:** apply `supabase/migrations/060_ai_gemini.sql`
+> (extends the provider allow-list on `ai_configs` and `ai_usage_log`
+> with `gemini`; nothing else changes).
+
+### Added
+
+- **Google Gemini as an AI provider.** Settings → AI Assistant now
+  offers "Google Gemini" next to OpenAI, Anthropic and OpenAI-compatible.
+  Paste a Gemini API key (`AIza…`) and a model id (default
+  `gemini-3.8-flash`); drafts, the auto-reply bot and the Playground all
+  work the same way. The adapter uses Gemini's OpenAI-compatible endpoint
+  with low reasoning effort and extra output headroom so thinking tokens
+  cannot starve a short WhatsApp reply, and it maps Gemini's HTTP 400
+  "API key not valid" to the same "key rejected" message as the other
+  providers. Semantic knowledge search still needs an OpenAI embeddings
+  key; without one it falls back to full-text search as before.
+
+- **Meta webhook forwarding** (`WEBHOOK_FORWARD_URL`) and a WABA-level
+  alternate callback URL (`META_WEBHOOK_OVERRIDE_URL`) so an n8n
+  WhatsApp Trigger or similar receiver can keep getting Meta's raw
+  payload while wacrm owns the Meta App callback. See
+  `docs/webhook-forwarding.md`.
+
+- **Quoted replies by Meta message id.** `POST /api/v1/messages` accepts
+  `reply_to_whatsapp_message_id` (a `wamid.…`) in addition to
+  `reply_to_message_id`, for bots that only saw the webhook.
+
 ## [0.8.1] — 2026-07-10
 
 Fixes inbound chats fragmenting into multiple threads for the same

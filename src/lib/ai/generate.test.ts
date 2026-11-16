@@ -308,3 +308,133 @@ describe('generateReply — OpenAI-compatible', () => {
     expect(fetchMock.mock.calls[0][1].redirect).toBe('manual')
   })
 })
+
+describe('generateReply — Gemini', () => {
+  it('calls the OpenAI-compatible Gemini endpoint with a Bearer key and returns the reply', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        choices: [{ message: { content: 'नमस्ते! कैसे मदद करूँ?' } }],
+        usage: { prompt_tokens: 30, completion_tokens: 12, total_tokens: 42 },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await generateReply({
+      config: config({ provider: 'gemini', model: 'gemini-3.8-flash', apiKey: 'AIza-test' }),
+      systemPrompt: 'sys',
+      messages: [
+        { role: 'user', content: 'Hi' },
+        { role: 'user', content: 'Anyone there?' },
+      ],
+    })
+
+    expect(res).toEqual({
+      text: 'नमस्ते! कैसे मदद करूँ?',
+      handoff: false,
+      usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
+    })
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    )
+    expect(opts.headers.Authorization).toBe('Bearer AIza-test')
+    const body = JSON.parse(opts.body)
+    expect(body.model).toBe('gemini-3.8-flash')
+    expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' })
+    // Consecutive user turns are merged, as for the other adapters.
+    expect(body.messages).toHaveLength(2)
+    expect(body.messages[1].role).toBe('user')
+    expect(body.reasoning_effort).toBe('low')
+    // Headroom above the WhatsApp-sized cap so thinking tokens can't
+    // starve the visible reply.
+    expect(body.max_tokens).toBeGreaterThan(1024)
+  })
+
+  it('maps a 400 "API key not valid" to invalid_key (Gemini does not use 401 for bad keys)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        errResponse(400, {
+          error: { message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' },
+        }),
+      ),
+    )
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_key', status: 401 })
+  })
+
+  it('maps 401/403 to invalid_key and 429 to rate_limited, tolerating an array-wrapped error body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(errResponse(403, [{ error: { message: 'forbidden' } }])),
+    )
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_key', status: 401 })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(errResponse(429, { error: { message: 'quota' } })),
+    )
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toMatchObject({ code: 'rate_limited', status: 502 })
+  })
+
+  it('keeps an ordinary 400 as provider_error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        errResponse(400, { error: { message: 'Unknown name "foo": Cannot find field.' } }),
+      ),
+    )
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toMatchObject({ code: 'provider_error', status: 502 })
+  })
+
+  it('throws on an empty completion and detects the handoff sentinel', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(okResponse({ choices: [{ message: { content: '  ' } }] })),
+    )
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toMatchObject({ code: 'empty_response' })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        okResponse({ choices: [{ message: { content: 'Let me get a human [[HANDOFF]]' } }] }),
+      ),
+    )
+    await expect(
+      generateReply({
+        config: config({ provider: 'gemini' }),
+        systemPrompt: 'sys',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).resolves.toMatchObject({ text: 'Let me get a human', handoff: true })
+  })
+})
