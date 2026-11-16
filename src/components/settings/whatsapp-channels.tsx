@@ -587,6 +587,8 @@ function AddBridgeDialog({
           <div className="space-y-2">
             <Label>{t('labelField')}</Label>
             <Input
+              name="waha-channel-label"
+              autoComplete="off"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder={t('labelPlaceholder')}
@@ -596,6 +598,10 @@ function AddBridgeDialog({
           <div className="space-y-2">
             <Label>{t('bridgeUrl')}</Label>
             <Input
+              type="url"
+              name="waha-bridge-url"
+              autoComplete="off"
+              inputMode="url"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://waha.example.com"
@@ -607,6 +613,8 @@ function AddBridgeDialog({
             <Label>{t('bridgeApiKey')}</Label>
             <Input
               type="password"
+              name="waha-bridge-api-key"
+              autoComplete="new-password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="WAHA_API_KEY"
