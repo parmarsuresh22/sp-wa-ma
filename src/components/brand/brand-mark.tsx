@@ -1,14 +1,18 @@
 import type { SVGProps } from 'react';
 
 /**
- * The brand mark: a coral chevron on a navy rounded square. Drawn as
- * inline SVG so it stays crisp from the 16px browser tab to the login
- * card. Colours are fixed (not theme tokens) on purpose: the logo must
- * look the same in light and dark mode. `src/app/icon.tsx` draws the
- * same shape for the favicon.
+ * The brand mark: a coral chevron on a transparent background. Drawn
+ * as inline SVG so it stays crisp from the 16px browser tab to the
+ * login card. The colour is fixed (not a theme token) on purpose: the
+ * logo must look the same in light and dark mode. `src/app/icon.tsx`
+ * and `src/app/apple-icon.tsx` draw the same shape for the favicon
+ * and the iOS touch icon.
  */
-export const BRAND_NAVY = '#1b2335';
 export const BRAND_CORAL = '#ff6d5a';
+
+/** Chevron geometry on a 48×48 box — shared with the icon routes. */
+export const BRAND_CHEVRON_PATH = 'M8 33 L24 15 L40 33';
+export const BRAND_CHEVRON_STROKE = 10;
 
 export function BrandMark({
   className,
@@ -24,12 +28,11 @@ export function BrandMark({
       className={className}
       {...props}
     >
-      <rect width="48" height="48" rx="9" fill={BRAND_NAVY} />
       <path
-        d="M12 31 L24 17 L36 31"
+        d={BRAND_CHEVRON_PATH}
         fill="none"
         stroke={BRAND_CORAL}
-        strokeWidth="6.5"
+        strokeWidth={BRAND_CHEVRON_STROKE}
         strokeLinecap="round"
         strokeLinejoin="round"
       />

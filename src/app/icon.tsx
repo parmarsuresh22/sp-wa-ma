@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-// Favicon: the brand mark (coral chevron on a navy rounded square),
+// Favicon: the brand mark (a coral chevron, transparent background),
 // the same shape as `src/components/brand/brand-mark.tsx` which the
 // sidebar and auth pages render. Next.js renders this at build time and
 // auto-injects <link rel="icon"> into <head>.
@@ -22,8 +22,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#1b2335",
-          borderRadius: 6,
+          background: "transparent",
         }}
       >
         <svg
@@ -32,11 +31,11 @@ export default function Icon() {
           viewBox="0 0 48 48"
           fill="none"
           stroke="#ff6d5a"
-          strokeWidth="6.5"
+          strokeWidth="10"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <path d="M12 31 L24 17 L36 31" />
+          <path d="M8 33 L24 15 L40 33" />
         </svg>
       </div>
     ),
