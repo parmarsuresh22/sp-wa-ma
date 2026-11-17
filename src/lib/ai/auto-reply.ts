@@ -22,6 +22,9 @@ interface DispatchArgs {
    *  a typing indicator (which also marks it read) is shown while the
    *  reply is generated. Optional so older callers keep working. */
   inboundMessageId?: string
+  /** The number the message arrived on (migration 061). When the agent
+   *  is pinned to another number it stands down. */
+  channelId?: string | null
 }
 
 /**
@@ -52,6 +55,7 @@ export async function dispatchInboundToAiReply(
     contactId,
     configOwnerUserId,
     inboundMessageId,
+    channelId,
   } = args
 
   try {
@@ -59,6 +63,8 @@ export async function dispatchInboundToAiReply(
 
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.autoReplyEnabled) return
+    // Pinned to one number → only answer there (migration 062).
+    if (config.channelId && config.channelId !== (channelId ?? null)) return
 
     // Deterministic, user-configured responders win over the LLM — the
     // caller already excludes messages a Flow consumed. Message-level
@@ -70,12 +76,15 @@ export async function dispatchInboundToAiReply(
     // auto-responders.)
     const { data: autoResponders } = await db
       .from('automations')
-      .select('id')
+      .select('id, channel_id')
       .eq('account_id', accountId)
       .eq('is_active', true)
       .in('trigger_type', ['new_message_received', 'keyword_match'])
-      .limit(1)
-    if (autoResponders && autoResponders.length > 0) return
+    const competing = (autoResponders ?? []).filter(
+      (a: { channel_id?: string | null }) =>
+        !a.channel_id || a.channel_id === (channelId ?? null),
+    )
+    if (competing.length > 0) return
 
     const { data: conv, error: convErr } = await db
       .from('conversations')

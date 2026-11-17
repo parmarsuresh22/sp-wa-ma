@@ -19,9 +19,20 @@ and polish.
 > `whatsapp_config`, adds `channel_id` to `conversations` and
 > `broadcasts`, and re-keys the conversation unique index to
 > (account, contact, channel); existing rows are backfilled so a
-> single-number install behaves exactly as before).
+> single-number install behaves exactly as before), then
+> `supabase/migrations/062_channel_scoping.sql` (nullable `channel_id`
+> on `flows`, `automations` and `ai_configs`; `dashboard_overview()`
+> gains a `p_channel` argument; new `filter_contacts()` RPC).
 
 ### Added
+
+- **Work on one number.** The inbox, dashboard and contacts page share
+  a number dropdown (remembered per browser). Flows get a "Runs on
+  number" setting, automations a number picker in the builder header,
+  and the AI agent an "Auto-reply on" setting — each defaults to "All
+  numbers" so existing work is unchanged until pinned. Read receipts
+  and a typing indicator now go to the customer when an agent opens a
+  thread or types a reply, on both Meta and WhatsApp Web channels.
 
 - **Several WhatsApp numbers per account.** Settings → WhatsApp is now a
   list of *channels*. Add more Meta Business API numbers, or **link a

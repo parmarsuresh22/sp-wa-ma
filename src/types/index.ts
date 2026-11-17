@@ -677,6 +677,8 @@ export interface Automation {
   trigger_type: AutomationTriggerType;
   trigger_config: AutomationTriggerConfig;
   is_active: boolean;
+  /** Only fire for events on this WhatsApp number; null = every number (062). */
+  channel_id?: string | null;
   execution_count: number;
   last_executed_at?: string | null;
   created_at: string;

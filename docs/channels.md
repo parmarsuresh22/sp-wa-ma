@@ -52,6 +52,28 @@ The panel lists the account's numbers. Pick one to manage it.
   **Remove**. A bridge channel also has Start / Restart / Unlink
   controls for its session.
 
+## Working on one number
+
+The inbox, dashboard and contacts page share one **number dropdown**.
+Pick a number in any of them and all three show only that number's
+threads, figures and people; "All numbers" shows everything. The choice
+is remembered per browser.
+
+Work can be pinned to a number too (migration 062). Everything defaults
+to "All numbers", so nothing already built changes until you pick one:
+
+- **Flows** — "Runs on number" in the flow's trigger panel. A pinned
+  flow only starts for messages that arrive on that number.
+- **Automations** — the number picker in the builder header. A pinned
+  automation only fires for events on that number. Events that carry no
+  number (a contact created through the API, a schedule) fire only
+  unpinned automations.
+- **AI agent** — "Auto-reply on" in Settings → AI Assistant. The bot
+  only answers on that number; drafting in the inbox and the Playground
+  work everywhere.
+
+Removing a number unpins whatever was pinned to it.
+
 ## Running the WAHA bridge
 
 WAHA is a Docker container that keeps a WhatsApp Web session open and

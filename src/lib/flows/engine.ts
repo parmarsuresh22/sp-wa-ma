@@ -353,6 +353,7 @@ async function findEntryFlow(
   accountId: string,
   message: ParsedInbound,
   isFirstInbound: boolean,
+  channelId?: string | null,
 ): Promise<FlowRow | null> {
   // A tap used to be rejected outright here, on the reasoning that
   // interactive replies are responses to existing prompts. That holds
@@ -375,7 +376,15 @@ async function findEntryFlow(
     .order("created_at", { ascending: true });
   if (error || !flows) return null;
 
-  const typed = flows as FlowRow[];
+  // A flow pinned to one number only starts for messages on that number
+  // (migration 062). `undefined` = caller has no channel notion (legacy
+  // tests / manual dispatch) → every flow is eligible.
+  const typed = (flows as FlowRow[]).filter(
+    (f) =>
+      channelId === undefined ||
+      !f.channel_id ||
+      f.channel_id === channelId,
+  );
   for (const flow of typed) {
     if (flow.trigger_type === "keyword") {
       const cfg = flow.trigger_config as KeywordTriggerConfig;
@@ -1047,6 +1056,7 @@ export async function dispatchInboundToFlows(
       input.accountId,
       input.message,
       input.isFirstInboundMessage,
+      input.channelId,
     );
     if (!flow || !flow.entry_node_id) {
       return { consumed: false, outcome: "no_match" };

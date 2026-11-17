@@ -33,13 +33,16 @@ vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       if (table === 'automations') {
-        // .select().eq().eq().in().limit() → active auto-responders
+        // .select().eq().eq().in() → active auto-responders (awaited bare;
+        // the dispatcher filters by channel in JS since migration 062)
         const chain = {
           select: () => chain,
           eq: () => chain,
           in: () => chain,
           limit: () =>
             Promise.resolve({ data: h.state.autoResponders, error: null }),
+          then: (resolve: (v: unknown) => unknown) =>
+            resolve({ data: h.state.autoResponders, error: null }),
         }
         return chain
       }
@@ -346,5 +349,26 @@ describe('dispatchInboundToAiReply — handoff', () => {
     expect(pause?.isNull).toEqual([])
     expect(assign?.payload).toEqual({ assigned_agent_id: 'agent-7' })
     expect(assign?.isNull).toEqual(['assigned_agent_id'])
+  })
+})
+
+describe('dispatchInboundToAiReply — pinned to one number (062)', () => {
+  it('stands down when the agent is pinned to another number', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ channelId: 'ch-sales' }))
+    await dispatchInboundToAiReply({ ...ARGS, channelId: 'ch-support' })
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('answers on the pinned number', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ channelId: 'ch-sales' }))
+    await dispatchInboundToAiReply({ ...ARGS, channelId: 'ch-sales' })
+    expect(h.engineSendText).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores a competing automation pinned to another number', async () => {
+    h.state.autoResponders = [{ id: 'auto-1', channel_id: 'ch-support' } as { id: string }]
+    await dispatchInboundToAiReply({ ...ARGS, channelId: 'ch-sales' })
+    expect(h.engineSendText).toHaveBeenCalledTimes(1)
   })
 })

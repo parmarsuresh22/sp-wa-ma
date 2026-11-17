@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isUuid } from '@/lib/api/v1/pagination'
 import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
@@ -103,8 +104,16 @@ export async function PATCH(
     'trigger_type',
     'trigger_config',
     'is_active',
+    'channel_id',
   ] as const) {
     if (k in body) update[k] = body[k]
+  }
+  if (
+    update.channel_id !== undefined &&
+    update.channel_id !== null &&
+    (typeof update.channel_id !== 'string' || !isUuid(update.channel_id))
+  ) {
+    return NextResponse.json({ error: 'channel_id must be a uuid or null' }, { status: 400 })
   }
 
   // If this PATCH leaves the automation active (either explicitly

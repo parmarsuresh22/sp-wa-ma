@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CONVERSATION_SELECT,
@@ -23,38 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChannels, channelLabel, type ChannelSummary } from "@/hooks/use-channels";
-
-// Per-agent "which number am I working" choice (issue: several numbers
-// per account, migration 061). Browser-local on purpose: each teammate
-// comes back to the number they were on; "all" is the default.
-const CHANNEL_FILTER_KEY = "wacrm.inbox.channel";
-const CHANNEL_FILTER_EVENT = "wacrm:inbox-channel";
-
-function readStoredChannelFilter(): string {
-  try {
-    return window.localStorage.getItem(CHANNEL_FILTER_KEY) || "all";
-  } catch {
-    return "all";
-  }
-}
-
-function writeStoredChannelFilter(value: string) {
-  try {
-    window.localStorage.setItem(CHANNEL_FILTER_KEY, value);
-  } catch {
-    /* private mode etc. — the choice just doesn't persist */
-  }
-  window.dispatchEvent(new Event(CHANNEL_FILTER_EVENT));
-}
-
-function subscribeChannelFilter(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(CHANNEL_FILTER_EVENT, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(CHANNEL_FILTER_EVENT, onChange);
-  };
-}
+import { useActiveChannel } from "@/hooks/use-active-channel";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -107,11 +76,7 @@ export function ConversationList({
   // more than one number. "all" or a whatsapp_config id, remembered per
   // browser; a remembered number that no longer exists reads as "all".
   const { channels } = useChannels();
-  const storedChannelFilter = useSyncExternalStore(
-    subscribeChannelFilter,
-    readStoredChannelFilter,
-    () => "all",
-  );
+  const [storedChannelFilter, setChannelFilter] = useActiveChannel();
   // Memoised (not plain derived) so the `filtered` memo below can list
   // them as dependencies the compiler can track.
   const multiChannel = useMemo(() => (channels?.length ?? 0) > 1, [channels]);
@@ -122,9 +87,6 @@ export function ConversationList({
         : storedChannelFilter,
     [storedChannelFilter, channels],
   );
-  const setChannelFilter = useCallback((value: string) => {
-    writeStoredChannelFilter(value);
-  }, []);
   const channelNameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of channels ?? []) m.set(c.id, channelLabel(c));

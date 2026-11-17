@@ -149,7 +149,7 @@ describe('loadOverview', () => {
   it('calls the RPC with the range and time zone', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { days: 30 }, error: null })
     const result = await loadOverview({ rpc } as never, 30, 'Europe/Vilnius')
-    expect(rpc).toHaveBeenCalledWith('dashboard_overview', { p_days: 30, p_tz: 'Europe/Vilnius' })
+    expect(rpc).toHaveBeenCalledWith('dashboard_overview', { p_days: 30, p_tz: 'Europe/Vilnius', p_channel: null })
     expect(result).toEqual({ days: 30 })
   })
 

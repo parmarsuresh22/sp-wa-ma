@@ -579,7 +579,8 @@
       "toastBulkDeleted": "{count} contactos eliminados",
       "filterByTag": "Filtrar por {name}",
       "removeTagFilter": "Quitar el filtro {name}",
-      "selectContact": "Seleccionar {name}"
+      "selectContact": "Seleccionar {name}",
+      "filterByNumber": "Número"
     },
     "form": {
       "addTitle": "Agregar contacto",
@@ -1549,7 +1550,8 @@
           "label": "Fin",
           "blurb": "Termina el flujo"
         }
-      }
+      },
+      "runsOnLabel": "Se ejecuta en el número"
     },
     "validation": {
       "noIssues": "Sin problemas. Listo para activar.",
@@ -2249,7 +2251,9 @@
       "providerOpenAiCompatible": "API compatible con OpenAI",
       "baseUrl": "URL base",
       "baseUrlHint": "URL base de la API compatible con OpenAI, por ejemplo https://api.groq.com/openai/v1. /chat/completions se añade automáticamente, salvo que incluyas esa ruta.",
-      "missingBaseUrl": "Introduce la URL base de la API compatible con OpenAI."
+      "missingBaseUrl": "Introduce la URL base de la API compatible con OpenAI.",
+      "autoReplyOn": "Responder automáticamente en",
+      "autoReplyOnDesc": "Limita el bot a un número. Los borradores en la bandeja funcionan en todos."
     },
     "aiKnowledge": {
       "loadFailed": "Error al cargar la base de conocimiento",
@@ -3011,5 +3015,10 @@
       "metaApiStatus": "Error de la API de Meta: {status}",
       "syncFailed": "Error al sincronizar las plantillas"
     }
+  },
+  "Channels": {
+    "allNumbers": "Todos los números",
+    "number": "Número",
+    "runsOn": "Se ejecuta en"
   }
 }

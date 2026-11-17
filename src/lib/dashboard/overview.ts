@@ -177,8 +177,14 @@ export async function loadOverview(
   db: SupabaseClient,
   days: OverviewRange,
   timeZone: string,
+  /** One WhatsApp number (whatsapp_config id), or null for all (062). */
+  channelId: string | null = null,
 ): Promise<DashboardOverview> {
-  const { data, error } = await db.rpc('dashboard_overview', { p_days: days, p_tz: timeZone })
+  const { data, error } = await db.rpc('dashboard_overview', {
+    p_days: days,
+    p_tz: timeZone,
+    p_channel: channelId,
+  })
   if (error) throw error
   return data as DashboardOverview
 }

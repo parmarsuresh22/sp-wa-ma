@@ -65,6 +65,8 @@ export interface BuilderState {
   trigger_type: "keyword" | "first_inbound_message" | "manual";
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
+  /** Only start on this WhatsApp number; null = every number (062). */
+  channel_id: string | null;
   status: FlowRow["status"];
   nodes: BuilderNode[];
 }
@@ -267,6 +269,7 @@ export function FlowEditorProvider({
     trigger_type: initialFlow.trigger_type,
     trigger_config: initialFlow.trigger_config as Record<string, unknown>,
     entry_node_id: initialFlow.entry_node_id,
+    channel_id: initialFlow.channel_id ?? null,
     status: initialFlow.status,
     nodes: initialNodes.map((n) => ({
       node_key: n.node_key,
@@ -366,6 +369,7 @@ export function FlowEditorProvider({
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
+          channel_id: state.channel_id,
           nodes: state.nodes,
         }),
       });

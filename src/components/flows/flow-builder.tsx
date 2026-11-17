@@ -19,6 +19,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { ChannelScopeSelect } from '@/components/channels/channel-scope-select';
 import {
   CircleAlert,
   Plus,
@@ -306,6 +307,17 @@ function TriggerPanel({
               </SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div>
+          <label className="text-muted-foreground mb-1 block text-xs">
+            {t('runsOnLabel')}
+          </label>
+          <ChannelScopeSelect
+            always
+            className="w-full bg-muted"
+            value={state.channel_id}
+            onChange={(channel_id) => setState((s) => ({ ...s, channel_id }))}
+          />
         </div>
         {state.trigger_type === 'keyword' && (
           <div>

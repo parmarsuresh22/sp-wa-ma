@@ -579,7 +579,8 @@
       "toastBulkDeleted": "연락처 {count}개가 삭제되었습니다",
       "filterByTag": "{name}(으)로 필터링",
       "removeTagFilter": "{name} 필터 제거",
-      "selectContact": "{name} 선택"
+      "selectContact": "{name} 선택",
+      "filterByNumber": "번호"
     },
     "form": {
       "addTitle": "연락처 추가",
@@ -1549,7 +1550,8 @@
           "label": "종료",
           "blurb": "플로우를 종료합니다"
         }
-      }
+      },
+      "runsOnLabel": "실행할 번호"
     },
     "validation": {
       "noIssues": "문제가 없습니다. 활성화할 준비가 되었습니다.",
@@ -2249,7 +2251,9 @@
       "providerOpenAiCompatible": "OpenAI 호환 API",
       "baseUrl": "기본 URL",
       "baseUrlHint": "OpenAI 호환 API의 기본 URL입니다. 예: https://api.groq.com/openai/v1. /chat/completions 경로는 직접 입력하지 않는 경우 자동으로 추가됩니다.",
-      "missingBaseUrl": "OpenAI 호환 API의 기본 URL을 입력하세요."
+      "missingBaseUrl": "OpenAI 호환 API의 기본 URL을 입력하세요.",
+      "autoReplyOn": "자동 응답 번호",
+      "autoReplyOnDesc": "봇을 한 번호로 제한합니다. 받은편지함의 초안 작성은 모든 번호에서 동작합니다."
     },
     "aiKnowledge": {
       "loadFailed": "지식베이스를 불러오지 못했습니다",
@@ -3011,5 +3015,10 @@
       "metaApiStatus": "Meta API 오류: {status}",
       "syncFailed": "템플릿을 동기화하지 못했습니다"
     }
+  },
+  "Channels": {
+    "allNumbers": "모든 번호",
+    "number": "번호",
+    "runsOn": "실행 대상"
   }
 }

@@ -779,6 +779,7 @@ export async function processInboundMessage(
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
+    channelId: ctx.channelId,
     message:
       interactiveReplyId
         ? {
@@ -864,6 +865,7 @@ export async function processInboundMessage(
       accountId,
       triggerType,
       contactId: contactRecord.id,
+      channelId: ctx.channelId,
       context: {
         message_text: inboundText,
         conversation_id: conversation.id,
@@ -885,6 +887,7 @@ export async function processInboundMessage(
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      channelId: ctx.channelId,
       // Lets the bot show "typing…" (and mark the message read) while
       // the reply is generated.
       inboundMessageId: message.id,

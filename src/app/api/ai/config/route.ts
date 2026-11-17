@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isUuid } from '@/lib/api/v1/pagination'
 import {
   getCurrentAccount,
   requireRole,
@@ -35,7 +36,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
+        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, channel_id, api_key, embeddings_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -227,6 +228,12 @@ export async function POST(request: Request) {
       }
     }
 
+    // Optional pin to one WhatsApp number for the auto-reply (062).
+    const channelProvided = 'channel_id' in body
+    const channelId =
+      typeof body.channel_id === 'string' && body.channel_id.trim() ? body.channel_id.trim() : null
+    if (channelId && !isUuid(channelId)) return bad('channel_id must be a uuid or null')
+
     const encryptedKey = rawKey ? encrypt(rawKey) : null
     const shared: Record<string, unknown> = {
       provider,
@@ -240,6 +247,7 @@ export async function POST(request: Request) {
     // Only touch the handoff target when the form actually sent the field,
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId
+    if (channelProvided) shared.channel_id = channelId
     if (rawEmbeddingsKey) {
       shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
     } else if (clearEmbeddingsKey) {

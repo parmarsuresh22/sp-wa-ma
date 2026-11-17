@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isUuid } from '@/lib/api/v1/pagination'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
@@ -79,6 +80,8 @@ interface PutBody {
   trigger_type?: 'keyword' | 'first_inbound_message' | 'manual'
   trigger_config?: Record<string, unknown>
   entry_node_id?: string | null
+  /** Pin to one WhatsApp number; null = every number (062). */
+  channel_id?: string | null
   fallback_policy?: Record<string, unknown>
   nodes?: Array<{
     node_key: string
@@ -146,6 +149,12 @@ export async function PUT(
     flowPatch.entry_node_id = body.entry_node_id
   if (body.fallback_policy !== undefined)
     flowPatch.fallback_policy = body.fallback_policy
+  if (body.channel_id !== undefined) {
+    if (body.channel_id !== null && (typeof body.channel_id !== 'string' || !isUuid(body.channel_id))) {
+      return NextResponse.json({ error: 'channel_id must be a uuid or null' }, { status: 400 })
+    }
+    flowPatch.channel_id = body.channel_id
+  }
 
   if (body.nodes !== undefined) {
     const { error: graphErr } = await guard.supabase.rpc('replace_flow_graph', {

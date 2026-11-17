@@ -237,6 +237,8 @@ export interface FlowRow {
   trigger_type: "keyword" | "first_inbound_message" | "manual";
   trigger_config: KeywordTriggerConfig | FirstInboundTriggerConfig | Record<string, unknown>;
   entry_node_id: string | null;
+  /** Only start for messages on this number; NULL = every number (062). */
+  channel_id?: string | null;
   fallback_policy: FlowFallbackPolicy;
   execution_count: number;
   last_executed_at: string | null;
@@ -343,6 +345,10 @@ export interface DispatchInboundInput {
   contactId: string;
   conversationId: string;
   message: ParsedInbound;
+  /** The WhatsApp number the message arrived on (migration 061). Flows
+   *  pinned to another number are skipped; unknown → unpinned flows only
+   *  when null is passed explicitly, every flow when undefined. */
+  channelId?: string | null;
 }
 
 export interface DispatchInboundResult {

@@ -7,6 +7,8 @@ import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useActiveChannel } from '@/hooks/use-active-channel'
+import { useChannels } from '@/hooks/use-channels'
 import { Button } from '@/components/ui/button'
 import { loadActivity } from '@/lib/dashboard/queries'
 import type { ActivityItem } from '@/lib/dashboard/types'
@@ -57,9 +59,15 @@ function DashboardPageInner() {
   const requestRef = useRef(0)
   const debounceRef = useRef<number | null>(null)
 
+  // The number the agent is working on, shared with the inbox (062).
+  const [activeChannel] = useActiveChannel()
+  const { channels } = useChannels()
+  const channelId =
+    activeChannel !== 'all' && channels?.some((c) => c.id === activeChannel) ? activeChannel : null
+
   const refresh = useCallback((days: OverviewRange) => {
     const request = ++requestRef.current
-    loadOverview(createClient(), days, browserTimeZone())
+    loadOverview(createClient(), days, browserTimeZone(), channelId)
       .then((data) => {
         if (request !== requestRef.current) return
         setOverview(data)
@@ -71,7 +79,7 @@ function DashboardPageInner() {
         console.error('[dashboard] overview failed:', err)
         setFailed(true)
       })
-  }, [])
+  }, [channelId])
 
   useEffect(() => {
     refresh(range)
@@ -149,6 +157,7 @@ function DashboardPageInner() {
         name={profile?.full_name ?? null}
         range={range}
         onRangeChange={handleRangeChange}
+        channelId={channelId}
       />
 
       {data && needsSetup(data.setup) ? (

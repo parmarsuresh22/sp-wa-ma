@@ -31,6 +31,7 @@ import type { AiProvider } from '@/lib/ai/types';
 import type { AccountMember } from '@/types';
 import { fetchAccountMembers, memberLabel } from '@/lib/account/members';
 import { useTranslations } from 'next-intl';
+import { ChannelScopeSelect } from '@/components/channels/channel-scope-select';
 import { invalidateAiAccountStatus } from '@/lib/ai/account-status-cache';
 
 const MASKED_KEY = '••••••••••••••••';
@@ -79,6 +80,8 @@ export function AiConfig() {
   const [maxPerConversation, setMaxPerConversation] = useState(3);
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
+  // Only auto-reply on one number; null = every number (062).
+  const [channelId, setChannelId] = useState<string | null>(null);
   const [members, setMembers] = useState<AccountMember[]>([]);
 
   // Guard keyed on the account (not a bare boolean) so an in-place
@@ -106,6 +109,7 @@ export function AiConfig() {
         setAutoReplyEnabled(data.auto_reply_enabled);
         setMaxPerConversation(data.auto_reply_max_per_conversation ?? 3);
         setHandoffAgentId(data.handoff_agent_id ?? '');
+        setChannelId((data.channel_id as string | null | undefined) ?? null);
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
         setKeyEdited(false);
@@ -160,6 +164,7 @@ export function AiConfig() {
     auto_reply_enabled: autoReplyEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
     handoff_agent_id: handoffAgentId || null,
+    channel_id: channelId,
   });
 
   const handleTest = async () => {
@@ -492,6 +497,19 @@ export function AiConfig() {
                 }
                 disabled={disabled || !autoReplyEnabled}
                 className="w-20"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-channel">{t('autoReplyOn')}</Label>
+              <p className="text-xs text-muted-foreground">{t('autoReplyOnDesc')}</p>
+              <ChannelScopeSelect
+                id="ai-channel"
+                always
+                className="w-full"
+                value={channelId}
+                onChange={setChannelId}
+                disabled={disabled || !autoReplyEnabled}
               />
             </div>
 

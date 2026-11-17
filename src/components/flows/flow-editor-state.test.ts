@@ -153,6 +153,7 @@ describe("appendNode", () => {
     trigger_type: "manual",
     trigger_config: {},
     entry_node_id: null,
+    channel_id: null,
     status: "draft",
     nodes: [],
   };

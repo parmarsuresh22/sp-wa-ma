@@ -27,6 +27,9 @@ export interface AiConfig {
    *  agent's `auth.users.id`, or null to leave it unassigned (drop into
    *  the shared queue). */
   handoffAgentId: string | null
+  /** Only auto-reply on this WhatsApp number; null = every number (062).
+   *  Inbox drafting and the Playground ignore it. */
+  channelId?: string | null
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */

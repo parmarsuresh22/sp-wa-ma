@@ -59,6 +59,11 @@ export interface DispatchInput {
   triggerType: AutomationTriggerType
   contactId?: string | null
   context?: AutomationContext
+  /** The WhatsApp number the event happened on (migration 061/062).
+   *  Automations pinned to another number are skipped. Omit for events
+   *  with no number (API-created contacts, schedules): only unpinned
+   *  automations fire then. */
+  channelId?: string | null
 }
 
 /**
@@ -123,7 +128,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       }
     }
 
-    const { data: automations, error } = await db
+    const { data: fetched, error } = await db
       .from('automations')
       .select('*')
       .eq('account_id', input.accountId)
@@ -134,7 +139,12 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       console.error('[automations] fetch failed:', error)
       return
     }
-    if (!automations || automations.length === 0) return
+    // Pinned to one number → only that number's events (migration 062).
+    const automations = (fetched ?? []).filter(
+      (a: { channel_id?: string | null }) =>
+        !a.channel_id || a.channel_id === (input.channelId ?? null),
+    )
+    if (automations.length === 0) return
 
     for (const automation of automations as Automation[]) {
       if (!triggerMatches(automation, input.context)) continue

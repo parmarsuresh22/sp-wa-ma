@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isUuid } from '@/lib/api/v1/pagination'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
@@ -62,7 +63,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: t('common.invalidJson') }, { status: 400 })
 
-  const { name, description, trigger_type, trigger_config, is_active, steps, template } = body
+  const { name, description, trigger_type, trigger_config, is_active, steps, template, channel_id } = body
+  if (channel_id !== undefined && channel_id !== null && (typeof channel_id !== 'string' || !isUuid(channel_id))) {
+    return NextResponse.json({ error: 'channel_id must be a uuid or null' }, { status: 400 })
+  }
 
   let effectiveSteps: BuilderStepInput[] | undefined = steps
   let effectiveName = name

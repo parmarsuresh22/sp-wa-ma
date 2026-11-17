@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { Briefcase, ChevronDown, Plus, Radio, UserPlus, Zap } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { ChannelScopeSelect } from '@/components/channels/channel-scope-select'
+import { useActiveChannel } from '@/hooks/use-active-channel'
 
 import { buttonVariants } from '@/components/ui/button'
 import {
@@ -43,12 +45,15 @@ export function OverviewHeader({
   name,
   range,
   onRangeChange,
+  channelId = null,
 }: {
   data: DashboardOverview | null
   now: number
   name: string | null
   range: OverviewRange
   onRangeChange: (range: OverviewRange) => void
+  /** The number the figures are filtered to; null = every number (062). */
+  channelId?: string | null
 }) {
   const t = useTranslations('Dashboard.overview.header')
   const router = useRouter()
@@ -87,6 +92,7 @@ export function OverviewHeader({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <DashboardChannelPicker value={channelId} />
         <WhatsAppHealthChip />
         <Tabs value={String(range)} onValueChange={(v) => onRangeChange(Number(v) as OverviewRange)}>
           <TabsList aria-label={t('rangeLabel')}>
@@ -114,5 +120,21 @@ export function OverviewHeader({
         </DropdownMenu>
       </div>
     </div>
+  )
+}
+
+/**
+ * Which number the dashboard shows. Shares the inbox's remembered
+ * choice so switching in one place switches everywhere.
+ */
+function DashboardChannelPicker({ value }: { value: string | null }) {
+  const [, setActive] = useActiveChannel()
+  return (
+    <ChannelScopeSelect
+      size="sm"
+      className="max-w-56"
+      value={value}
+      onChange={(id) => setActive(id ?? 'all')}
+    />
   )
 }

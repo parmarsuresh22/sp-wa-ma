@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useActiveChannel } from '@/hooks/use-active-channel';
+import { useChannels } from '@/hooks/use-channels';
+import { ChannelScopeSelect } from '@/components/channels/channel-scope-select';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -83,6 +86,12 @@ export default function ContactsPage() {
   const [totalCount, setTotalCount] = useState(0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  // Number filter — contacts with a conversation on the active number
+  // (shared with the inbox and dashboard; migration 062).
+  const [activeChannel, setActiveChannel] = useActiveChannel();
+  const { channels } = useChannels();
+  const channelId =
+    activeChannel !== 'all' && channels?.some((c) => c.id === activeChannel) ? activeChannel : null;
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -140,13 +149,14 @@ export default function ContactsPage() {
     let count: number;
     let countIsExact = true;
 
-    if (selectedTagIds.length > 0) {
-      // Tag filter active — resolve it server-side (join + distinct +
-      // windowed total count + pagination) so a tag covering many
-      // contacts can't silently truncate the result or overflow an IN
-      // clause. See migration 025_filter_contacts_by_tags.
-      const { data, error } = await supabase.rpc('filter_contacts_by_tags', {
-        p_tag_ids: selectedTagIds,
+    if (selectedTagIds.length > 0 || channelId) {
+      // Tag and/or number filter active — resolve it server-side (join +
+      // distinct + windowed total count + pagination) so a tag covering
+      // many contacts can't silently truncate the result or overflow an
+      // IN clause. See migrations 025 and 062.
+      const { data, error } = await supabase.rpc('filter_contacts', {
+        p_tag_ids: selectedTagIds.length > 0 ? selectedTagIds : null,
+        p_channel: channelId,
         p_search: contactSearchPattern(term),
         p_limit: PAGE_SIZE,
         p_offset: from,
@@ -226,7 +236,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, tagsMap, t]);
+  }, [supabase, page, search, selectedTagIds, channelId, tagsMap, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -342,7 +352,7 @@ export default function ContactsPage() {
   const allTags = Object.values(tagsMap).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0;
+  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0 || !!channelId;
 
   function toggleTagFilter(tagId: string) {
     setSelectedTagIds((prev) =>
@@ -418,6 +428,15 @@ export default function ContactsPage() {
               className="pl-8 bg-card border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
+
+          <ChannelScopeSelect
+            className="shrink-0 bg-card"
+            value={channelId}
+            onChange={(id) => {
+              setActiveChannel(id ?? 'all');
+              setPage(0);
+            }}
+          />
 
           <Popover>
             <PopoverTrigger
