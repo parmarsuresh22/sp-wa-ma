@@ -2030,7 +2030,11 @@
         "webhookCurrent": "Atual",
         "webhookExpected": "Esperada",
         "fixWebhook": "Corrigir webhook",
-        "bridgeApiKeyReuse": "Deixe em branco para reutilizar a chave já salva para \"{name}\" nesta ponte."
+        "bridgeApiKeyReuse": "Deixe em branco para reutilizar a chave já salva para \"{name}\" nesta ponte.",
+        "addBridgeDescReuse": "Sua ponte do WhatsApp Web já está configurada. Dê um nome a este número; em seguida aparece um código QR.",
+        "bridgeReuseNote": "O endereço e a chave da ponte salvos nesta conta são reutilizados. Nada mais a informar.",
+        "bridgeManagedNote": "A ponte em que este número roda é gerenciada pelo wacrm; seu endereço e chave nunca aparecem aqui.",
+        "acceptAndLink": "Entendi, vincular"
       },
       "readOnlyHint": "Somente administradores podem alterar os números de WhatsApp."
     },
@@ -2288,7 +2292,28 @@
       "reindexTooltip": "Gerar novamente os embeddings de todos os documentos (ex.: após adicionar uma chave de embeddings)",
       "editDoc": "Editar",
       "deleteDoc": "Excluir",
-      "loading": "Carregando…"
+      "loading": "Carregando…",
+      "uploadSpreadsheet": "Enviar planilha",
+      "addWebsite": "Adicionar site",
+      "replaceFile": "Substituir arquivo",
+      "refreshUrl": "Atualizar a partir do site",
+      "fileAdded": "\"{name}\" adicionado — cada linha já é pesquisável.",
+      "fileReplaced": "Arquivo substituído e reindexado.",
+      "urlAdded": "Site importado.",
+      "urlRefreshed": "Site reimportado.",
+      "urlRequired": "Informe o endereço web.",
+      "addWebsiteTitle": "Importar uma página web",
+      "addWebsiteDesc": "O texto da página é salvo na base de conhecimento. Use Atualizar depois para captar mudanças.",
+      "websiteUrl": "Endereço web",
+      "websiteTitlePlaceholder": "ex.: Página de preços",
+      "importWebsite": "Importar",
+      "optional": "(opcional)",
+      "importedContent": "Conteúdo importado",
+      "importedContentHint": "Extraído do arquivo ou da página. Substitua o arquivo ou atualize a página para mudar; aqui só o título é editado.",
+      "sourceFile": "Planilha",
+      "sourceUrl": "Site",
+      "sourceText": "Texto",
+      "sourcesHint": "Planilhas viram uma linha por registro (Cabeçalho: valor), então o assistente responde a partir de uma lista de preços ou tabela de produtos como se fosse um banco de dados. Importações de site mantêm o texto da página."
     },
     "quickReplies": {
       "nameRequired": "Dê um nome à resposta rápida.",

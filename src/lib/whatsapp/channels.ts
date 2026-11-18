@@ -62,12 +62,17 @@ export interface ChannelRow {
 
 /** Columns safe to hand to the browser (no secrets). */
 export const CHANNEL_PUBLIC_COLUMNS =
-  'id, account_id, provider, label, display_phone, is_default, status, connected_at, created_at, phone_number_id, waba_id, registered_at, subscribed_apps_at, last_registration_error, mirror_inbound_media, bridge_base_url, bridge_session, bridge_status'
+  'id, account_id, provider, label, display_phone, is_default, status, connected_at, created_at, phone_number_id, waba_id, registered_at, subscribed_apps_at, last_registration_error, mirror_inbound_media, bridge_status'
 
+/**
+ * What the browser may see. Everything about *where* a bridge lives
+ * (URL, session name, keys) stays server-side; the client only learns
+ * that a bridge is configured so it can offer "link another number".
+ */
 export type PublicChannel = Omit<
   ChannelRow,
-  'access_token' | 'verify_token' | 'bridge_webhook_secret' | 'user_id'
->
+  'access_token' | 'verify_token' | 'bridge_webhook_secret' | 'user_id' | 'bridge_base_url' | 'bridge_session'
+> & { bridge_configured: boolean }
 
 /** Human label for a channel: its name, else its number, else its id. */
 export function channelDisplayName(
@@ -214,7 +219,10 @@ export async function hasConnectedChannel(db: Db, accountId: string): Promise<bo
  * channels uses one allow-list.
  */
 export function toPublicChannel(row: ChannelRow): PublicChannel {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { access_token, verify_token, bridge_webhook_secret, user_id, ...rest } = row
-  return rest
+  const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    access_token, verify_token, bridge_webhook_secret, user_id, bridge_base_url, bridge_session,
+    ...rest
+  } = row
+  return { ...rest, bridge_configured: row.provider === 'waha' && !!bridge_base_url }
 }

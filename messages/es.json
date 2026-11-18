@@ -2030,7 +2030,11 @@
         "webhookCurrent": "Actual",
         "webhookExpected": "Esperada",
         "fixWebhook": "Corregir webhook",
-        "bridgeApiKeyReuse": "Déjalo vacío para reutilizar la clave ya guardada para \"{name}\" en este puente."
+        "bridgeApiKeyReuse": "Déjalo vacío para reutilizar la clave ya guardada para \"{name}\" en este puente.",
+        "addBridgeDescReuse": "Tu puente de WhatsApp Web ya está configurado. Ponle un nombre a este número; después aparece un código QR.",
+        "bridgeReuseNote": "Se reutilizan la dirección y la clave del puente guardadas en esta cuenta. No hay nada más que introducir.",
+        "bridgeManagedNote": "El puente en el que funciona este número lo gestiona wacrm; su dirección y clave nunca se muestran aquí.",
+        "acceptAndLink": "Entendido, vincular"
       },
       "readOnlyHint": "Solo los administradores pueden cambiar los números de WhatsApp."
     },
@@ -2288,7 +2292,28 @@
       "reindexTooltip": "Volver a generar los embeddings de todos los documentos (p. ej. después de agregar una clave de embeddings)",
       "editDoc": "Editar",
       "deleteDoc": "Eliminar",
-      "loading": "Cargando…"
+      "loading": "Cargando…",
+      "uploadSpreadsheet": "Subir hoja de cálculo",
+      "addWebsite": "Añadir sitio web",
+      "replaceFile": "Reemplazar archivo",
+      "refreshUrl": "Actualizar desde el sitio web",
+      "fileAdded": "\"{name}\" añadido: cada fila ya es buscable.",
+      "fileReplaced": "Archivo reemplazado y reindexado.",
+      "urlAdded": "Sitio web importado.",
+      "urlRefreshed": "Sitio web reimportado.",
+      "urlRequired": "Introduce la dirección web.",
+      "addWebsiteTitle": "Importar una página web",
+      "addWebsiteDesc": "El texto de la página se guarda en la base de conocimiento. Usa Actualizar más tarde para recoger cambios.",
+      "websiteUrl": "Dirección web",
+      "websiteTitlePlaceholder": "p. ej. Página de precios",
+      "importWebsite": "Importar",
+      "optional": "(opcional)",
+      "importedContent": "Contenido importado",
+      "importedContentHint": "Extraído del archivo o la página. Reemplaza el archivo o actualiza la página para cambiarlo; aquí solo se edita el título.",
+      "sourceFile": "Hoja de cálculo",
+      "sourceUrl": "Sitio web",
+      "sourceText": "Texto",
+      "sourcesHint": "Las hojas de cálculo se convierten en una línea por fila (Encabezado: valor), así el asistente responde desde una lista de precios o tabla de productos como si fuera una base de datos. Las importaciones web conservan el texto de la página."
     },
     "quickReplies": {
       "nameRequired": "Ponle un nombre a la respuesta rápida.",

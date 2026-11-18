@@ -37,8 +37,12 @@ export async function GET(request: Request, { params }: Params) {
     }
     const state = await inspectBridgeChannel(supabase, channel, publicOrigin(request))
     const refreshed = await loadChannel(supabase, accountId, id)
+    // The bridge's addresses stay server-side; the client only needs to
+    // know whether the webhook is right.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { webhookUrl, expectedWebhookUrl, ...publicState } = state
     return NextResponse.json(
-      { ...state, channel: refreshed ? toPublicChannel(refreshed) : toPublicChannel(channel) },
+      { ...publicState, channel: refreshed ? toPublicChannel(refreshed) : toPublicChannel(channel) },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (err) {

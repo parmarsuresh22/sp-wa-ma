@@ -22,7 +22,7 @@ export async function GET() {
     const { supabase, accountId } = await getCurrentAccount()
     const { data, error } = await supabase
       .from('ai_knowledge_documents')
-      .select('id, title, updated_at')
+      .select('id, title, updated_at, source_type, source_url, source_filename, source_fetched_at')
       .eq('account_id', accountId)
       .order('updated_at', { ascending: false })
     if (error) {

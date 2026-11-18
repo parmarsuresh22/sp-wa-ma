@@ -43,11 +43,14 @@ The panel lists the account's numbers. Pick one to manage it.
   id, WABA id, token, verify token, PIN). Saving it creates a new channel.
   Numbers under the same WABA share one template catalogue; a number
   under another WABA needs its own "Sync from Meta".
-- **Link WhatsApp Web** asks for your WAHA bridge URL and API key,
-  creates a session on the bridge with a webhook pointing back at this
-  deployment, and shows the QR code to scan from the phone (WhatsApp →
-  Linked devices). Codes rotate every 20 seconds; the page refreshes
-  them. Once the session reports `WORKING` the channel is connected.
+- **Link WhatsApp Web** asks for your WAHA bridge URL and API key the
+  first time only; later numbers just need a name and reuse the saved
+  bridge. After a "Know the limits" confirmation it creates a session on
+  the bridge with a webhook pointing back at this deployment and shows
+  the QR code to scan from the phone (WhatsApp → Linked devices). Codes
+  rotate every 20 seconds; the page refreshes them. Once the session
+  reports `WORKING` the channel is connected. The bridge address and key
+  are never shown in the UI or sent to the browser afterwards.
 - The ⋯ menu on a channel offers **Rename**, **Make default** and
   **Remove**. A bridge channel also has Start / Restart / Unlink
   controls for its session.

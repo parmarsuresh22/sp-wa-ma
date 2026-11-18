@@ -2030,7 +2030,11 @@
         "webhookCurrent": "Current",
         "webhookExpected": "Expected",
         "fixWebhook": "Fix webhook",
-        "bridgeApiKeyReuse": "Leave blank to reuse the key already saved for \"{name}\" on this bridge."
+        "bridgeApiKeyReuse": "Leave blank to reuse the key already saved for \"{name}\" on this bridge.",
+        "addBridgeDescReuse": "Your WhatsApp Web bridge is already set up. Give this number a name; a QR code appears next.",
+        "bridgeReuseNote": "The bridge address and key saved on this account are reused. Nothing else to enter.",
+        "bridgeManagedNote": "The bridge this number runs on is managed by wacrm; its address and key are never shown here.",
+        "acceptAndLink": "I understand, link"
       },
       "readOnlyHint": "Only admins can change WhatsApp numbers."
     },
@@ -2288,7 +2292,28 @@
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
       "editDoc": "Edit",
       "deleteDoc": "Delete",
-      "loading": "Loading…"
+      "loading": "Loading…",
+      "uploadSpreadsheet": "Upload spreadsheet",
+      "addWebsite": "Add website",
+      "replaceFile": "Replace file",
+      "refreshUrl": "Refresh from website",
+      "fileAdded": "\"{name}\" added — every row is now searchable.",
+      "fileReplaced": "File replaced and re-indexed.",
+      "urlAdded": "Website imported.",
+      "urlRefreshed": "Website re-imported.",
+      "urlRequired": "Enter the web address.",
+      "addWebsiteTitle": "Import a web page",
+      "addWebsiteDesc": "The page's text is saved into the knowledge base. Use Refresh later to pick up changes.",
+      "websiteUrl": "Web address",
+      "websiteTitlePlaceholder": "e.g. Pricing page",
+      "importWebsite": "Import",
+      "optional": "(optional)",
+      "importedContent": "Imported content",
+      "importedContentHint": "Extracted from the file or page. Replace the file or refresh the page to update it; only the title is edited here.",
+      "sourceFile": "Spreadsheet",
+      "sourceUrl": "Website",
+      "sourceText": "Text",
+      "sourcesHint": "Spreadsheets become one line per row (Header: value), so the assistant can answer from a price list or product table like a database. Website imports keep the page's text."
     },
     "quickReplies": {
       "nameRequired": "Give the quick reply a name.",

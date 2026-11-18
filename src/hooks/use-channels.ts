@@ -14,13 +14,11 @@ export type ChannelSummary = Pick<
   | 'status'
   | 'phone_number_id'
   | 'waba_id'
-  | 'bridge_base_url'
-  | 'bridge_session'
   | 'bridge_status'
   | 'registered_at'
   | 'mirror_inbound_media'
   | 'connected_at'
->;
+> & { bridge_configured?: boolean };
 
 // Module-level cache so the inbox list, the thread header and the
 // broadcast wizard share one fetch per page load; `refresh()` busts it.
@@ -52,14 +50,13 @@ function load(force = false): Promise<ChannelSummary[]> {
 }
 
 /** Human label for a channel: name, else number, else id. */
-export function channelLabel(ch: Pick<ChannelSummary, 'label' | 'display_phone' | 'phone_number_id' | 'bridge_session'> | null | undefined): string {
+export function channelLabel(ch: Pick<ChannelSummary, 'label' | 'display_phone' | 'phone_number_id' | 'provider'> | null | undefined): string {
   if (!ch) return '';
   return (
     (ch.label && ch.label.trim()) ||
     (ch.display_phone && ch.display_phone.trim()) ||
     ch.phone_number_id ||
-    ch.bridge_session ||
-    'WhatsApp'
+    (ch.provider === 'waha' ? 'WhatsApp Web' : 'WhatsApp')
   );
 }
 

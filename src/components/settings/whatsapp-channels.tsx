@@ -286,8 +286,6 @@ interface BridgeState {
   pushName: string | null;
   qr: string | null;
   qrImage: string | null;
-  webhookUrl?: string | null;
-  expectedWebhookUrl?: string | null;
   webhookOk?: boolean | null;
   error: string | null;
 }
@@ -416,12 +414,6 @@ function BridgeChannelPanel({
             <AlertTitle className="text-amber-200">{t('webhookMismatchTitle')}</AlertTitle>
             <AlertDescription className="text-amber-100/80 text-xs leading-relaxed">
               <p>{t('webhookMismatchDesc')}</p>
-              <p className="mt-1 break-all font-mono text-[11px]">
-                {t('webhookCurrent')}: {state.webhookUrl}
-              </p>
-              <p className="break-all font-mono text-[11px]">
-                {t('webhookExpected')}: {state.expectedWebhookUrl}
-              </p>
               {canEdit && (
                 <Button
                   size="sm"
@@ -517,14 +509,7 @@ function BridgeChannelPanel({
             <CardTitle className="text-foreground">{t('bridgeDetailsTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div>
-              <Label className="text-muted-foreground">{t('bridgeUrl')}</Label>
-              <p className="truncate font-mono text-xs text-foreground">{channel.bridge_base_url}</p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">{t('sessionName')}</Label>
-              <p className="font-mono text-xs text-foreground">{channel.bridge_session}</p>
-            </div>
+            <p className="text-xs text-muted-foreground">{t('bridgeManagedNote')}</p>
             {(state?.phone ?? channel.display_phone) && (
               <div>
                 <Label className="text-muted-foreground">{t('linkedNumber')}</Label>
@@ -560,12 +545,13 @@ function AddBridgeDialog({
 }) {
   const t = useTranslations('Settings.whatsapp.channels');
   const { channels } = useChannels();
-  // A bridge already linked on this account: its URL is prefilled and
-  // its saved API key is reused server-side when the key is left blank.
+  // A bridge already linked on this account: the server reuses its
+  // address and saved API key, so the form only asks for a name.
   const existingBridge = useMemo(
-    () => (channels ?? []).find((c) => c.provider === 'waha' && c.bridge_base_url) ?? null,
+    () => (channels ?? []).find((c) => c.provider === 'waha' && c.bridge_configured) ?? null,
     [channels],
   );
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -580,21 +566,22 @@ function AddBridgeDialog({
       setApiKey('');
       setSessionName('');
       setFieldError(null);
-    } else {
-      setBaseUrl(existingBridge?.bridge_base_url ?? '');
+      setConfirmOpen(false);
     }
-  }, [open, existingBridge]);
+  }, [open]);
 
-  const sameBridgeAsExisting =
-    !!existingBridge &&
-    baseUrl.trim().replace(/\/+$/, '') === (existingBridge.bridge_base_url ?? '').replace(/\/+$/, '');
-  const keyRequired = !sameBridgeAsExisting;
+  const firstBridge = !existingBridge;
 
-  async function submit() {
-    if (!baseUrl.trim() || (keyRequired && !apiKey.trim())) {
+  function requestLink() {
+    if (firstBridge && (!baseUrl.trim() || !apiKey.trim())) {
       toast.error(t('bridgeFieldsRequired'));
       return;
     }
+    setConfirmOpen(true);
+  }
+
+  async function submit() {
+    setConfirmOpen(false);
     setSaving(true);
     setFieldError(null);
     try {
@@ -604,8 +591,9 @@ function AddBridgeDialog({
         body: JSON.stringify({
           provider: 'waha',
           label: label.trim() || null,
-          bridge_base_url: baseUrl.trim(),
-          bridge_api_key: apiKey.trim(),
+          // Blank = reuse the bridge (and key) already linked on this account.
+          bridge_base_url: firstBridge ? baseUrl.trim() : '',
+          bridge_api_key: firstBridge ? apiKey.trim() : '',
           session_name: sessionName.trim() || null,
         }),
       });
@@ -628,7 +616,7 @@ function AddBridgeDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('addBridgeTitle')}</DialogTitle>
-          <DialogDescription>{t('addBridgeDesc')}</DialogDescription>
+          <DialogDescription>{firstBridge ? t('addBridgeDesc') : t('addBridgeDescReuse')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -642,6 +630,8 @@ function AddBridgeDialog({
               className="bg-muted border-border"
             />
           </div>
+          {firstBridge && (
+          <>
           <div className="space-y-2">
             <Label>{t('bridgeUrl')}</Label>
             <Input
@@ -657,24 +647,16 @@ function AddBridgeDialog({
             <p className="text-xs text-muted-foreground">{t('bridgeUrlHint')}</p>
           </div>
           <div className="space-y-2">
-            <Label>
-              {t('bridgeApiKey')}{' '}
-              {!keyRequired && <span className="text-muted-foreground">{t('optional')}</span>}
-            </Label>
+            <Label>{t('bridgeApiKey')}</Label>
             <Input
               type="password"
               name="waha-bridge-api-key"
               autoComplete="new-password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={keyRequired ? 'WAHA_API_KEY' : '••••••••'}
+              placeholder="WAHA_API_KEY"
               className="bg-muted border-border font-mono text-sm"
             />
-            {!keyRequired && (
-              <p className="text-xs text-muted-foreground">
-                {t('bridgeApiKeyReuse', { name: channelLabel(existingBridge!) })}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
             <Label>
@@ -688,18 +670,42 @@ function AddBridgeDialog({
             />
             <p className="text-xs text-muted-foreground">{t('sessionNameHint')}</p>
           </div>
+          </>
+          )}
+          {!firstBridge && (
+            <p className="text-xs text-muted-foreground">{t('bridgeReuseNote')}</p>
+          )}
           {fieldError && <p className="text-sm text-red-400">{fieldError}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t('cancel')}
           </Button>
-          <Button onClick={() => void submit()} disabled={saving}>
+          <Button onClick={requestLink} disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
             {saving ? t('creating') : t('create')}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Read-and-accept before a QR code is issued. */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('bridgeLimitsTitle')}</DialogTitle>
+            <DialogDescription>{t('bridgeLimitsDesc')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={saving}>
+              {t('cancel')}
+            </Button>
+            <Button onClick={() => void submit()} disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
+              {t('acceptAndLink')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

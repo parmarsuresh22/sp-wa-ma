@@ -24,10 +24,25 @@ and polish.
 > on `flows`, `automations` and `ai_configs`; `dashboard_overview()`
 > gains a `p_channel` argument; new `filter_contacts()` RPC), then
 > `supabase/migrations/063_ai_handoff_toggle.sql` (`ai_configs.handoff_enabled`)
-> and `supabase/migrations/064_ai_knowledge_fts_any_word.sql` (forgiving
-> keyword search for the knowledge base).
+> `supabase/migrations/064_ai_knowledge_fts_any_word.sql` (forgiving
+> keyword search for the knowledge base) and
+> `supabase/migrations/065_ai_knowledge_sources.sql` (knowledge documents
+> from spreadsheets and web pages).
 
 ### Added
+
+- **Knowledge from spreadsheets and websites.** The knowledge base
+  gains "Upload spreadsheet" (.xlsx, .xls, .csv, .tsv, .ods — every row
+  becomes a `Header: value` line so a price list or product table reads
+  like a database to the assistant) with "Replace file", and "Add
+  website" (the page's text, with "Refresh" to re-import). New endpoints
+  `POST /api/ai/knowledge/import` and `POST /api/ai/knowledge/[id]/import`.
+
+- **WhatsApp Web bridge details stay private.** The bridge address, API
+  key and session name no longer reach the browser at all; linking a
+  second WhatsApp Web number asks only for a name and reuses the saved
+  bridge. A "Know the limits" confirmation is shown before a QR code is
+  issued.
 
 - **Knowledge base actually reaches the bot.** A knowledge base of up to
   eight chunks is now handed to the model whole on every reply, and the
