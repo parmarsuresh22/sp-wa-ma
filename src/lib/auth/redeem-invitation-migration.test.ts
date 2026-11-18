@@ -14,6 +14,12 @@ const tablesWithoutDomainData = new Set([
   "account_invitations",
   "member_presence",
   "pending_message_statuses",
+  // Migration 067. A row in either needs a parent that redeem_invitation
+  // already checks (contact_wishes → contacts, wish_schedules →
+  // whatsapp_config, both NOT NULL FKs), so neither can hold data in an
+  // account the function would still consider empty.
+  "contact_wishes",
+  "wish_schedules",
 ]);
 
 function accountScopedTables(): Set<string> {

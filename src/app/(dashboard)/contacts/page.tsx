@@ -789,6 +789,7 @@ export default function ContactsPage() {
         onOpenChange={setDetailOpen}
         contactId={detailContactId}
         onUpdated={fetchContacts}
+        channelId={channelId}
       />
 
       {/* Import Modal */}

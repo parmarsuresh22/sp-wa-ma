@@ -1,6 +1,7 @@
 import {
   Coins,
   FileText,
+  Gift,
   Inbox,
   KeyRound,
   LayoutGrid,
@@ -31,6 +32,7 @@ export const SETTINGS_SECTIONS = [
   'templates',
   'quick-replies',
   'inbox',
+  'wishes',
   'fields',
   'deals',
   'members',
@@ -58,6 +60,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   templates: { id: 'templates', label: 'Templates', icon: FileText, group: 'workspace' },
   'quick-replies': { id: 'quick-replies', label: 'Quick replies', icon: Zap, group: 'workspace' },
   inbox: { id: 'inbox', label: 'Inbox', icon: Inbox, group: 'workspace' },
+  wishes: { id: 'wishes', label: 'Wish Scheduler', icon: Gift, group: 'workspace' },
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },

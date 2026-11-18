@@ -58,7 +58,7 @@ interface UrlButtonSlot {
  * variable, and per-URL-button suffixes. Collect them all so the
  * send-message path doesn't 400 on missing parameters.
  */
-function collectVariableSlots(template: MessageTemplate): {
+export function collectVariableSlots(template: MessageTemplate): {
   bodyVars: string[];
   headerVar: string | null;
   urlButtonSlots: UrlButtonSlot[];

@@ -44,12 +44,15 @@ import { useTranslations } from 'next-intl';
 import { planCustomValueWrites } from '@/lib/contacts/custom-value-writes';
 import { contactHandle } from '@/lib/whatsapp/wa-identity';
 import { parseInternationalPhone } from '@/lib/whatsapp/phone-utils';
+import { ContactWishTab } from '@/components/contacts/contact-wish-tab';
 
 interface ContactDetailViewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactId: string | null;
   onUpdated: () => void;
+  /** The number selected on the contacts page; a wish is saved on it. */
+  channelId?: string | null;
 }
 
 export function ContactDetailView({
@@ -57,6 +60,7 @@ export function ContactDetailView({
   onOpenChange,
   contactId,
   onUpdated,
+  channelId = null,
 }: ContactDetailViewProps) {
   const t = useTranslations('Contacts.detailView');
   const supabase = createClient();
@@ -464,7 +468,7 @@ export function ContactDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3">
+              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3 max-w-[calc(100%-2rem)] justify-start overflow-x-auto">
                 <TabsTrigger
                   value="details"
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
@@ -494,6 +498,12 @@ export function ContactDetailView({
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
                 >
                   {t('tabs.deals')}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="wish"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.wish')}
                 </TabsTrigger>
               </TabsList>
 
@@ -756,6 +766,13 @@ export function ContactDetailView({
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Wish Tab */}
+              <TabsContent value="wish" className="flex-1 overflow-y-auto px-4 py-3">
+                {contactId ? (
+                  <ContactWishTab contactId={contactId} channelId={channelId} />
+                ) : null}
               </TabsContent>
             </Tabs>
           </div>

@@ -29,9 +29,27 @@ and polish.
 > `supabase/migrations/065_ai_knowledge_sources.sql` (knowledge documents
 > from spreadsheets and web pages) and
 > `supabase/migrations/066_broadcast_custom_message.sql`
-> (`broadcasts.message_text` for WhatsApp Web campaigns).
+> (`broadcasts.message_text` for WhatsApp Web campaigns) and
+> `supabase/migrations/067_wishes.sql` (`contact_wishes` and
+> `wish_schedules` for automated wishes).
 
 ### Added
+
+- **Automated wishes.** A contact gains a "Wish" tab: a day and a
+  month, and what to send once a year on that date. The wish goes out on
+  the number selected on the contacts page — an approved template (with
+  its variables) on a Business API number, free text on a WhatsApp Web
+  number; `{{name}}` becomes the contact's name. Settings gains "Wish
+  Scheduler": per number, on/off, frequency (hourly to yearly), time
+  zone, time, last and next run, and "Run now". A run sends every wish
+  whose date fell since the previous run, at most once per contact per
+  year, one message a second, through the normal send path so it shows
+  in the inbox. **Needs a scheduler:** call `GET /api/wishes/cron`
+  hourly with the header `x-cron-secret: <AUTOMATION_CRON_SECRET>` (an
+  n8n Schedule node works; Vercel Cron's `Authorization: Bearer
+  <CRON_SECRET>` is accepted too). New endpoints: `/api/wishes/cron`,
+  `/api/wishes/schedules`, `/api/wishes/schedules/[channelId]/run`,
+  `/api/wishes/contact/[contactId]`.
 
 - **Broadcasts start with "Send from".** The wizard's first step picks
   the number. A Business API number continues to template, audience,
