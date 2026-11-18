@@ -2255,7 +2255,9 @@
       "missingBaseUrl": "Enter the Base URL for the OpenAI-compatible API.",
       "autoReplyOn": "Auto-reply on",
       "autoReplyOnDesc": "Pin the bot to one number. Drafting in the inbox works everywhere.",
-      "loading": "Loading…"
+      "loading": "Loading…",
+      "handoffEnabled": "Hand off to a human when needed",
+      "handoffEnabledDesc": "When on, the bot stops replying on a thread and routes it to a person if the customer asks for one or it cannot help. When off, the bot always answers and never pauses itself."
     },
     "aiKnowledge": {
       "loadFailed": "Failed to load knowledge base",

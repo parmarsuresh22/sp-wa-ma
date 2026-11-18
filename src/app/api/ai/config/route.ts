@@ -36,7 +36,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, channel_id, api_key, embeddings_api_key',
+        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, api_key, embeddings_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -228,6 +228,10 @@ export async function POST(request: Request) {
       }
     }
 
+    // Optional: whether the auto-reply may hand off to a human (063).
+    const handoffEnabledProvided = 'handoff_enabled' in body
+    const handoffEnabled = body.handoff_enabled !== false
+
     // Optional pin to one WhatsApp number for the auto-reply (062).
     const channelProvided = 'channel_id' in body
     const channelId =
@@ -248,6 +252,7 @@ export async function POST(request: Request) {
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId
     if (channelProvided) shared.channel_id = channelId
+    if (handoffEnabledProvided) shared.handoff_enabled = handoffEnabled
     if (rawEmbeddingsKey) {
       shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
     } else if (clearEmbeddingsKey) {

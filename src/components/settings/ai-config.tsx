@@ -82,6 +82,8 @@ export function AiConfig() {
   const [handoffAgentId, setHandoffAgentId] = useState('');
   // Only auto-reply on one number; null = every number (062).
   const [channelId, setChannelId] = useState<string | null>(null);
+  // Hand off to a human (and pause) when the bot cannot help (063).
+  const [handoffEnabled, setHandoffEnabled] = useState(true);
   const [members, setMembers] = useState<AccountMember[]>([]);
 
   // Guard keyed on the account (not a bare boolean) so an in-place
@@ -110,6 +112,7 @@ export function AiConfig() {
         setMaxPerConversation(data.auto_reply_max_per_conversation ?? 3);
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setChannelId((data.channel_id as string | null | undefined) ?? null);
+        setHandoffEnabled(data.handoff_enabled !== false);
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
         setKeyEdited(false);
@@ -171,6 +174,7 @@ export function AiConfig() {
     auto_reply_max_per_conversation: maxPerConversation,
     handoff_agent_id: handoffAgentId || null,
     channel_id: channelId,
+    handoff_enabled: handoffEnabled,
   });
 
   const handleTest = async () => {
@@ -518,6 +522,18 @@ export function AiConfig() {
               />
             </div>
 
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">{t('handoffEnabled')}</p>
+                <p className="text-xs text-muted-foreground">{t('handoffEnabledDesc')}</p>
+              </div>
+              <Switch
+                checked={handoffEnabled}
+                onCheckedChange={setHandoffEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="ai-handoff">{t('handoffTo')}</Label>
               <p className="text-xs text-muted-foreground">
@@ -528,7 +544,7 @@ export function AiConfig() {
                 onValueChange={(v) =>
                   setHandoffAgentId(!v || v === HANDOFF_QUEUE ? '' : v)
                 }
-                disabled={disabled || !autoReplyEnabled}
+                disabled={disabled || !autoReplyEnabled || !handoffEnabled}
                 // Base UI renders the raw value in the trigger unless it
                 // knows the labels; members load async, so hand them over.
                 items={{

@@ -135,10 +135,12 @@ export async function dispatchInboundToAiReply(
       latestUserMessage(messages),
     )
 
+    const handoffEnabled = config.handoffEnabled !== false
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
+      handoff: handoffEnabled,
     })
 
     const { text, handoff, usage } = await generateReply({
@@ -161,7 +163,12 @@ export async function dispatchInboundToAiReply(
       usage,
     })
 
-    if (handoff || !text) {
+    if (!handoffEnabled) {
+      // Handoff switched off (063): the bot never pauses itself. A stray
+      // sentinel or an empty answer just means no reply this turn; the
+      // inbound still sits in the inbox for a human.
+      if (!text) return
+    } else if (handoff || !text) {
       // The model can't (or shouldn't) answer — stop auto-replying on
       // this thread and hand it to a human. We (a) pause the bot here
       // (sticky until re-enabled), (b) route the conversation to the

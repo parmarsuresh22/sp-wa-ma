@@ -27,6 +27,9 @@ export interface AiConfig {
    *  agent's `auth.users.id`, or null to leave it unassigned (drop into
    *  the shared queue). */
   handoffAgentId: string | null
+  /** Hand the thread to a human (and pause) when the model cannot help.
+   *  Default true; false = always answer, never pause (063). */
+  handoffEnabled?: boolean
   /** Only auto-reply on this WhatsApp number; null = every number (062).
    *  Inbox drafting and the Playground ignore it. */
   channelId?: string | null

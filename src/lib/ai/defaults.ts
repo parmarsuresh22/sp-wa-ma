@@ -58,8 +58,15 @@ export function buildSystemPrompt(args: {
   mode: 'draft' | 'auto_reply'
   /** Knowledge-base excerpts retrieved for the current question. */
   knowledge?: string[]
+  /**
+   * Auto-reply only. True (default): teach the handoff protocol — the
+   * model answers with the sentinel when it cannot help and a human
+   * takes over. False: the bot always answers; when it lacks specifics
+   * it says so kindly and promises a follow-up instead of going quiet.
+   */
+  handoff?: boolean
 }): string {
-  const { userPrompt, mode, knowledge } = args
+  const { userPrompt, mode, knowledge, handoff = true } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
       'You are shown the recent WhatsApp conversation between the business (assistant) and a customer (user). ' +
@@ -72,7 +79,9 @@ export function buildSystemPrompt(args: {
 
   if (mode === 'auto_reply') {
     parts.push(
-      `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} and nothing else. A human agent will then take over. Prefer handing off over guessing.`,
+      handoff
+        ? `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} and nothing else. A human agent will then take over. Prefer handing off over guessing.`
+        : 'You are replying automatically; a human reads every conversation afterwards. Always send a reply. When the customer asks for a person or for something you cannot answer, do not go quiet: acknowledge it kindly, say the team has been notified and will get back to them, and ask anything that would help the team. Never invent specifics.',
     )
   }
 
@@ -82,7 +91,7 @@ export function buildSystemPrompt(args: {
 
   if (knowledge && knowledge.length > 0) {
     const fallback =
-      mode === 'auto_reply'
+      mode === 'auto_reply' && handoff
         ? `if they don't cover the question, do not guess — reply with exactly ${HANDOFF_SENTINEL} so a human can help`
         : "if they don't cover the question, don't guess — say you'll check and follow up"
     parts.push(

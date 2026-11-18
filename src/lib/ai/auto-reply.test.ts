@@ -372,3 +372,31 @@ describe('dispatchInboundToAiReply — pinned to one number (062)', () => {
     expect(h.engineSendText).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('dispatchInboundToAiReply — handoff switched off (063)', () => {
+  it('sends the reply instead of pausing when the model emits the sentinel', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ handoffEnabled: false }))
+    h.generateReply.mockResolvedValue({ text: 'The team will get back to you.', handoff: true })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.engineSendText).toHaveBeenCalledTimes(1)
+    const paused = h.state.updates.find((u) => u.payload.ai_autoreply_disabled === true)
+    expect(paused).toBeUndefined()
+  })
+
+  it('stays quiet without pausing when the model returns nothing', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ handoffEnabled: false }))
+    h.generateReply.mockResolvedValue({ text: '', handoff: true })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    const paused = h.state.updates.find((u) => u.payload.ai_autoreply_disabled === true)
+    expect(paused).toBeUndefined()
+  })
+
+  it('teaches the always-answer scaffold instead of the sentinel', async () => {
+    h.loadAiConfig.mockResolvedValue(aiConfig({ handoffEnabled: false }))
+    await dispatchInboundToAiReply(ARGS)
+    const prompt = String(h.generateReply.mock.calls[0][0].systemPrompt)
+    expect(prompt).not.toContain('[[HANDOFF]]')
+    expect(prompt).toContain('Always send a reply')
+  })
+})

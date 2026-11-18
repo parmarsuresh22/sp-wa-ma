@@ -22,9 +22,17 @@ and polish.
 > single-number install behaves exactly as before), then
 > `supabase/migrations/062_channel_scoping.sql` (nullable `channel_id`
 > on `flows`, `automations` and `ai_configs`; `dashboard_overview()`
-> gains a `p_channel` argument; new `filter_contacts()` RPC).
+> gains a `p_channel` argument; new `filter_contacts()` RPC), then
+> `supabase/migrations/063_ai_handoff_toggle.sql` (`ai_configs.handoff_enabled`).
 
 ### Added
+
+- **AI handoff is now a switch.** Settings → AI Assistant gains "Hand
+  off to a human when needed" (on by default, the previous behaviour).
+  Off, the bot always answers — a customer asking for a person gets a
+  kind acknowledgement and a promise of follow-up instead of silence —
+  and never pauses itself on a thread. Previously a system prompt saying
+  "never hand off" lost to the built-in scaffold.
 
 - **Work on one number.** The inbox, dashboard and contacts page share
   a number dropdown (remembered per browser). Flows get a "Runs on

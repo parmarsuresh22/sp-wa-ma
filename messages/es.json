@@ -2255,7 +2255,9 @@
       "missingBaseUrl": "Introduce la URL base de la API compatible con OpenAI.",
       "autoReplyOn": "Responder automáticamente en",
       "autoReplyOnDesc": "Limita el bot a un número. Los borradores en la bandeja funcionan en todos.",
-      "loading": "Cargando…"
+      "loading": "Cargando…",
+      "handoffEnabled": "Derivar a una persona cuando haga falta",
+      "handoffEnabledDesc": "Si está activo, el bot deja de responder en ese hilo y lo deriva a una persona cuando el cliente la pide o no puede ayudar. Si está inactivo, el bot siempre responde y nunca se pausa."
     },
     "aiKnowledge": {
       "loadFailed": "Error al cargar la base de conocimiento",
