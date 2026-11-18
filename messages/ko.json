@@ -2029,7 +2029,8 @@
         "webhookMismatchDesc": "브리지가 아래 URL로 이벤트를 보내지만 이 배포는 다른 곳에 있어 수신 메시지가 도착하지 않습니다. 보통 번호를 연결할 때 NEXT_PUBLIC_SITE_URL이 잘못된 경우입니다. 여기서 고친 뒤 변수도 수정하여 새 번호가 올바른 주소를 받도록 하세요.",
         "webhookCurrent": "현재",
         "webhookExpected": "예상",
-        "fixWebhook": "웹훅 수정"
+        "fixWebhook": "웹훅 수정",
+        "bridgeApiKeyReuse": "비워 두면 이 브리지의 \"{name}\"에 저장된 키를 재사용합니다."
       },
       "readOnlyHint": "관리자만 WhatsApp 번호를 변경할 수 있습니다."
     },
@@ -2253,7 +2254,8 @@
       "baseUrlHint": "OpenAI 호환 API의 기본 URL입니다. 예: https://api.groq.com/openai/v1. /chat/completions 경로는 직접 입력하지 않는 경우 자동으로 추가됩니다.",
       "missingBaseUrl": "OpenAI 호환 API의 기본 URL을 입력하세요.",
       "autoReplyOn": "자동 응답 번호",
-      "autoReplyOnDesc": "봇을 한 번호로 제한합니다. 받은편지함의 초안 작성은 모든 번호에서 동작합니다."
+      "autoReplyOnDesc": "봇을 한 번호로 제한합니다. 받은편지함의 초안 작성은 모든 번호에서 동작합니다.",
+      "loading": "불러오는 중…"
     },
     "aiKnowledge": {
       "loadFailed": "지식베이스를 불러오지 못했습니다",

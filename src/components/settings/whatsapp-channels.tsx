@@ -559,6 +559,13 @@ function AddBridgeDialog({
   onCreated: (channelId: string) => Promise<void> | void;
 }) {
   const t = useTranslations('Settings.whatsapp.channels');
+  const { channels } = useChannels();
+  // A bridge already linked on this account: its URL is prefilled and
+  // its saved API key is reused server-side when the key is left blank.
+  const existingBridge = useMemo(
+    () => (channels ?? []).find((c) => c.provider === 'waha' && c.bridge_base_url) ?? null,
+    [channels],
+  );
   const [label, setLabel] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -573,11 +580,18 @@ function AddBridgeDialog({
       setApiKey('');
       setSessionName('');
       setFieldError(null);
+    } else {
+      setBaseUrl(existingBridge?.bridge_base_url ?? '');
     }
-  }, [open]);
+  }, [open, existingBridge]);
+
+  const sameBridgeAsExisting =
+    !!existingBridge &&
+    baseUrl.trim().replace(/\/+$/, '') === (existingBridge.bridge_base_url ?? '').replace(/\/+$/, '');
+  const keyRequired = !sameBridgeAsExisting;
 
   async function submit() {
-    if (!baseUrl.trim() || !apiKey.trim()) {
+    if (!baseUrl.trim() || (keyRequired && !apiKey.trim())) {
       toast.error(t('bridgeFieldsRequired'));
       return;
     }
@@ -643,16 +657,24 @@ function AddBridgeDialog({
             <p className="text-xs text-muted-foreground">{t('bridgeUrlHint')}</p>
           </div>
           <div className="space-y-2">
-            <Label>{t('bridgeApiKey')}</Label>
+            <Label>
+              {t('bridgeApiKey')}{' '}
+              {!keyRequired && <span className="text-muted-foreground">{t('optional')}</span>}
+            </Label>
             <Input
               type="password"
               name="waha-bridge-api-key"
               autoComplete="new-password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="WAHA_API_KEY"
+              placeholder={keyRequired ? 'WAHA_API_KEY' : '••••••••'}
               className="bg-muted border-border font-mono text-sm"
             />
+            {!keyRequired && (
+              <p className="text-xs text-muted-foreground">
+                {t('bridgeApiKeyReuse', { name: channelLabel(existingBridge!) })}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>

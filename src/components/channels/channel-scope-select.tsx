@@ -51,6 +51,17 @@ export function ChannelScopeSelect({
       value={current}
       onValueChange={(v) => onChange(!v || v === ALL ? null : String(v))}
       disabled={disabled}
+      // Base UI shows the raw value in the trigger unless it is told the
+      // labels up front (the items only register once the popup opens).
+      items={{
+        [ALL]: t('allNumbers'),
+        ...Object.fromEntries(
+          list.map((c) => [
+            c.id,
+            `${channelLabel(c)}${c.label && c.display_phone ? ` · ${c.display_phone}` : ''}`,
+          ]),
+        ),
+      }}
     >
       <SelectTrigger id={id} size={size} className={cn('max-w-full', className)} aria-label={t('number')}>
         <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />

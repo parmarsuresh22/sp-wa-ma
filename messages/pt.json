@@ -2029,7 +2029,8 @@
         "webhookMismatchDesc": "A ponte envia os eventos para a URL abaixo, mas esta instalação está em outro lugar, então as mensagens recebidas nunca chegam. Geralmente NEXT_PUBLIC_SITE_URL estava errada ao vincular o número. Corrija aqui e depois ajuste a variável para que novos números recebam o endereço certo.",
         "webhookCurrent": "Atual",
         "webhookExpected": "Esperada",
-        "fixWebhook": "Corrigir webhook"
+        "fixWebhook": "Corrigir webhook",
+        "bridgeApiKeyReuse": "Deixe em branco para reutilizar a chave já salva para \"{name}\" nesta ponte."
       },
       "readOnlyHint": "Somente administradores podem alterar os números de WhatsApp."
     },
@@ -2253,7 +2254,8 @@
       "baseUrlHint": "URL base da API compatível com OpenAI, por exemplo https://api.groq.com/openai/v1. O caminho /chat/completions é adicionado automaticamente, a menos que você informe esse caminho.",
       "missingBaseUrl": "Informe a URL base da API compatível com OpenAI.",
       "autoReplyOn": "Responder automaticamente em",
-      "autoReplyOnDesc": "Limita o bot a um número. Rascunhos na caixa de entrada funcionam em todos."
+      "autoReplyOnDesc": "Limita o bot a um número. Rascunhos na caixa de entrada funcionam em todos.",
+      "loading": "Carregando…"
     },
     "aiKnowledge": {
       "loadFailed": "Falha ao carregar a base de conhecimento",

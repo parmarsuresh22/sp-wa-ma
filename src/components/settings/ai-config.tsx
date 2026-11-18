@@ -125,6 +125,12 @@ export function AiConfig() {
   }, []);
 
   useEffect(() => {
+    // No account resolved (profile finished loading without one): stop
+    // spinning so the empty form renders instead of a forever-loader.
+    if (!accountId && !profileLoading) {
+      setLoading(false);
+      return;
+    }
     if (!accountId || loadedAccountIdRef.current === accountId) return;
     loadedAccountIdRef.current = accountId;
     void fetchConfig();
@@ -132,7 +138,7 @@ export function AiConfig() {
     // older deployment without the endpoint the picker just shows the
     // queue option.
     void fetchAccountMembers().then(setMembers);
-  }, [accountId, fetchConfig]);
+  }, [accountId, profileLoading, fetchConfig]);
 
   // Swap the model default when the provider changes, unless the user
   // typed a custom model.
@@ -258,8 +264,7 @@ export function AiConfig() {
   if (loading || profileLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('loadFailed')} {/* Re-using label or a global one, wait, loading is better. Let's use useTranslations from overview or just hardcode Loading... actually I should add loading to aiConfig */}
-        {/* Wait, I didn't add loading to aiConfig. I'll just use loading. */}
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('loading')}
       </div>
     );
   }
@@ -524,6 +529,12 @@ export function AiConfig() {
                   setHandoffAgentId(!v || v === HANDOFF_QUEUE ? '' : v)
                 }
                 disabled={disabled || !autoReplyEnabled}
+                // Base UI renders the raw value in the trigger unless it
+                // knows the labels; members load async, so hand them over.
+                items={{
+                  [HANDOFF_QUEUE]: t('handoffQueue'),
+                  ...Object.fromEntries(members.map((m) => [m.user_id, memberLabel(m)])),
+                }}
               >
                 <SelectTrigger id="ai-handoff">
                   <SelectValue />

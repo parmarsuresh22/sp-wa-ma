@@ -57,11 +57,30 @@ export async function createBridgeChannel(
   db: SupabaseClient,
   input: CreateBridgeChannelInput,
 ): Promise<ChannelRow> {
-  const baseUrl = normalizeBridgeBaseUrl(input.baseUrl)
+  const existing = await listChannels(db, input.accountId)
+  const siblings = existing.filter((c) => c.provider === 'waha' && c.bridge_base_url)
+
+  // One bridge serves many numbers: a blank URL means "the bridge I
+  // already use", and a blank key means "the key saved for that bridge".
+  const baseUrl = normalizeBridgeBaseUrl(
+    input.baseUrl.trim() || siblings[0]?.bridge_base_url || '',
+  )
   if (!baseUrl) {
     throw new BridgeChannelError('Bridge URL must be a valid http(s) URL', 400, 'bridge_base_url')
   }
-  const apiKey = input.apiKey.trim()
+  let apiKey = input.apiKey.trim()
+  if (!apiKey) {
+    const sameBridge = siblings.find(
+      (c) => normalizeBridgeBaseUrl(c.bridge_base_url ?? '') === baseUrl,
+    )
+    if (sameBridge) {
+      try {
+        apiKey = decrypt(sameBridge.access_token)
+      } catch {
+        apiKey = ''
+      }
+    }
+  }
   if (!apiKey) {
     throw new BridgeChannelError('Bridge API key is required', 400, 'bridge_api_key')
   }
@@ -85,7 +104,6 @@ export async function createBridgeChannel(
     )
   }
 
-  const existing = await listChannels(db, input.accountId)
   const hmacKey = crypto.randomBytes(32).toString('hex')
 
   const { data: inserted, error: insertError } = await db
