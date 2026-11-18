@@ -10,10 +10,12 @@ import { daysInMonth } from '@/lib/wishes/schedule'
 type Params = { params: Promise<{ contactId: string }> }
 
 const MAX_MESSAGE_CHARS = 4096
+const MAX_WISHES_PER_CONTACT = 10
+const OCCASIONS = ['birthday', 'anniversary', 'other'] as const
 // A leap year, so 29 February is a valid day to pick.
 const LEAP_YEAR = 2024
 
-/** GET /api/wishes/contact/[contactId] — the contact's wish, or null. */
+/** GET /api/wishes/contact/[contactId] — the contact's wishes, oldest first. */
 export async function GET(_request: Request, { params }: Params) {
   try {
     const { contactId } = await params
@@ -23,11 +25,11 @@ export async function GET(_request: Request, { params }: Params) {
       .select('*')
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
-      .maybeSingle()
+      .order('created_at', { ascending: true })
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-    return NextResponse.json({ wish: data ?? null })
+    return NextResponse.json({ wishes: data ?? [] })
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -36,10 +38,12 @@ export async function GET(_request: Request, { params }: Params) {
 /**
  * PUT /api/wishes/contact/[contactId]
  *
- * Body: { enabled, month, day, channel_id,
+ * Body: { id?, occasion, enabled, month, day, channel_id,
  *         message_text?            — WhatsApp Web number
  *         template_name?, template_language?, template_params? — Business API number }
  *
+ * With `id` it updates that wish; without, it adds another one (a
+ * contact can have several — birthday, anniversary, …).
  * `channel_id` is the number the wish goes out on (the one selected on
  * the contacts page). A Business API number takes an approved template;
  * a WhatsApp Web number takes free text. `{{name}}` in the text or in a
@@ -63,6 +67,12 @@ export async function PUT(request: Request, { params }: Params) {
       .maybeSingle()
     if (!contact) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
+    }
+
+    const wishId = typeof body.id === 'string' && body.id ? body.id : null
+    const occasion = typeof body.occasion === 'string' ? body.occasion : 'birthday'
+    if (!(OCCASIONS as readonly string[]).includes(occasion)) {
+      return NextResponse.json({ error: 'Unknown occasion' }, { status: 400 })
     }
 
     const month = body.month
@@ -156,17 +166,38 @@ export async function PUT(request: Request, { params }: Params) {
       templateParams = parsed
     }
 
-    const { data: existing } = await supabase
-      .from('contact_wishes')
-      .select('id, month, day')
-      .eq('account_id', accountId)
-      .eq('contact_id', contactId)
-      .maybeSingle()
+    let existing: { id: string; month: number; day: number } | null = null
+    if (wishId) {
+      const { data: found } = await supabase
+        .from('contact_wishes')
+        .select('id, month, day')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .eq('id', wishId)
+        .maybeSingle()
+      if (!found) {
+        return NextResponse.json({ error: 'Wish not found' }, { status: 404 })
+      }
+      existing = found as { id: string; month: number; day: number }
+    } else {
+      const { count } = await supabase
+        .from('contact_wishes')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+      if ((count ?? 0) >= MAX_WISHES_PER_CONTACT) {
+        return NextResponse.json(
+          { error: `A contact can have at most ${MAX_WISHES_PER_CONTACT} wishes` },
+          { status: 400 },
+        )
+      }
+    }
 
     const row: Record<string, unknown> = {
       account_id: accountId,
       contact_id: contactId,
       channel_id: channel.id,
+      occasion,
       enabled,
       month,
       day,
@@ -182,11 +213,15 @@ export async function PUT(request: Request, { params }: Params) {
       row.last_sent_year = null
     }
 
-    const { data, error } = await supabase
-      .from('contact_wishes')
-      .upsert(row, { onConflict: 'contact_id' })
-      .select('*')
-      .single()
+    const { data, error } = existing
+      ? await supabase
+          .from('contact_wishes')
+          .update(row)
+          .eq('id', existing.id)
+          .eq('account_id', accountId)
+          .select('*')
+          .single()
+      : await supabase.from('contact_wishes').insert(row).select('*').single()
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
@@ -196,16 +231,21 @@ export async function PUT(request: Request, { params }: Params) {
   }
 }
 
-/** DELETE /api/wishes/contact/[contactId] — remove the contact's wish. */
-export async function DELETE(_request: Request, { params }: Params) {
+/** DELETE /api/wishes/contact/[contactId]?id=<wish id> — remove one wish. */
+export async function DELETE(request: Request, { params }: Params) {
   try {
     const { contactId } = await params
     const { supabase, accountId } = await requireRole('agent')
+    const wishId = new URL(request.url).searchParams.get('id')
+    if (!wishId) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    }
     const { error } = await supabase
       .from('contact_wishes')
       .delete()
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
+      .eq('id', wishId)
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }

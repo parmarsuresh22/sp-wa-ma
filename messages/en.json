@@ -757,7 +757,7 @@
       "toastDeleted": "Deleted \"{name}\"."
     },
     "wish": {
-      "enable": "Send a wish every year",
+      "enable": "Send this wish every year",
       "enableDesc": "Sent automatically on this date, once a year.",
       "day": "Day",
       "month": "Month",
@@ -798,7 +798,20 @@
       "sendTest": "Send test",
       "testSent": "Test wish sent to this contact",
       "testFailed": "Couldn't send the test: {reason}",
-      "testHint": "Send test saves the wish and sends it to this contact on WhatsApp right now. It does not count as this year's wish."
+      "testHint": "Send test saves the wish and sends it to this contact on WhatsApp right now. It does not count as this year's wish.",
+      "occasion": "Occasion",
+      "occasions": {
+        "birthday": "Birthday",
+        "anniversary": "Anniversary",
+        "other": "Other"
+      },
+      "defaultAnniversary": "Happy Anniversary {token}! 💐 Wishing you many more years of love and happiness together.",
+      "defaultOther": "Warm wishes to you, {token}! 🎉 Hoping your special day is a wonderful one.",
+      "addWish": "Add another wish",
+      "newWish": "New wish",
+      "cancel": "Cancel",
+      "statusOn": "On",
+      "statusOff": "Off"
     }
   },
   "Pipelines": {

@@ -50,6 +50,7 @@ export interface ContactWishRow {
   account_id: string
   contact_id: string
   channel_id: string | null
+  occasion?: string
   enabled: boolean
   month: number
   day: number

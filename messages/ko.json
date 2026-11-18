@@ -757,7 +757,7 @@
       "toastDeleted": "\"{name}\"을(를) 삭제했습니다."
     },
     "wish": {
-      "enable": "매년 축하 메시지 보내기",
+      "enable": "매년 이 축하 메시지 보내기",
       "enableDesc": "매년 이 날짜에 자동으로 한 번 발송됩니다.",
       "day": "일",
       "month": "월",
@@ -798,7 +798,20 @@
       "sendTest": "테스트 발송",
       "testSent": "이 연락처로 테스트 축하 메시지를 보냈습니다",
       "testFailed": "테스트를 보내지 못했습니다: {reason}",
-      "testHint": "테스트 발송은 축하 메시지를 저장한 뒤 지금 바로 이 연락처에게 WhatsApp으로 보냅니다. 올해의 축하 메시지로 계산되지 않습니다."
+      "testHint": "테스트 발송은 축하 메시지를 저장한 뒤 지금 바로 이 연락처에게 WhatsApp으로 보냅니다. 올해의 축하 메시지로 계산되지 않습니다.",
+      "occasion": "기념일 종류",
+      "occasions": {
+        "birthday": "생일",
+        "anniversary": "기념일",
+        "other": "기타"
+      },
+      "defaultAnniversary": "{token}님, 기념일을 축하합니다! 💐 앞으로도 사랑과 행복이 가득하시길 바랍니다.",
+      "defaultOther": "{token}님, 진심으로 축하드립니다! 🎉 특별한 하루 보내세요.",
+      "addWish": "축하 메시지 추가",
+      "newWish": "새 축하 메시지",
+      "cancel": "취소",
+      "statusOn": "켜짐",
+      "statusOff": "꺼짐"
     }
   },
   "Pipelines": {

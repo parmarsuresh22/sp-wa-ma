@@ -31,7 +31,9 @@ and polish.
 > `supabase/migrations/066_broadcast_custom_message.sql`
 > (`broadcasts.message_text` for WhatsApp Web campaigns) and
 > `supabase/migrations/067_wishes.sql` (`contact_wishes` and
-> `wish_schedules` for automated wishes).
+> `wish_schedules` for automated wishes) and
+> `supabase/migrations/068_wish_occasions.sql` (several wishes per
+> contact, with an `occasion`).
 
 ### Added
 
@@ -50,6 +52,9 @@ and polish.
   <CRON_SECRET>` is accepted too). New endpoints: `/api/wishes/cron`,
   `/api/wishes/schedules`, `/api/wishes/schedules/[channelId]/run`,
   `/api/wishes/contact/[contactId]`.
+  A contact can carry several wishes (birthday, anniversary, other),
+  each with its own date and message; "Send test" sends one
+  immediately (`POST /api/wishes/contact/[contactId]/test`).
 
 - **Broadcasts start with "Send from".** The wizard's first step picks
   the number. A Business API number continues to template, audience,

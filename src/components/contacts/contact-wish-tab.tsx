@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Loader2, Save, Send, Smartphone, Trash2 } from 'lucide-react';
+import { ChevronDown, Gift, Loader2, Plus, Save, Send, Smartphone, Trash2, X } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { useChannels, channelLabel } from '@/hooks/use-channels';
+import { useChannels, channelLabel, type ChannelSummary } from '@/hooks/use-channels';
 import { collectVariableSlots } from '@/components/inbox/template-picker';
 import type { MessageTemplate } from '@/types';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,9 +28,23 @@ import {
 const NAME_TOKEN = '{{name}}';
 // A leap year, so February offers the 29th.
 const LEAP_YEAR = 2024;
+const DRAFT_KEY = 'draft';
+
+const OCCASIONS = ['birthday', 'anniversary', 'other'] as const;
+type Occasion = (typeof OCCASIONS)[number];
+const DEFAULT_MESSAGE_KEY: Record<Occasion, 'defaultMessage' | 'defaultAnniversary' | 'defaultOther'> = {
+  birthday: 'defaultMessage',
+  anniversary: 'defaultAnniversary',
+  other: 'defaultOther',
+};
+
+const asOccasion = (value: unknown): Occasion =>
+  (OCCASIONS as readonly string[]).includes(value as string) ? (value as Occasion) : 'birthday';
 
 interface WishRow {
+  id: string;
   channel_id: string | null;
+  occasion?: string;
   enabled: boolean;
   month: number;
   day: number;
@@ -67,10 +82,11 @@ function readParams(raw: unknown): StoredParams {
 const templateKey = (name: string, language?: string | null) => `${name}::${language ?? ''}`;
 
 /**
- * The contact's yearly wish: a day and month, and what to send. The
- * wish goes out on the number selected on the contacts page — an
- * approved template on a Business API number, free text on a WhatsApp
- * Web number. When it is sent is the number's Wish Scheduler setting.
+ * The contact's yearly wishes — a birthday, an anniversary, … Each is a
+ * day and month and what to send, on the number selected on the
+ * contacts page: an approved template on a Business API number, free
+ * text on a WhatsApp Web number. When they are sent is the number's
+ * Wish Scheduler setting.
  */
 export function ContactWishTab({
   contactId,
@@ -81,58 +97,38 @@ export function ContactWishTab({
   channelId: string | null;
 }) {
   const t = useTranslations('Contacts.wish');
-  const locale = useLocale();
   const { canSendMessages } = useAuth();
   const { channels } = useChannels();
 
-  const [loading, setLoading] = useState(true);
-  const [wish, setWish] = useState<WishRow | null>(null);
-  const [enabled, setEnabled] = useState(false);
+  const [wishes, setWishes] = useState<WishRow[] | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [openKey, setOpenKey] = useState<string | null>(null);
   // channel id → whether that number's Wish Scheduler is switched on.
   const [schedulerOn, setSchedulerOn] = useState<Record<string, boolean> | null>(null);
-  const [month, setMonth] = useState<number | null>(null);
-  const [day, setDay] = useState<number | null>(null);
-  const [text, setText] = useState('');
-  const [tplKey, setTplKey] = useState('');
-  const [params, setParams] = useState<StoredParams>({ body: [], headerText: '', buttonParams: {} });
   const [templates, setTemplates] = useState<MessageTemplate[] | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [removing, setRemoving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const savedOk = useRef(false);
-
-  function applyWish(row: WishRow | null) {
-    setWish(row);
-    setEnabled(row ? row.enabled : false);
-    setMonth(row?.month ?? null);
-    setDay(row?.day ?? null);
-    // A ready-made birthday wish to keep or edit.
-    setText(row?.message_text || t('defaultMessage', { token: NAME_TOKEN }));
-    setTplKey(row?.template_name ? templateKey(row.template_name, row.template_language) : '');
-    setParams(readParams(row?.template_params));
-  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
       try {
         const res = await fetch(`/api/wishes/contact/${contactId}`, { cache: 'no-store' });
-        const body = (await res.json().catch(() => ({}))) as { wish?: WishRow | null };
+        const body = (await res.json().catch(() => ({}))) as { wishes?: WishRow[] };
         if (cancelled) return;
         if (!res.ok) throw new Error();
-        applyWish(body.wish ?? null);
+        const rows = body.wishes ?? [];
+        setWishes(rows);
+        // Nothing saved yet: start on a blank wish. One wish: show it open.
+        setDrafting(rows.length === 0);
+        setOpenKey(rows.length === 0 ? DRAFT_KEY : rows.length === 1 ? rows[0].id : null);
       } catch {
-        if (!cancelled) toast.error(t('loadFailed'));
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setWishes([]);
+        toast.error(t('loadFailed'));
       }
     })();
     return () => {
       cancelled = true;
     };
-    // applyWish only sets state; re-running on its identity would refetch every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactId, t]);
 
   useEffect(() => {
@@ -153,21 +149,11 @@ export function ContactWishTab({
     };
   }, [contactId]);
 
-  // The number the wish is saved on: the contacts-page selection; with
-  // a single number there is nothing to choose; with "All numbers" an
-  // existing wish keeps its own number, a new one has to pick.
   const list = useMemo(() => channels ?? [], [channels]);
-  const target = useMemo(() => {
-    const byId = (id: string | null | undefined) => (id ? list.find((c) => c.id === id) ?? null : null);
-    return byId(channelId) ?? (list.length === 1 ? list[0] : null) ?? byId(wish?.channel_id) ?? null;
-  }, [list, channelId, wish]);
-  const savedChannel = wish?.channel_id ? list.find((c) => c.id === wish.channel_id) ?? null : null;
-  const isBridge = target?.provider === 'waha';
-  const needsTemplates = !!target && !isBridge;
-  const targetScheduled = !!target && !!schedulerOn?.[target.id];
+  const hasApiNumber = list.some((c) => c.provider !== 'waha');
 
   useEffect(() => {
-    if (!needsTemplates || templates !== null) return;
+    if (!hasApiNumber || templates !== null) return;
     let cancelled = false;
     createClient()
       .from('message_templates')
@@ -180,7 +166,160 @@ export function ContactWishTab({
     return () => {
       cancelled = true;
     };
-  }, [needsTemplates, templates]);
+  }, [hasApiNumber, templates]);
+
+  if (wishes === null || channels === null || schedulerOn === null) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (list.length === 0) {
+    return (
+      <p className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+        {t('noNumbers')}
+      </p>
+    );
+  }
+
+  const shared = { contactId, channelId, channels: list, schedulerOn, templates };
+  const toggle = (key: string) => setOpenKey((prev) => (prev === key ? null : key));
+
+  return (
+    <div className="space-y-3">
+      {wishes.map((wish) => (
+        <WishCard
+          key={wish.id}
+          {...shared}
+          wish={wish}
+          open={openKey === wish.id}
+          onToggle={() => toggle(wish.id)}
+          onSaved={(row) => setWishes((prev) => prev?.map((w) => (w.id === row.id ? row : w)) ?? prev)}
+          onRemoved={() => setWishes((prev) => prev?.filter((w) => w.id !== wish.id) ?? prev)}
+        />
+      ))}
+
+      {drafting ? (
+        <WishCard
+          key={DRAFT_KEY}
+          {...shared}
+          wish={null}
+          // The first wish defaults to a birthday; the next one to
+          // whichever occasion is not there yet.
+          initialOccasion={
+            OCCASIONS.find((o) => !wishes.some((w) => asOccasion(w.occasion) === o)) ?? 'other'
+          }
+          open={openKey === DRAFT_KEY}
+          onToggle={() => toggle(DRAFT_KEY)}
+          onSaved={(row) => {
+            setWishes((prev) => [...(prev ?? []), row]);
+            setDrafting(false);
+            setOpenKey(row.id);
+          }}
+          onCancel={
+            wishes.length > 0
+              ? () => {
+                  setDrafting(false);
+                  setOpenKey(null);
+                }
+              : undefined
+          }
+        />
+      ) : canSendMessages ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => {
+            setDrafting(true);
+            setOpenKey(DRAFT_KEY);
+          }}
+        >
+          <Plus className="size-3.5" />
+          {t('addWish')}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function WishCard({
+  contactId,
+  channelId,
+  channels,
+  schedulerOn,
+  templates,
+  wish: initialWish,
+  initialOccasion = 'birthday',
+  open,
+  onToggle,
+  onSaved,
+  onRemoved,
+  onCancel,
+}: {
+  contactId: string;
+  channelId: string | null;
+  channels: ChannelSummary[];
+  schedulerOn: Record<string, boolean>;
+  templates: MessageTemplate[] | null;
+  /** The saved wish, or null for a new one. */
+  wish: WishRow | null;
+  initialOccasion?: Occasion;
+  open: boolean;
+  onToggle: () => void;
+  onSaved: (row: WishRow) => void;
+  onRemoved?: () => void;
+  onCancel?: () => void;
+}) {
+  const t = useTranslations('Contacts.wish');
+  const locale = useLocale();
+  const uid = useId();
+  const { canSendMessages } = useAuth();
+
+  const defaultText = (o: Occasion) => t(DEFAULT_MESSAGE_KEY[o], { token: NAME_TOKEN });
+  const startOccasion = initialWish ? asOccasion(initialWish.occasion) : initialOccasion;
+
+  const [wish, setWish] = useState<WishRow | null>(initialWish);
+  const [occasion, setOccasion] = useState<Occasion>(startOccasion);
+  const [enabled, setEnabled] = useState(initialWish?.enabled ?? false);
+  const [month, setMonth] = useState<number | null>(initialWish?.month ?? null);
+  const [day, setDay] = useState<number | null>(initialWish?.day ?? null);
+  // A ready-made wish for the occasion, to keep or edit.
+  const [text, setText] = useState(initialWish?.message_text || defaultText(startOccasion));
+  const [tplKey, setTplKey] = useState(
+    initialWish?.template_name
+      ? templateKey(initialWish.template_name, initialWish.template_language)
+      : '',
+  );
+  const [params, setParams] = useState<StoredParams>(readParams(initialWish?.template_params));
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  function applyWish(row: WishRow) {
+    setWish(row);
+    setOccasion(asOccasion(row.occasion));
+    setEnabled(row.enabled);
+    setMonth(row.month);
+    setDay(row.day);
+    setText(row.message_text || defaultText(asOccasion(row.occasion)));
+    setTplKey(row.template_name ? templateKey(row.template_name, row.template_language) : '');
+    setParams(readParams(row.template_params));
+  }
+
+  // The number the wish is saved on: the contacts-page selection; with
+  // a single number there is nothing to choose; with "All numbers" an
+  // existing wish keeps its own number, a new one has to pick.
+  const target = useMemo(() => {
+    const byId = (id: string | null | undefined) =>
+      id ? channels.find((c) => c.id === id) ?? null : null;
+    return byId(channelId) ?? (channels.length === 1 ? channels[0] : null) ?? byId(wish?.channel_id) ?? null;
+  }, [channels, channelId, wish]);
+  const savedChannel = wish?.channel_id ? channels.find((c) => c.id === wish.channel_id) ?? null : null;
+  const isBridge = target?.provider === 'waha';
+  const targetScheduled = !!target && !!schedulerOn[target.id];
 
   const template = useMemo(
     () => templates?.find((tpl) => templateKey(tpl.name, tpl.language) === tplKey) ?? null,
@@ -194,6 +333,13 @@ export function ContactWishTab({
   }, [locale]);
   const dayCount = month ? new Date(Date.UTC(LEAP_YEAR, month, 0)).getUTCDate() : 31;
 
+  function pickOccasion(next: Occasion) {
+    // Swap the ready-made message along with the occasion, unless the
+    // user has already written their own.
+    if (!text.trim() || text === defaultText(occasion)) setText(defaultText(next));
+    setOccasion(next);
+  }
+
   function pickMonth(next: number) {
     setMonth(next);
     const max = new Date(Date.UTC(LEAP_YEAR, next, 0)).getUTCDate();
@@ -206,7 +352,6 @@ export function ContactWishTab({
   }
 
   async function save() {
-    savedOk.current = false;
     if (!target) return;
     // Enabled only sticks with the required fields filled and saved;
     // anything short of that switches it back off.
@@ -222,7 +367,14 @@ export function ContactWishTab({
       reject(t('schedulerOff', { number: channelLabel(target) }));
       return;
     }
-    const payload: Record<string, unknown> = { enabled, month, day, channel_id: target.id };
+    const payload: Record<string, unknown> = {
+      ...(wish ? { id: wish.id } : {}),
+      occasion,
+      enabled,
+      month,
+      day,
+      channel_id: target.id,
+    };
     if (isBridge) {
       if (enabled && !text.trim()) {
         reject(t('requiredMessage'));
@@ -272,8 +424,8 @@ export function ContactWishTab({
         return;
       }
       applyWish(body.wish);
-      savedOk.current = true;
       toast.success(t('saved'));
+      return body.wish;
     } catch {
       toast.error(t('saveFailed', { reason: t('networkError') }));
     } finally {
@@ -281,19 +433,27 @@ export function ContactWishTab({
     }
   }
 
+  async function saveOnly() {
+    const row = await save();
+    if (row) onSaved(row);
+  }
+
   // Saves what is on screen, then sends that wish to the contact now.
   async function sendTest() {
     setTesting(true);
     try {
-      await save();
-      if (!savedOk.current) return;
-      const res = await fetch(`/api/wishes/contact/${contactId}/test`, { method: 'POST' });
+      const row = await save();
+      if (!row) return;
+      const res = await fetch(`/api/wishes/contact/${contactId}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id }),
+      });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast.error(t('testFailed', { reason: body.error || `HTTP ${res.status}` }));
-        return;
-      }
-      toast.success(t('testSent'));
+      if (!res.ok) toast.error(t('testFailed', { reason: body.error || `HTTP ${res.status}` }));
+      else toast.success(t('testSent'));
+      // Tell the list last, so a brand-new wish does not swap cards mid-send.
+      onSaved(row);
     } catch {
       toast.error(t('testFailed', { reason: t('networkError') }));
     } finally {
@@ -302,16 +462,20 @@ export function ContactWishTab({
   }
 
   async function remove() {
+    if (!wish) return;
     setRemoving(true);
     try {
-      const res = await fetch(`/api/wishes/contact/${contactId}`, { method: 'DELETE' });
+      const res = await fetch(
+        `/api/wishes/contact/${contactId}?id=${encodeURIComponent(wish.id)}`,
+        { method: 'DELETE' },
+      );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(t('saveFailed', { reason: body.error || `HTTP ${res.status}` }));
         return;
       }
-      applyWish(null);
       toast.success(t('removed'));
+      onRemoved?.();
     } catch {
       toast.error(t('saveFailed', { reason: t('networkError') }));
     } finally {
@@ -319,281 +483,331 @@ export function ContactWishTab({
     }
   }
 
-  if (loading || channels === null || schedulerOn === null) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!target) {
-    return (
-      <p className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-        {list.length === 0 ? t('noNumbers') : t('pickNumber')}
-      </p>
-    );
-  }
-
   const disabled = !canSendMessages || saving || removing || testing;
   const fieldClass = 'bg-muted border-border text-foreground text-sm placeholder:text-muted-foreground';
-  const targetName = channelLabel(target);
+  const targetName = target ? channelLabel(target) : '';
+  const dateSummary =
+    wish && wish.month && wish.day
+      ? new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+          new Date(Date.UTC(LEAP_YEAR, wish.month - 1, wish.day)),
+        )
+      : null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Label htmlFor="wish-enabled" className="text-sm text-foreground">
-            {t('enable')}
-          </Label>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('enableDesc')}</p>
-          {!targetScheduled ? (
-            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-              {t('schedulerOff', { number: targetName })}{' '}
-              <Link href="/settings?tab=wishes" className="underline underline-offset-2">
-                {t('openScheduler')}
-              </Link>
-            </p>
+    <div className="rounded-lg border border-border">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left"
+      >
+        <Gift className="size-4 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {wish ? t(`occasions.${asOccasion(wish.occasion)}`) : t('newWish')}
+          {dateSummary ? (
+            <span className="font-normal text-muted-foreground"> · {dateSummary}</span>
           ) : null}
-        </div>
-        <Switch
-          id="wish-enabled"
-          checked={enabled}
-          onCheckedChange={(v) => setEnabled(!!v)}
-          // Can only be switched on while the number's scheduler is on;
-          // an already-enabled wish can always be switched off.
-          disabled={disabled || (!enabled && !targetScheduled)}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">
-            {t('month')} <span className="text-red-400">*</span>
-          </Label>
-          <Select
-            value={month ? String(month) : null}
-            onValueChange={(v) => v && pickMonth(Number(v))}
-            disabled={disabled}
-            items={Object.fromEntries(months.map((name, i) => [String(i + 1), name]))}
+        </span>
+        {wish ? (
+          <span
+            className={cn(
+              'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
+              wish.enabled ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
+            )}
           >
-            <SelectTrigger className="w-full" aria-label={t('month')}>
-              <SelectValue placeholder={t('pickMonth')} />
-            </SelectTrigger>
-            <SelectContent>
-              {months.map((name, i) => (
-                <SelectItem key={name} value={String(i + 1)}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">
-            {t('day')} <span className="text-red-400">*</span>
-          </Label>
-          <Select
-            value={day ? String(day) : null}
-            onValueChange={(v) => v && setDay(Number(v))}
-            // The day list depends on the month, so the month comes first.
-            disabled={disabled || !month}
-          >
-            <SelectTrigger className="w-full" aria-label={t('day')}>
-              <SelectValue placeholder={t('pickDay')} />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: dayCount }, (_, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>
-                  {i + 1}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-        <p className="flex items-center gap-1.5 text-foreground">
-          <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
-          {t('sendsFrom', { number: targetName })}
-        </p>
-        {savedChannel && savedChannel.id !== target.id ? (
-          <p className="mt-1">
-            {t('switchNumber', { from: channelLabel(savedChannel), to: targetName })}
-          </p>
+            {wish.enabled ? t('statusOn') : t('statusOff')}
+          </span>
         ) : null}
-        <p className="mt-1">{t('schedulerNote')}</p>
-      </div>
+        <ChevronDown
+          className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+        />
+      </button>
 
-      {isBridge ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="wish-text" className="text-xs text-muted-foreground">
-            {t('message')} <span className="text-red-400">*</span>
-          </Label>
-          <Textarea
-            id="wish-text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t('messagePlaceholder', { token: NAME_TOKEN })}
-            disabled={disabled}
-            className={`${fieldClass} min-h-[110px] resize-none`}
-          />
-          <p className="text-xs text-muted-foreground">{t('nameHint', { token: NAME_TOKEN })}</p>
-        </div>
+      {!open ? null : !target ? (
+        <p className="border-t border-border p-3 text-sm text-muted-foreground">{t('pickNumber')}</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4 border-t border-border p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Label htmlFor={`${uid}-on`} className="text-sm text-foreground">
+                {t('enable')}
+              </Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t('enableDesc')}</p>
+              {!targetScheduled ? (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  {t('schedulerOff', { number: targetName })}{' '}
+                  <Link href="/settings?tab=wishes" className="underline underline-offset-2">
+                    {t('openScheduler')}
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+            <Switch
+              id={`${uid}-on`}
+              checked={enabled}
+              onCheckedChange={(v) => setEnabled(!!v)}
+              // Can only be switched on while the number's scheduler is on;
+              // an already-enabled wish can always be switched off.
+              disabled={disabled || (!enabled && !targetScheduled)}
+            />
+          </div>
+
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">
-              {t('template')} <span className="text-red-400">*</span>
-            </Label>
-            {templates === null ? (
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            ) : templates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('noTemplates')}</p>
-            ) : (
+            <Label className="text-xs text-muted-foreground">{t('occasion')}</Label>
+            <Select
+              value={occasion}
+              onValueChange={(v) => v && pickOccasion(asOccasion(v))}
+              disabled={disabled}
+              items={Object.fromEntries(OCCASIONS.map((o) => [o, t(`occasions.${o}`)]))}
+            >
+              <SelectTrigger className="w-full" aria-label={t('occasion')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OCCASIONS.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {t(`occasions.${o}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                {t('month')} <span className="text-red-400">*</span>
+              </Label>
               <Select
-                value={template ? tplKey : null}
-                onValueChange={(v) => v && pickTemplate(String(v))}
+                value={month ? String(month) : null}
+                onValueChange={(v) => v && pickMonth(Number(v))}
                 disabled={disabled}
-                items={Object.fromEntries(
-                  templates.map((tpl) => [
-                    templateKey(tpl.name, tpl.language),
-                    `${tpl.name}${tpl.language ? ` (${tpl.language})` : ''}`,
-                  ]),
-                )}
+                items={Object.fromEntries(months.map((name, i) => [String(i + 1), name]))}
               >
-                <SelectTrigger className="w-full" aria-label={t('template')}>
-                  <SelectValue placeholder={t('pickTemplate')} />
+                <SelectTrigger className="w-full" aria-label={t('month')}>
+                  <SelectValue placeholder={t('pickMonth')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((tpl) => (
-                    <SelectItem key={tpl.id} value={templateKey(tpl.name, tpl.language)}>
-                      {tpl.name}
-                      {tpl.language ? ` (${tpl.language})` : ''}
+                  {months.map((name, i) => (
+                    <SelectItem key={name} value={String(i + 1)}>
+                      {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            )}
-            <p className="text-xs text-muted-foreground">{t('templateWhy')}</p>
-            {wish?.template_name && templates !== null && templates.length > 0 && tplKey && !template ? (
-              <p className="text-xs text-red-400">{t('templateGone', { name: wish.template_name })}</p>
-            ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                {t('day')} <span className="text-red-400">*</span>
+              </Label>
+              <Select
+                value={day ? String(day) : null}
+                onValueChange={(v) => v && setDay(Number(v))}
+                // The day list depends on the month, so the month comes first.
+                disabled={disabled || !month}
+              >
+                <SelectTrigger className="w-full" aria-label={t('day')}>
+                  <SelectValue placeholder={t('pickDay')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: dayCount }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {i + 1}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {template && slots ? (
-            <>
-              <div className="rounded-lg border border-border bg-background/50 p-3">
-                <p className="whitespace-pre-wrap text-sm text-foreground">{template.body_text}</p>
+          <div className="rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-foreground">
+              <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
+              {t('sendsFrom', { number: targetName })}
+            </p>
+            {savedChannel && savedChannel.id !== target.id ? (
+              <p className="mt-1">
+                {t('switchNumber', { from: channelLabel(savedChannel), to: targetName })}
+              </p>
+            ) : null}
+            <p className="mt-1">{t('schedulerNote')}</p>
+          </div>
+
+          {isBridge ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${uid}-text`} className="text-xs text-muted-foreground">
+                {t('message')} <span className="text-red-400">*</span>
+              </Label>
+              <Textarea
+                id={`${uid}-text`}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={t('messagePlaceholder', { token: NAME_TOKEN })}
+                disabled={disabled}
+                className={`${fieldClass} min-h-[110px] resize-none`}
+              />
+              <p className="text-xs text-muted-foreground">{t('nameHint', { token: NAME_TOKEN })}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  {t('template')} <span className="text-red-400">*</span>
+                </Label>
+                {templates === null ? (
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                ) : templates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t('noTemplates')}</p>
+                ) : (
+                  <Select
+                    value={template ? tplKey : null}
+                    onValueChange={(v) => v && pickTemplate(String(v))}
+                    disabled={disabled}
+                    items={Object.fromEntries(
+                      templates.map((tpl) => [
+                        templateKey(tpl.name, tpl.language),
+                        `${tpl.name}${tpl.language ? ` (${tpl.language})` : ''}`,
+                      ]),
+                    )}
+                  >
+                    <SelectTrigger className="w-full" aria-label={t('template')}>
+                      <SelectValue placeholder={t('pickTemplate')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((tpl) => (
+                        <SelectItem key={tpl.id} value={templateKey(tpl.name, tpl.language)}>
+                          {tpl.name}
+                          {tpl.language ? ` (${tpl.language})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground">{t('templateWhy')}</p>
+                {wish?.template_name && templates !== null && templates.length > 0 && tplKey && !template ? (
+                  <p className="text-xs text-red-400">{t('templateGone', { name: wish.template_name })}</p>
+                ) : null}
               </div>
-              {slots.headerVar !== null && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    {t('headerValueFor', { var: `{{${slots.headerVar}}}` })}
-                  </Label>
-                  <Input
-                    value={params.headerText}
-                    onChange={(e) => setParams((p) => ({ ...p, headerText: e.target.value }))}
-                    disabled={disabled}
-                    className={`${fieldClass} h-8`}
-                  />
-                </div>
-              )}
-              {slots.bodyVars.map((v, i) => (
-                <div key={v} className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    {t('valueFor', { var: `{{${v}}}` })}
-                  </Label>
-                  <Input
-                    value={params.body[i] ?? ''}
-                    onChange={(e) =>
-                      setParams((p) => {
-                        const body = slots.bodyVars.map((_, j) => p.body[j] ?? '');
-                        body[i] = e.target.value;
-                        return { ...p, body };
-                      })
-                    }
-                    placeholder={NAME_TOKEN}
-                    disabled={disabled}
-                    className={`${fieldClass} h-8`}
-                  />
-                </div>
-              ))}
-              {slots.urlButtonSlots.map((s) => (
-                <div key={s.index} className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    {t('buttonValueFor', { text: s.text })}
-                  </Label>
-                  <Input
-                    value={params.buttonParams[s.index] ?? ''}
-                    onChange={(e) =>
-                      setParams((p) => ({
-                        ...p,
-                        buttonParams: { ...p.buttonParams, [s.index]: e.target.value },
-                      }))
-                    }
-                    disabled={disabled}
-                    className={`${fieldClass} h-8`}
-                  />
-                </div>
-              ))}
-              {slots.bodyVars.length > 0 || slots.headerVar !== null ? (
-                <p className="text-xs text-muted-foreground">{t('nameHint', { token: NAME_TOKEN })}</p>
+
+              {template && slots ? (
+                <>
+                  <div className="rounded-lg border border-border bg-background/50 p-3">
+                    <p className="whitespace-pre-wrap text-sm text-foreground">{template.body_text}</p>
+                  </div>
+                  {slots.headerVar !== null && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        {t('headerValueFor', { var: `{{${slots.headerVar}}}` })}
+                      </Label>
+                      <Input
+                        value={params.headerText}
+                        onChange={(e) => setParams((p) => ({ ...p, headerText: e.target.value }))}
+                        disabled={disabled}
+                        className={`${fieldClass} h-8`}
+                      />
+                    </div>
+                  )}
+                  {slots.bodyVars.map((v, i) => (
+                    <div key={v} className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        {t('valueFor', { var: `{{${v}}}` })}
+                      </Label>
+                      <Input
+                        value={params.body[i] ?? ''}
+                        onChange={(e) =>
+                          setParams((p) => {
+                            const body = slots.bodyVars.map((_, j) => p.body[j] ?? '');
+                            body[i] = e.target.value;
+                            return { ...p, body };
+                          })
+                        }
+                        placeholder={NAME_TOKEN}
+                        disabled={disabled}
+                        className={`${fieldClass} h-8`}
+                      />
+                    </div>
+                  ))}
+                  {slots.urlButtonSlots.map((s) => (
+                    <div key={s.index} className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        {t('buttonValueFor', { text: s.text })}
+                      </Label>
+                      <Input
+                        value={params.buttonParams[s.index] ?? ''}
+                        onChange={(e) =>
+                          setParams((p) => ({
+                            ...p,
+                            buttonParams: { ...p.buttonParams, [s.index]: e.target.value },
+                          }))
+                        }
+                        disabled={disabled}
+                        className={`${fieldClass} h-8`}
+                      />
+                    </div>
+                  ))}
+                  {slots.bodyVars.length > 0 || slots.headerVar !== null ? (
+                    <p className="text-xs text-muted-foreground">{t('nameHint', { token: NAME_TOKEN })}</p>
+                  ) : null}
+                </>
               ) : null}
-            </>
+            </div>
+          )}
+
+          {wish?.last_error ? (
+            <p className="text-xs text-red-400">{t('lastError', { reason: wish.last_error })}</p>
+          ) : wish?.last_sent_at ? (
+            <p className="text-xs text-muted-foreground">
+              {t('lastSent', {
+                date: new Date(wish.last_sent_at).toLocaleDateString(locale, {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                }),
+              })}
+            </p>
+          ) : null}
+
+          {canSendMessages ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={saveOnly}
+                disabled={disabled}
+                size="sm"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                {t('save')}
+              </Button>
+              <Button
+                onClick={sendTest}
+                disabled={disabled}
+                size="sm"
+                variant="outline"
+                title={t('testHint')}
+              >
+                {testing ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                {t('sendTest')}
+              </Button>
+              {wish ? (
+                <Button onClick={remove} disabled={disabled} size="sm" variant="outline">
+                  {removing ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                  {t('remove')}
+                </Button>
+              ) : onCancel ? (
+                <Button onClick={onCancel} disabled={disabled} size="sm" variant="outline">
+                  <X className="size-3.5" />
+                  {t('cancel')}
+                </Button>
+              ) : null}
+              <p className="w-full text-xs text-muted-foreground">{t('testHint')}</p>
+            </div>
           ) : null}
         </div>
       )}
-
-      {wish?.last_error ? (
-        <p className="text-xs text-red-400">{t('lastError', { reason: wish.last_error })}</p>
-      ) : wish?.last_sent_at ? (
-        <p className="text-xs text-muted-foreground">
-          {t('lastSent', {
-            date: new Date(wish.last_sent_at).toLocaleDateString(locale, {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            }),
-          })}
-        </p>
-      ) : null}
-
-      {canSendMessages ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={save}
-            disabled={disabled}
-            size="sm"
-            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            {t('save')}
-          </Button>
-          <Button
-            onClick={sendTest}
-            disabled={disabled}
-            size="sm"
-            variant="outline"
-            title={t('testHint')}
-          >
-            {testing ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-            {t('sendTest')}
-          </Button>
-          {wish ? (
-            <Button onClick={remove} disabled={disabled} size="sm" variant="outline">
-              {removing ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-              {t('remove')}
-            </Button>
-          ) : null}
-          <p className="w-full text-xs text-muted-foreground">{t('testHint')}</p>
-        </div>
-      ) : null}
     </div>
   );
 }

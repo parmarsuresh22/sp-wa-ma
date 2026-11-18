@@ -757,7 +757,7 @@
       "toastDeleted": "\"{name}\" eliminado."
     },
     "wish": {
-      "enable": "Enviar una felicitación cada año",
+      "enable": "Enviar esta felicitación cada año",
       "enableDesc": "Se envía automáticamente en esta fecha, una vez al año.",
       "day": "Día",
       "month": "Mes",
@@ -798,7 +798,20 @@
       "sendTest": "Enviar prueba",
       "testSent": "Felicitación de prueba enviada a este contacto",
       "testFailed": "No se pudo enviar la prueba: {reason}",
-      "testHint": "Enviar prueba guarda la felicitación y la envía ahora mismo a este contacto por WhatsApp. No cuenta como la felicitación de este año."
+      "testHint": "Enviar prueba guarda la felicitación y la envía ahora mismo a este contacto por WhatsApp. No cuenta como la felicitación de este año.",
+      "occasion": "Ocasión",
+      "occasions": {
+        "birthday": "Cumpleaños",
+        "anniversary": "Aniversario",
+        "other": "Otra"
+      },
+      "defaultAnniversary": "¡Feliz aniversario, {token}! 💐 Os deseamos muchos años más de amor y felicidad.",
+      "defaultOther": "¡Nuestros mejores deseos, {token}! 🎉 Que tengas un día muy especial.",
+      "addWish": "Añadir otra felicitación",
+      "newWish": "Nueva felicitación",
+      "cancel": "Cancelar",
+      "statusOn": "Activa",
+      "statusOff": "Inactiva"
     }
   },
   "Pipelines": {
