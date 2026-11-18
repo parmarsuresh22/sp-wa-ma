@@ -789,7 +789,9 @@
       "loadFailed": "Couldn't load the wish",
       "networkError": "network error",
       "lastSent": "Last sent on {date}",
-      "lastError": "Last attempt failed: {reason}"
+      "lastError": "Last attempt failed: {reason}",
+      "schedulerOff": "The Wish Scheduler is off for {number}, so this wish cannot be enabled yet.",
+      "openScheduler": "Open Wish Scheduler"
     }
   },
   "Pipelines": {

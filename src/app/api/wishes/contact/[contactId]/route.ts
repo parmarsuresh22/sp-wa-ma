@@ -89,6 +89,22 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     const enabled = body.enabled === true
+    // A wish can only be switched on while its number's Wish Scheduler
+    // is on — otherwise it would look active and never be sent.
+    if (enabled) {
+      const { data: schedule } = await supabase
+        .from('wish_schedules')
+        .select('enabled')
+        .eq('account_id', accountId)
+        .eq('channel_id', channel.id)
+        .maybeSingle()
+      if (!schedule?.enabled) {
+        return NextResponse.json(
+          { error: 'Turn on the Wish Scheduler for this number first (Settings → Wish Scheduler)' },
+          { status: 400 },
+        )
+      }
+    }
     const isBridge = channel.provider === 'waha'
 
     let messageText: string | null = null

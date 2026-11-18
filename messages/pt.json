@@ -789,7 +789,9 @@
       "loadFailed": "Não foi possível carregar a felicitação",
       "networkError": "erro de rede",
       "lastSent": "Último envio: {date}",
-      "lastError": "A última tentativa falhou: {reason}"
+      "lastError": "A última tentativa falhou: {reason}",
+      "schedulerOff": "O agendador de felicitações está desativado para {number}, então esta felicitação ainda não pode ser ativada.",
+      "openScheduler": "Abrir o agendador"
     }
   },
   "Pipelines": {

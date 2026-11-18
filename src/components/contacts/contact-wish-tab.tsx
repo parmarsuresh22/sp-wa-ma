@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Loader2, Save, Smartphone, Trash2 } from 'lucide-react';
@@ -86,7 +87,9 @@ export function ContactWishTab({
 
   const [loading, setLoading] = useState(true);
   const [wish, setWish] = useState<WishRow | null>(null);
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
+  // channel id → whether that number's Wish Scheduler is switched on.
+  const [schedulerOn, setSchedulerOn] = useState<Record<string, boolean> | null>(null);
   const [month, setMonth] = useState<number | null>(null);
   const [day, setDay] = useState<number | null>(null);
   const [text, setText] = useState('');
@@ -98,7 +101,7 @@ export function ContactWishTab({
 
   function applyWish(row: WishRow | null) {
     setWish(row);
-    setEnabled(row ? row.enabled : true);
+    setEnabled(row ? row.enabled : false);
     setMonth(row?.month ?? null);
     setDay(row?.day ?? null);
     setText(row?.message_text ?? '');
@@ -127,6 +130,24 @@ export function ContactWishTab({
     };
   }, [contactId, t]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/wishes/schedules', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { schedules: [] }))
+      .then((body: { schedules?: { channel_id: string; enabled: boolean }[] }) => {
+        if (cancelled) return;
+        setSchedulerOn(
+          Object.fromEntries((body.schedules ?? []).map((s) => [s.channel_id, !!s.enabled])),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setSchedulerOn({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contactId]);
+
   // The number the wish is saved on: the contacts-page selection; with
   // a single number there is nothing to choose; with "All numbers" an
   // existing wish keeps its own number, a new one has to pick.
@@ -138,6 +159,7 @@ export function ContactWishTab({
   const savedChannel = wish?.channel_id ? list.find((c) => c.id === wish.channel_id) ?? null : null;
   const isBridge = target?.provider === 'waha';
   const needsTemplates = !!target && !isBridge;
+  const targetScheduled = !!target && !!schedulerOn?.[target.id];
 
   useEffect(() => {
     if (!needsTemplates || templates !== null) return;
@@ -180,20 +202,30 @@ export function ContactWishTab({
 
   async function save() {
     if (!target) return;
+    // Enabled only sticks with the required fields filled and saved;
+    // anything short of that switches it back off.
+    const reject = (message: string) => {
+      toast.error(message);
+      setEnabled(false);
+    };
     if (!month || !day) {
-      toast.error(t('requiredDate'));
+      reject(t('requiredDate'));
+      return;
+    }
+    if (enabled && !targetScheduled) {
+      reject(t('schedulerOff', { number: channelLabel(target) }));
       return;
     }
     const payload: Record<string, unknown> = { enabled, month, day, channel_id: target.id };
     if (isBridge) {
       if (enabled && !text.trim()) {
-        toast.error(t('requiredMessage'));
+        reject(t('requiredMessage'));
         return;
       }
       payload.message_text = text;
     } else {
       if (enabled && !template) {
-        toast.error(t('requiredTemplate'));
+        reject(t('requiredTemplate'));
         return;
       }
       if (template && slots) {
@@ -207,7 +239,7 @@ export function ContactWishTab({
           (slots.headerVar === null || params.headerText.trim()) &&
           Object.values(buttonParams).every((v) => v);
         if (enabled && !complete) {
-          toast.error(t('requiredValues'));
+          reject(t('requiredValues'));
           return;
         }
         payload.template_name = template.name;
@@ -230,6 +262,7 @@ export function ContactWishTab({
       const body = (await res.json().catch(() => ({}))) as { wish?: WishRow; error?: string };
       if (!res.ok || !body.wish) {
         toast.error(t('saveFailed', { reason: body.error || `HTTP ${res.status}` }));
+        setEnabled(false);
         return;
       }
       applyWish(body.wish);
@@ -259,7 +292,7 @@ export function ContactWishTab({
     }
   }
 
-  if (loading || channels === null) {
+  if (loading || channels === null || schedulerOn === null) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -287,12 +320,22 @@ export function ContactWishTab({
             {t('enable')}
           </Label>
           <p className="mt-0.5 text-xs text-muted-foreground">{t('enableDesc')}</p>
+          {!targetScheduled ? (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              {t('schedulerOff', { number: targetName })}{' '}
+              <Link href="/settings?tab=wishes" className="underline underline-offset-2">
+                {t('openScheduler')}
+              </Link>
+            </p>
+          ) : null}
         </div>
         <Switch
           id="wish-enabled"
           checked={enabled}
           onCheckedChange={(v) => setEnabled(!!v)}
-          disabled={disabled}
+          // Can only be switched on while the number's scheduler is on;
+          // an already-enabled wish can always be switched off.
+          disabled={disabled || (!enabled && !targetScheduled)}
         />
       </div>
 
