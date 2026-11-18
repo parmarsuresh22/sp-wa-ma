@@ -231,6 +231,80 @@ export async function PUT(request: Request, { params }: Params) {
   }
 }
 
+/**
+ * PATCH /api/wishes/contact/[contactId]
+ *
+ * Body: { enabled } — the contact's master switch. Off switches every
+ * wish of the contact off (they are kept). On switches back on the
+ * ones that are complete and whose number has its Wish Scheduler on.
+ */
+export async function PATCH(request: Request, { params }: Params) {
+  try {
+    const { contactId } = await params
+    const { supabase, accountId } = await requireRole('agent')
+    const body = (await request.json().catch(() => null)) as { enabled?: unknown } | null
+    if (typeof body?.enabled !== 'boolean') {
+      return NextResponse.json({ error: 'enabled must be true or false' }, { status: 400 })
+    }
+
+    const scope = () =>
+      supabase.from('contact_wishes').select('*').eq('account_id', accountId).eq('contact_id', contactId)
+
+    if (!body.enabled) {
+      const { error } = await supabase
+        .from('contact_wishes')
+        .update({ enabled: false })
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    } else {
+      const [{ data: rows }, { data: schedules }] = await Promise.all([
+        scope(),
+        supabase.from('wish_schedules').select('channel_id, enabled').eq('account_id', accountId),
+      ])
+      const scheduled = new Set(
+        ((schedules ?? []) as { channel_id: string; enabled: boolean }[])
+          .filter((r) => r.enabled)
+          .map((r) => r.channel_id),
+      )
+      type Row = {
+        id: string
+        channel_id: string | null
+        message_text: string | null
+        template_name: string | null
+      }
+      const ids = ((rows ?? []) as Row[])
+        .filter(
+          (r) =>
+            r.channel_id &&
+            scheduled.has(r.channel_id) &&
+            (r.message_text?.trim() || r.template_name),
+        )
+        .map((r) => r.id)
+      if (ids.length > 0) {
+        const { error } = await supabase
+          .from('contact_wishes')
+          .update({ enabled: true })
+          .eq('account_id', accountId)
+          .in('id', ids)
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+      }
+    }
+
+    const { data, error } = await scope().order('created_at', { ascending: true })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ wishes: data ?? [] })
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+}
+
 /** DELETE /api/wishes/contact/[contactId]?id=<wish id> — remove one wish. */
 export async function DELETE(request: Request, { params }: Params) {
   try {

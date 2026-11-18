@@ -103,6 +103,11 @@ export function ContactWishTab({
   const [wishes, setWishes] = useState<WishRow[] | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // The contact's master switch: wishes are shown, added and sent only
+  // while it is on. It is on when at least one saved wish is on, so
+  // switching it on without saving a wish leaves it off next time.
+  const [masterOn, setMasterOn] = useState(false);
+  const [switching, setSwitching] = useState(false);
   // channel id → whether that number's Wish Scheduler is switched on.
   const [schedulerOn, setSchedulerOn] = useState<Record<string, boolean> | null>(null);
   const [templates, setTemplates] = useState<MessageTemplate[] | null>(null);
@@ -117,6 +122,7 @@ export function ContactWishTab({
         if (!res.ok) throw new Error();
         const rows = body.wishes ?? [];
         setWishes(rows);
+        setMasterOn(rows.some((w) => w.enabled));
         // Nothing saved yet: start on a blank wish. One wish: show it open.
         setDrafting(rows.length === 0);
         setOpenKey(rows.length === 0 ? DRAFT_KEY : rows.length === 1 ? rows[0].id : null);
@@ -187,8 +193,78 @@ export function ContactWishTab({
   const shared = { contactId, channelId, channels: list, schedulerOn, templates };
   const toggle = (key: string) => setOpenKey((prev) => (prev === key ? null : key));
 
+  // The number wishes are saved on (see WishCard): the contacts-page
+  // selection, the only number, or the one the saved wishes already use.
+  const masterTarget =
+    list.find((c) => c.id === channelId) ??
+    (list.length === 1 ? list[0] : null) ??
+    list.find((c) => wishes.some((w) => w.channel_id === c.id)) ??
+    null;
+  const masterScheduled = !!masterTarget && !!schedulerOn[masterTarget.id];
+
+  const savedCount = wishes.length;
+  async function switchMaster(next: boolean) {
+    if (savedCount === 0) {
+      setMasterOn(next);
+      setDrafting(next);
+      setOpenKey(next ? DRAFT_KEY : null);
+      return;
+    }
+    setSwitching(true);
+    try {
+      const res = await fetch(`/api/wishes/contact/${contactId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { wishes?: WishRow[]; error?: string };
+      if (!res.ok || !body.wishes) {
+        toast.error(t('saveFailed', { reason: body.error || `HTTP ${res.status}` }));
+        return;
+      }
+      setWishes(body.wishes);
+      setMasterOn(next);
+      setDrafting(false);
+      setOpenKey(next && body.wishes.length === 1 ? body.wishes[0].id : null);
+    } catch {
+      toast.error(t('saveFailed', { reason: t('networkError') }));
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/50 p-3">
+        <div className="min-w-0">
+          <Label htmlFor="wish-master" className="text-sm text-foreground">
+            {t('enable')}
+          </Label>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('enableDesc')}</p>
+          {!masterTarget ? (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t('pickNumber')}</p>
+          ) : !masterScheduled ? (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              {t('schedulerOff', { number: channelLabel(masterTarget) })}{' '}
+              <Link href="/settings?tab=wishes" className="underline underline-offset-2">
+                {t('openScheduler')}
+              </Link>
+            </p>
+          ) : null}
+        </div>
+        {switching ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : null}
+        <Switch
+          id="wish-master"
+          checked={masterOn}
+          onCheckedChange={(v) => switchMaster(!!v)}
+          // Can only be switched on while the number's scheduler is on;
+          // it can always be switched off.
+          disabled={!canSendMessages || switching || (!masterOn && !masterScheduled)}
+        />
+      </div>
+
+      {!masterOn ? null : (
+        <>
       {wishes.map((wish) => (
         <WishCard
           key={wish.id}
@@ -197,7 +273,14 @@ export function ContactWishTab({
           open={openKey === wish.id}
           onToggle={() => toggle(wish.id)}
           onSaved={(row) => setWishes((prev) => prev?.map((w) => (w.id === row.id ? row : w)) ?? prev)}
-          onRemoved={() => setWishes((prev) => prev?.filter((w) => w.id !== wish.id) ?? prev)}
+          onRemoved={() => {
+            const rest = wishes.filter((w) => w.id !== wish.id);
+            setWishes(rest);
+            if (rest.length === 0) {
+              setDrafting(true);
+              setOpenKey(DRAFT_KEY);
+            }
+          }}
         />
       ))}
 
@@ -241,6 +324,8 @@ export function ContactWishTab({
           {t('addWish')}
         </Button>
       ) : null}
+        </>
+      )}
     </div>
   );
 }
@@ -283,7 +368,9 @@ function WishCard({
 
   const [wish, setWish] = useState<WishRow | null>(initialWish);
   const [occasion, setOccasion] = useState<Occasion>(startOccasion);
-  const [enabled, setEnabled] = useState(initialWish?.enabled ?? false);
+  // The contact's master switch decides on/off; a wish saved from an
+  // open card is a live one, so every field is required.
+  const enabled = true;
   const [month, setMonth] = useState<number | null>(initialWish?.month ?? null);
   const [day, setDay] = useState<number | null>(initialWish?.day ?? null);
   // A ready-made wish for the occasion, to keep or edit.
@@ -301,7 +388,6 @@ function WishCard({
   function applyWish(row: WishRow) {
     setWish(row);
     setOccasion(asOccasion(row.occasion));
-    setEnabled(row.enabled);
     setMonth(row.month);
     setDay(row.day);
     setText(row.message_text || defaultText(asOccasion(row.occasion)));
@@ -353,12 +439,7 @@ function WishCard({
 
   async function save() {
     if (!target) return;
-    // Enabled only sticks with the required fields filled and saved;
-    // anything short of that switches it back off.
-    const reject = (message: string) => {
-      toast.error(message);
-      setEnabled(false);
-    };
+    const reject = (message: string) => toast.error(message);
     if (!month || !day) {
       reject(t('requiredDate'));
       return;
@@ -420,7 +501,6 @@ function WishCard({
       const body = (await res.json().catch(() => ({}))) as { wish?: WishRow; error?: string };
       if (!res.ok || !body.wish) {
         toast.error(t('saveFailed', { reason: body.error || `HTTP ${res.status}` }));
-        setEnabled(false);
         return;
       }
       applyWish(body.wish);
@@ -527,30 +607,14 @@ function WishCard({
         <p className="border-t border-border p-3 text-sm text-muted-foreground">{t('pickNumber')}</p>
       ) : (
         <div className="space-y-4 border-t border-border p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <Label htmlFor={`${uid}-on`} className="text-sm text-foreground">
-                {t('enable')}
-              </Label>
-              <p className="mt-0.5 text-xs text-muted-foreground">{t('enableDesc')}</p>
-              {!targetScheduled ? (
-                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                  {t('schedulerOff', { number: targetName })}{' '}
-                  <Link href="/settings?tab=wishes" className="underline underline-offset-2">
-                    {t('openScheduler')}
-                  </Link>
-                </p>
-              ) : null}
-            </div>
-            <Switch
-              id={`${uid}-on`}
-              checked={enabled}
-              onCheckedChange={(v) => setEnabled(!!v)}
-              // Can only be switched on while the number's scheduler is on;
-              // an already-enabled wish can always be switched off.
-              disabled={disabled || (!enabled && !targetScheduled)}
-            />
-          </div>
+          {!targetScheduled ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {t('schedulerOff', { number: targetName })}{' '}
+              <Link href="/settings?tab=wishes" className="underline underline-offset-2">
+                {t('openScheduler')}
+              </Link>
+            </p>
+          ) : null}
 
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">{t('occasion')}</Label>

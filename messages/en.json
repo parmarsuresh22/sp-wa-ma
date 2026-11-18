@@ -757,8 +757,8 @@
       "toastDeleted": "Deleted \"{name}\"."
     },
     "wish": {
-      "enable": "Send this wish every year",
-      "enableDesc": "Sent automatically on this date, once a year.",
+      "enable": "Send wishes every year",
+      "enableDesc": "Turn this on to add wishes for this contact: birthday, anniversary and more. Each one is sent once a year on its date.",
       "day": "Day",
       "month": "Month",
       "pickDay": "Day",

@@ -757,8 +757,8 @@
       "toastDeleted": "\"{name}\" excluído."
     },
     "wish": {
-      "enable": "Enviar esta felicitação todos os anos",
-      "enableDesc": "Enviada automaticamente nesta data, uma vez por ano.",
+      "enable": "Enviar felicitações todos os anos",
+      "enableDesc": "Ative para adicionar felicitações a este contato: aniversário, aniversário de casamento e mais. Cada uma é enviada uma vez por ano na sua data.",
       "day": "Dia",
       "month": "Mês",
       "pickDay": "Dia",
