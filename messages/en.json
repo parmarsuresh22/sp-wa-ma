@@ -966,7 +966,9 @@
         "template": "Template",
         "audience": "Audience",
         "personalize": "Personalize",
-        "send": "Send"
+        "send": "Send",
+        "channel": "Send from",
+        "message": "Message"
       },
       "toastGiveName": "Give the broadcast a name before saving a draft.",
       "toastNotSignedIn": "Not signed in.",
@@ -1089,7 +1091,26 @@
         "confirmTitle": "Confirm Broadcast",
         "confirmDesc": "You are about to send this broadcast to <b>{count, number}</b> {count, plural, =1 {contact} other {contacts}} using the <b>{template}</b> template. This action cannot be undone.",
         "sendFrom": "Send from",
-        "sendFromDefault": "default"
+        "sendFromDefault": "default",
+        "customMessage": "Custom message"
+      },
+      "chooseChannel": {
+        "title": "Send from",
+        "subtitle": "Which number sends this campaign. A Business API number sends an approved template; a WhatsApp Web number sends a message you write.",
+        "none": "No WhatsApp number is connected yet. Add one in Settings → WhatsApp.",
+        "bridgeHint": "WhatsApp Web — plain message, paced sending",
+        "metaHint": "Business API — approved template",
+        "disconnected": "Not connected"
+      },
+      "customMessage": {
+        "title": "Write the message",
+        "label": "Message",
+        "preview": "Preview",
+        "previewName": "Asha",
+        "warning": "WhatsApp Web numbers are unofficial. Messages go out one per second, and WhatsApp may suspend a number that sends in bulk or gets reported. Keep the audience small and the message personal.",
+        "intro": "This exact text goes to every recipient. Use {{name}} to insert the contact's name.",
+        "inputPlaceholder": "Hi {{name}}, …",
+        "nameHint": "{{name}} becomes the contact's name."
       }
     },
     "sending": {
@@ -2974,7 +2995,9 @@
       "recipientsRequired": "Provide either `recipients` (preferred) or `phone_numbers` — must be a non-empty array",
       "templateNameRequired": "template_name is required",
       "templateMalformed": "Template row is malformed locally — run \"Sync from Meta\" in Settings to repair it before broadcasting.",
-      "invalidPhoneFormat": "Invalid phone number format"
+      "invalidPhoneFormat": "Invalid phone number format",
+      "messageTextRequired": "message_text is required for a WhatsApp Web number",
+      "bridgeBatchTooLarge": "A WhatsApp Web number sends at most {max} recipients per request"
     },
     "whatsappConfig": {
       "fetchFailed": "Failed to fetch configuration",

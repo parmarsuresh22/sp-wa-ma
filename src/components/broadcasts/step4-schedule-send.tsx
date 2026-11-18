@@ -15,13 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useChannels, channelLabel } from '@/hooks/use-channels';
@@ -29,11 +22,12 @@ import { useChannels, channelLabel } from '@/hooks/use-channels';
 interface Step4Props {
   name: string;
   onNameChange: (name: string) => void;
-  template: MessageTemplate;
+  template: MessageTemplate | null;
   audience: AudienceConfig;
-  /** "Send from" — null = the account's default Meta number. */
+  /** The number chosen in the first step. */
   channelId?: string | null;
-  onChannelChange?: (channelId: string | null) => void;
+  /** Free-text campaign (WhatsApp Web number); `template` is null then. */
+  messageText?: string | null;
   onSend: () => void;
   onSaveDraft?: () => void;
   onBack: () => void;
@@ -47,7 +41,7 @@ export function Step4ScheduleSend({
   template,
   audience,
   channelId = null,
-  onChannelChange,
+  messageText = null,
   onSend,
   onSaveDraft,
   onBack,
@@ -55,12 +49,8 @@ export function Step4ScheduleSend({
   progress,
 }: Step4Props) {
   const t = useTranslations('Broadcasts.wizard');
-  // Broadcasts are template sends, so only Meta numbers qualify; a
-  // WhatsApp Web bridge channel is never offered here.
   const { channels } = useChannels();
-  const metaChannels = (channels ?? []).filter((c) => c.provider !== 'waha');
-  const defaultMeta = metaChannels.find((c) => c.is_default) ?? metaChannels[0] ?? null;
-  const selectedChannel = channelId ? metaChannels.find((c) => c.id === channelId) ?? null : defaultMeta;
+  const selectedChannel = channelId ? (channels ?? []).find((c) => c.id === channelId) ?? null : null;
   const [showConfirm, setShowConfirm] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
@@ -109,38 +99,17 @@ export function Step4ScheduleSend({
         />
       </div>
 
-      {/* Send from — only when the account has more than one Meta number */}
-      {metaChannels.length > 1 && (
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
-            {t('scheduleSend.sendFrom')}
-          </label>
-          <Select
-            value={selectedChannel?.id ?? ''}
-            onValueChange={(v) => onChannelChange?.(v && v !== defaultMeta?.id ? String(v) : null)}
-          >
-            <SelectTrigger className="w-full sm:w-80">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {metaChannels.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {channelLabel(c)}
-                  {c.is_default ? ` · ${t('scheduleSend.sendFromDefault')}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
       {/* Summary Card */}
       <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
         <p className="text-sm font-medium text-foreground">{t('scheduleSend.summary')}</p>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
+            <p className="text-xs text-muted-foreground">{t('scheduleSend.sendFrom')}</p>
+            <p className="text-foreground">{selectedChannel ? channelLabel(selectedChannel) : '—'}</p>
+          </div>
+          <div>
             <p className="text-xs text-muted-foreground">{t('scheduleSend.template')}</p>
-            <p className="text-foreground">{template.name}</p>
+            <p className="text-foreground">{template ? template.name : t('scheduleSend.customMessage')}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">{t('scheduleSend.audience')}</p>
@@ -159,12 +128,21 @@ export function Step4ScheduleSend({
               )}
             </div>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{t('scheduleSend.language')}</p>
-            <p className="text-foreground">{template.language ?? 'en_US'}</p>
-          </div>
+          {template && (
+            <div>
+              <p className="text-xs text-muted-foreground">{t('scheduleSend.language')}</p>
+              <p className="text-foreground">{template.language ?? 'en_US'}</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {messageText && (
+        <div className="rounded-xl border border-border bg-card/50 p-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">{t('customMessage.label')}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{messageText}</p>
+        </div>
+      )}
 
       {/* Processing overlay */}
       {isProcessing && (
@@ -227,7 +205,7 @@ export function Step4ScheduleSend({
               <DialogDescription className="text-muted-foreground">
                 {t.rich('scheduleSend.confirmDesc', {
                   count: estimatedReach,
-                  template: template.name,
+                  template: template ? template.name : t('scheduleSend.customMessage'),
                   b: (chunks) => (
                     <span className="font-medium text-popover-foreground">{chunks}</span>
                   ),

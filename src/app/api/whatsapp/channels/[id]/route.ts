@@ -7,6 +7,7 @@ import {
   toPublicChannel,
 } from '@/lib/whatsapp/channels'
 import { teardownBridgeSession } from '@/lib/whatsapp/bridge-channel'
+import { supabaseAdmin } from '@/lib/flows/admin-client'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -108,9 +109,12 @@ export async function DELETE(_request: Request, { params }: Params) {
     const limit = checkRateLimit(`whatsapp-admin:${userId}`, RATE_LIMITS.whatsappAdmin)
     if (!limit.success) return rateLimitResponse(limit)
 
-    const channel = await loadChannel(supabase, accountId, id)
+    // Service-role lookup, scoped by account: a stale list (or a second
+    // click) must not surface as "not found" — the row being gone is the
+    // outcome the caller wants, so answer success.
+    const channel = await loadChannel(supabaseAdmin(), accountId, id)
     if (!channel) {
-      return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
+      return NextResponse.json({ success: true, already_removed: true })
     }
 
     if (channel.provider === 'waha') {

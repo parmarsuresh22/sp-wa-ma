@@ -31,6 +31,7 @@ import {
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
+import { useChannels } from "@/hooks/use-channels";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -290,8 +291,16 @@ export function MessageThread({
     };
   }, [profilesVersion]);
 
+  // The number this thread runs on. A WhatsApp Web (bridge) number has
+  // no 24-hour customer-service window and no templates, so neither is
+  // shown there.
+  const { byId: channelById } = useChannels();
+  const isBridgeChannel =
+    channelById(conversation?.channel_id ?? null)?.provider === "waha";
+
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
+    if (isBridgeChannel) return { expired: false, remaining: "" };
     if (!messages.length) return { expired: false, remaining: "" };
 
     // Find last customer message
@@ -315,7 +324,7 @@ export function MessageThread({
         : tTimer("xmRemaining", { minutes: Math.floor(hoursLeft * 60) });
 
     return { expired, remaining };
-  }, [messages, tTimer]);
+  }, [messages, tTimer, isBridgeChannel]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -1043,17 +1052,20 @@ export function MessageThread({
             </p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
-              the name + back arrow keep their room. */}
-          <Badge
-            variant="outline"
-            className={cn(
-              "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-400" : "text-primary"
-            )}
-          >
-            <Clock className="h-3 w-3" />
-            {sessionInfo.remaining}
-          </Badge>
+              the name + back arrow keep their room, and absent on
+              WhatsApp Web numbers (no window there). */}
+          {!isBridgeChannel && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
+                sessionInfo.expired ? "text-red-400" : "text-primary"
+              )}
+            >
+              <Clock className="h-3 w-3" />
+              {sessionInfo.remaining}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1306,6 +1318,7 @@ export function MessageThread({
       <MessageComposer
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
+        templatesAvailable={!isBridgeChannel}
         onSend={handleSend}
         onSendMedia={handleSendMedia}
         onSendInteractive={handleSendInteractive}

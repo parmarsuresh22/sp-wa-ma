@@ -146,8 +146,9 @@ warning with a **Fix webhook** button when they differ.
 ## Limits of WhatsApp Web channels
 
 They are unofficial. WhatsApp can suspend numbers that behave like
-bulk senders, so wacrm refuses broadcasts and templates on them and they
-are meant for conversational support. Messages the owner types on the
+bulk senders, so templates do not exist on them and a broadcast from one
+is a plain message sent one per second to at most 25 recipients per
+request, behind a warning. They are meant for conversational support. Messages the owner types on the
 phone itself show up in the inbox as agent messages (no sender), so the
 thread reads the way the customer sees it. Reactions, read receipts,
 typing indicators and quoted replies work.

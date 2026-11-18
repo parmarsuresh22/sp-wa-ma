@@ -129,6 +129,11 @@ function contactPhone(row: RecipientRow): string | null {
   return c?.phone ?? null;
 }
 
+function contactName(row: RecipientRow): string | null {
+  const c = Array.isArray(row.contact) ? row.contact[0] : row.contact;
+  return (c as { name?: string | null } | null | undefined)?.name ?? null;
+}
+
 /**
  * Build a {@link BroadcastPlan} for the recipients of an existing
  * broadcast that still need sending.
@@ -148,7 +153,7 @@ export async function planBroadcastResume(
 ): Promise<ResumePlan> {
   const { data: broadcast, error: bcError } = await db
     .from('broadcasts')
-    .select('id, template_name, template_language, channel_id')
+    .select('id, template_name, template_language, channel_id, message_text')
     .eq('id', broadcastId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -175,7 +180,7 @@ export async function planBroadcastResume(
       error: recError,
     } = await db
       .from('broadcast_recipients')
-      .select('id, template_params, contact:contacts(phone)', { count: 'exact' })
+      .select('id, template_params, contact:contacts(phone, name)', { count: 'exact' })
       .eq('broadcast_id', broadcastId)
       .in('status', statuses)
       // Oldest first, so repeated capped passes chew through the backlog
@@ -232,30 +237,29 @@ export async function planBroadcastResume(
   // Resume from the number the campaign was started on; a campaign
   // from before migration 061 (no channel_id) uses the default Meta
   // channel. A deleted channel falls back the same way.
+  const messageText = ((broadcast as { message_text?: string | null }).message_text ?? '').trim() || null;
   let config;
   try {
     config = await resolveBroadcastChannel(
       db,
       accountId,
-      (broadcast as { channel_id?: string | null }).channel_id ?? null
+      (broadcast as { channel_id?: string | null }).channel_id ?? null,
+      { allowBridge: !!messageText }
     );
   } catch (err) {
     if (
       err instanceof BroadcastError &&
       err.code === 'channel_not_found'
     ) {
-      config = await resolveBroadcastChannel(db, accountId, null);
+      config = await resolveBroadcastChannel(db, accountId, null, { allowBridge: !!messageText });
     } else {
       throw err;
     }
   }
 
-  const resolvedTemplate = await resolveTemplateRow(
-    db,
-    accountId,
-    broadcast.template_name,
-    broadcast.template_language
-  );
+  const resolvedTemplate = messageText
+    ? { row: null, language: broadcast.template_language, malformed: false }
+    : await resolveTemplateRow(db, accountId, broadcast.template_name, broadcast.template_language);
   if (resolvedTemplate.malformed) {
     throw new BroadcastError(
       'template_malformed',
@@ -269,7 +273,7 @@ export async function planBroadcastResume(
     channelId: config.id,
     templateName: broadcast.template_name,
     templateLanguage: resolvedTemplate.language,
-    phoneNumberId: config.phone_number_id!,
+    phoneNumberId: config.phone_number_id ?? '',
     accessToken: decrypt(config.access_token),
     templateRow: resolvedTemplate.row,
     planned: slice.map((row) => ({
@@ -278,8 +282,11 @@ export async function planBroadcastResume(
       params: Array.isArray(row.template_params)
         ? row.template_params.filter((p): p is string => typeof p === 'string')
         : [],
+      name: contactName(row),
     })),
     rejected: 0,
+    messageText,
+    channel: config,
   };
 
   return { plan, remaining, unsendable: unsendable.length };

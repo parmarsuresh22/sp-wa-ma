@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { BroadcastError, resolveBroadcastChannel } from '@/lib/whatsapp/broadcast-core'
+import {
+  BroadcastError,
+  BRIDGE_MAX_RECIPIENTS_PER_REQUEST,
+  BRIDGE_SEND_SPACING_MS,
+  renderBroadcastText,
+  resolveBroadcastChannel,
+} from '@/lib/whatsapp/broadcast-core'
+import { senderForChannel } from '@/lib/whatsapp/providers'
 import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder'
 import { resolveTemplateRow } from '@/lib/whatsapp/template-body'
 import {
@@ -93,10 +100,12 @@ export async function POST(request: Request) {
       template_name,
       template_language,
       template_params,
-      // "Send from": one of the account's Meta numbers. Omitted → the
-      // default Meta channel. Bridge channels are refused.
+      // "Send from": one of the account's numbers. Omitted → the default
+      // Meta channel. A WhatsApp Web number needs `message_text`.
       channel_id,
+      message_text,
     } = body
+    const messageText = typeof message_text === 'string' ? message_text.trim() : ''
 
     // Normalize to a list of {phone, params} regardless of shape.
     let recipients: NewRecipient[]
@@ -120,7 +129,7 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!template_name) {
+    if (!template_name && !messageText) {
       return NextResponse.json(
         { error: t('broadcast.templateNameRequired') },
         { status: 400 }
@@ -132,7 +141,8 @@ export async function POST(request: Request) {
       config = await resolveBroadcastChannel(
         supabase,
         accountId,
-        typeof channel_id === 'string' && channel_id ? channel_id : null
+        typeof channel_id === 'string' && channel_id ? channel_id : null,
+        { allowBridge: !!messageText }
       )
     } catch (err) {
       if (err instanceof BroadcastError) {
@@ -147,6 +157,47 @@ export async function POST(request: Request) {
         )
       }
       throw err
+    }
+
+    // Free-text campaign on a WhatsApp Web number: paced, capped, no
+    // templates involved. `{{name}}` is filled per recipient.
+    if (config.provider === 'waha') {
+      if (!messageText) {
+        return NextResponse.json({ error: t('broadcast.messageTextRequired') }, { status: 400 })
+      }
+      if (recipients.length > BRIDGE_MAX_RECIPIENTS_PER_REQUEST) {
+        return NextResponse.json(
+          { error: t('broadcast.bridgeBatchTooLarge', { max: BRIDGE_MAX_RECIPIENTS_PER_REQUEST }) },
+          { status: 400 }
+        )
+      }
+      const sender = senderForChannel(config)
+      const results: BroadcastResult[] = []
+      let sentCount = 0
+      let failedCount = 0
+      for (const recipient of recipients) {
+        const sanitized = sanitizePhoneForMeta(recipient.phone)
+        if (!isValidE164(sanitized)) {
+          results.push({ phone: recipient.phone, status: 'failed', error: t('broadcast.invalidPhoneFormat') })
+          failedCount++
+          continue
+        }
+        try {
+          const r = await sender.sendText({
+            to: sanitized,
+            text: renderBroadcastText(messageText, (recipient as { name?: string | null }).name),
+          })
+          results.push({ phone: recipient.phone, status: 'sent', whatsapp_message_id: r.messageId })
+          sentCount++
+        } catch (error) {
+          const message = error instanceof Error ? error.message : t('common.unknownError')
+          console.error(`Failed to send bridge broadcast to ${recipient.phone}:`, message)
+          results.push({ phone: recipient.phone, status: 'failed', error: message })
+          failedCount++
+        }
+        await new Promise((resolve) => setTimeout(resolve, BRIDGE_SEND_SPACING_MS))
+      }
+      return NextResponse.json({ success: true, total: recipients.length, sent: sentCount, failed: failedCount, results })
     }
 
     const accessToken = decrypt(config.access_token)

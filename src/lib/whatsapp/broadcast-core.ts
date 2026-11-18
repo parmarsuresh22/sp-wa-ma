@@ -28,11 +28,22 @@ import {
 import { resolveTemplateRow } from '@/lib/whatsapp/template-body';
 import type { MessageTemplate } from '@/types';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
+import { senderForChannel } from '@/lib/whatsapp/providers';
 import {
   loadChannel,
   loadDefaultMetaChannel,
   type ChannelRow,
 } from '@/lib/whatsapp/channels';
+
+/** Pause between messages on a WhatsApp Web number. */
+export const BRIDGE_SEND_SPACING_MS = 1_000;
+/** Most recipients one request may send to on a WhatsApp Web number. */
+export const BRIDGE_MAX_RECIPIENTS_PER_REQUEST = 25;
+
+/** `{{name}}` → recipient name; blank when unknown. */
+export function renderBroadcastText(text: string, name: string | null | undefined): string {
+  return text.replace(/\{\{\s*name\s*\}\}/gi, (name ?? '').trim()).replace(/[ \t]{2,}/g, ' ').trim();
+}
 
 /** Thrown by createBroadcast on a caller-visible failure; route maps it. */
 export class BroadcastError extends Error {
@@ -54,7 +65,9 @@ export class BroadcastError extends Error {
 export async function resolveBroadcastChannel(
   db: SupabaseClient,
   accountId: string,
-  channelId?: string | null
+  channelId?: string | null,
+  /** A free-text campaign may go out on a WhatsApp Web number (066). */
+  opts: { allowBridge?: boolean } = {}
 ): Promise<ChannelRow> {
   const channel = channelId
     ? await loadChannel(db, accountId, channelId)
@@ -68,12 +81,16 @@ export async function resolveBroadcastChannel(
       channelId ? 404 : 400
     );
   }
-  if (channel.provider !== 'meta' || !channel.phone_number_id) {
+  if (channel.provider === 'waha') {
+    if (opts.allowBridge) return channel;
     throw new BroadcastError(
       'unsupported_on_channel',
-      'Broadcasts need a WhatsApp Business API number; they cannot be sent from a WhatsApp Web channel',
+      'Template broadcasts need a WhatsApp Business API number; a WhatsApp Web number sends a plain message instead',
       400
     );
+  }
+  if (!channel.phone_number_id) {
+    throw new BroadcastError('whatsapp_not_configured', 'This number is missing its Meta phone number id', 400);
   }
   return channel;
 }
@@ -103,6 +120,8 @@ interface PlannedRecipient {
   recipientRowId: string;
   phone: string;
   params: string[];
+  /** For a free-text campaign: what `{{name}}` becomes. */
+  name?: string | null;
 }
 
 export interface BroadcastPlan {
@@ -117,6 +136,10 @@ export interface BroadcastPlan {
   planned: PlannedRecipient[];
   /** Phones rejected up front (invalid E.164) — counted as failed. */
   rejected: number;
+  /** Free-text campaign on a WhatsApp Web number; null = template send. */
+  messageText?: string | null;
+  /** The channel row, needed to build a bridge sender for `messageText`. */
+  channel?: ChannelRow;
 }
 
 export interface CreatedBroadcastPlan extends BroadcastPlan {
@@ -309,12 +332,31 @@ export async function deliverBroadcast(
   db: SupabaseClient,
   plan: BroadcastPlan
 ): Promise<void> {
+  // Free-text campaign on a bridge: one message a second, no variant
+  // retry (a bridge has no allow-list), `{{name}}` per recipient.
+  const textSender =
+    plan.messageText && plan.channel ? senderForChannel(plan.channel) : null;
+
   for (const recipient of plan.planned) {
-    const variants = phoneVariants(recipient.phone);
+    const variants = textSender ? [recipient.phone] : phoneVariants(recipient.phone);
     let sentMessageId: string | null = null;
     let lastError: string | null = null;
 
     for (const variant of variants) {
+      if (textSender) {
+        try {
+          const r = await textSender.sendText({
+            to: variant,
+            text: renderBroadcastText(plan.messageText!, recipient.name),
+          });
+          sentMessageId = r.messageId;
+          lastError = null;
+          await new Promise((resolve) => setTimeout(resolve, BRIDGE_SEND_SPACING_MS));
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : 'Unknown error';
+        }
+        break;
+      }
       try {
         const result = await sendTemplateMessage({
           phoneNumberId: plan.phoneNumberId,

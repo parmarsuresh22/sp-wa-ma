@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { MessageTemplate } from '@/types';
+import { Step0ChooseChannel } from '@/components/broadcasts/step0-choose-channel';
 import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-template';
+import { StepCustomMessage } from '@/components/broadcasts/step-custom-message';
 import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audience';
 import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
@@ -14,12 +16,11 @@ import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
 import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-const steps = [
-  { label: 'template', key: 'template' },
-  { label: 'audience', key: 'audience' },
-  { label: 'personalize', key: 'personalize' },
-  { label: 'send', key: 'send' },
-] as const;
+// A Business API number: pick a template, then personalize it. A
+// WhatsApp Web number: write the message. Both start with "send from".
+const TEMPLATE_STEPS = ['channel', 'template', 'audience', 'personalize', 'send'] as const;
+const MESSAGE_STEPS = ['channel', 'message', 'audience', 'send'] as const;
+type StepKey = (typeof TEMPLATE_STEPS)[number] | (typeof MESSAGE_STEPS)[number];
 
 export default function NewBroadcastPage() {
   const router = useRouter();
@@ -45,11 +46,16 @@ export default function NewBroadcastPage() {
   >({});
   const [headerMediaUrl, setHeaderMediaUrl] = useState('');
   const [name, setName] = useState('');
-  // "Send from" — null means the account's default Meta number.
+  // "Send from" — chosen in the first step.
   const [channelId, setChannelId] = useState<string | null>(null);
+  const [channelIsBridge, setChannelIsBridge] = useState(false);
+  // Free-text campaign for a WhatsApp Web number.
+  const [messageText, setMessageText] = useState('');
+  const steps: readonly StepKey[] = channelIsBridge ? MESSAGE_STEPS : TEMPLATE_STEPS;
+  const stepIndex = (key: StepKey) => steps.indexOf(key);
 
   async function handleSend() {
-    if (!template) return;
+    if (channelIsBridge ? !messageText.trim() : !template) return;
 
     try {
       const { broadcastId, interruption } = await createAndSendBroadcast({
@@ -65,6 +71,7 @@ export default function NewBroadcastPage() {
         variables,
         headerMediaUrl,
         channelId,
+        messageText: channelIsBridge ? messageText : null,
       });
       if (interruption === 'lease_lost') toast.warning(t('toastSendTakenOver'));
       if (interruption === 'lease_error') toast.error(t('toastSendInterrupted'));
@@ -88,7 +95,7 @@ export default function NewBroadcastPage() {
    * A full resume-draft UX is a future polish.
    */
   async function handleSaveDraft() {
-    if (!template || !name.trim()) {
+    if ((channelIsBridge ? !messageText.trim() : !template) || !name.trim()) {
       toast.error(t('toastGiveName'));
       return;
     }
@@ -111,8 +118,9 @@ export default function NewBroadcastPage() {
       account_id: accountId,
       channel_id: channelId,
       name: name.trim(),
-      template_name: template.name,
-      template_language: template.language ?? 'en_US',
+      template_name: template?.name ?? '',
+      template_language: template?.language ?? 'en_US',
+      message_text: channelIsBridge ? messageText.trim() : null,
       template_variables: variables,
       audience_filter: {
         type: audience.type,
@@ -152,7 +160,7 @@ export default function NewBroadcastPage() {
           const isCompleted = index < currentStep;
 
           return (
-            <div key={step.key} className="flex flex-1 items-center">
+            <div key={step} className="flex flex-1 items-center">
               <div className="flex items-center gap-2">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-all ${
@@ -170,7 +178,7 @@ export default function NewBroadcastPage() {
                     isActive ? 'text-foreground' : isCompleted ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  {t(`steps.${step.label}`)}
+                  {t(`steps.${step}`)}
                 </span>
               </div>
               {index < steps.length - 1 && (
@@ -194,44 +202,66 @@ export default function NewBroadcastPage() {
             pointerEvents: isProcessing ? 'none' : 'auto',
           }}
         >
-          {currentStep === 0 && (
-            <Step1ChooseTemplate
-              selectedTemplate={template}
-              onSelect={setTemplate}
+          {steps[currentStep] === 'channel' && (
+            <Step0ChooseChannel
+              channelId={channelId}
+              onSelect={(c) => {
+                setChannelId(c.id);
+                const bridge = c.provider === 'waha';
+                setChannelIsBridge(bridge);
+                if (bridge) setTemplate(null);
+                else setMessageText('');
+              }}
               onNext={() => setCurrentStep(1)}
               onBack={() => router.push('/broadcasts')}
             />
           )}
-          {currentStep === 1 && (
+          {steps[currentStep] === 'template' && (
+            <Step1ChooseTemplate
+              selectedTemplate={template}
+              onSelect={setTemplate}
+              onNext={() => setCurrentStep(stepIndex('audience'))}
+              onBack={() => setCurrentStep(stepIndex('channel'))}
+            />
+          )}
+          {steps[currentStep] === 'message' && (
+            <StepCustomMessage
+              text={messageText}
+              onChange={setMessageText}
+              onNext={() => setCurrentStep(stepIndex('audience'))}
+              onBack={() => setCurrentStep(stepIndex('channel'))}
+            />
+          )}
+          {steps[currentStep] === 'audience' && (
             <Step2SelectAudience
               audience={audience}
               onUpdate={setAudience}
-              onNext={() => setCurrentStep(2)}
-              onBack={() => setCurrentStep(0)}
+              onNext={() => setCurrentStep(stepIndex(channelIsBridge ? 'send' : 'personalize'))}
+              onBack={() => setCurrentStep(stepIndex(channelIsBridge ? 'message' : 'template'))}
             />
           )}
-          {currentStep === 2 && template && (
+          {steps[currentStep] === 'personalize' && template && (
             <Step3Personalize
               template={template}
               variables={variables}
               onUpdate={setVariables}
               headerMediaUrl={headerMediaUrl}
               onHeaderMediaUrlChange={setHeaderMediaUrl}
-              onNext={() => setCurrentStep(3)}
-              onBack={() => setCurrentStep(1)}
+              onNext={() => setCurrentStep(stepIndex('send'))}
+              onBack={() => setCurrentStep(stepIndex('audience'))}
             />
           )}
-          {currentStep === 3 && template && (
+          {steps[currentStep] === 'send' && (channelIsBridge ? messageText.trim() : template) && (
             <Step4ScheduleSend
               name={name}
               onNameChange={setName}
               template={template}
+              messageText={channelIsBridge ? messageText : null}
               audience={audience}
               channelId={channelId}
-              onChannelChange={setChannelId}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
-              onBack={() => setCurrentStep(2)}
+              onBack={() => setCurrentStep(stepIndex(channelIsBridge ? 'audience' : 'personalize'))}
               isProcessing={isProcessing}
               progress={progress}
             />

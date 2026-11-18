@@ -27,9 +27,24 @@ and polish.
 > `supabase/migrations/064_ai_knowledge_fts_any_word.sql` (forgiving
 > keyword search for the knowledge base) and
 > `supabase/migrations/065_ai_knowledge_sources.sql` (knowledge documents
-> from spreadsheets and web pages).
+> from spreadsheets and web pages) and
+> `supabase/migrations/066_broadcast_custom_message.sql`
+> (`broadcasts.message_text` for WhatsApp Web campaigns).
 
 ### Added
+
+- **Broadcasts start with "Send from".** The wizard's first step picks
+  the number. A Business API number continues to template, audience,
+  personalize. A WhatsApp Web number instead asks for a plain message
+  (`{{name}}` per recipient), sends one message a second, at most 25 per
+  request, and shows the ban-risk warning before sending. Resume works
+  for both. The inbox hides the 24-hour window badge and the template
+  button on WhatsApp Web threads, where neither exists. The pipelines
+  page gains the shared number filter.
+
+- **Removing a number is idempotent.** Deleting a channel that is
+  already gone (a stale list, a second click) now succeeds and refreshes
+  the list instead of answering "Channel not found".
 
 - **Knowledge from spreadsheets and websites.** The knowledge base
   gains "Upload spreadsheet" (.xlsx, .xls, .csv, .tsv, .ods — every row

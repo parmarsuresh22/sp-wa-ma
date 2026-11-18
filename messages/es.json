@@ -966,7 +966,9 @@
         "template": "Plantilla",
         "audience": "Audiencia",
         "personalize": "Personalizar",
-        "send": "Enviar"
+        "send": "Enviar",
+        "channel": "Enviar desde",
+        "message": "Mensaje"
       },
       "toastGiveName": "Ponle un nombre a la difusión antes de guardar un borrador.",
       "toastNotSignedIn": "No has iniciado sesión.",
@@ -1089,7 +1091,26 @@
         "confirmTitle": "Confirmar difusión",
         "confirmDesc": "Estás a punto de enviar esta difusión a <b>{count, number}</b> {count, plural, =1 {contacto} other {contactos}} con la plantilla <b>{template}</b>. Esta acción no se puede deshacer.",
         "sendFrom": "Enviar desde",
-        "sendFromDefault": "predeterminado"
+        "sendFromDefault": "predeterminado",
+        "customMessage": "Mensaje personalizado"
+      },
+      "chooseChannel": {
+        "title": "Enviar desde",
+        "subtitle": "Qué número envía esta campaña. Un número Business API envía una plantilla aprobada; un número de WhatsApp Web envía un mensaje que escribes.",
+        "none": "Aún no hay ningún número de WhatsApp conectado. Añade uno en Ajustes → WhatsApp.",
+        "bridgeHint": "WhatsApp Web: mensaje libre, envío pausado",
+        "metaHint": "Business API: plantilla aprobada",
+        "disconnected": "Sin conexión"
+      },
+      "customMessage": {
+        "title": "Escribe el mensaje",
+        "label": "Mensaje",
+        "preview": "Vista previa",
+        "previewName": "Asha",
+        "warning": "Los números de WhatsApp Web no son oficiales. Los mensajes salen uno por segundo y WhatsApp puede suspender un número que envíe en masa o sea reportado. Mantén la audiencia pequeña y el mensaje personal.",
+        "intro": "Este texto se envía tal cual a cada destinatario. Usa {{name}} para insertar el nombre del contacto.",
+        "inputPlaceholder": "Hola {{name}}, …",
+        "nameHint": "{{name}} se convierte en el nombre del contacto."
       }
     },
     "sending": {
@@ -2974,7 +2995,9 @@
       "recipientsRequired": "Proporciona `recipients` (preferido) o `phone_numbers`; debe ser una lista no vacía",
       "templateNameRequired": "El nombre de la plantilla es obligatorio",
       "templateMalformed": "El registro local de la plantilla está dañado: usa \"Sincronizar desde Meta\" en Configuración para repararlo antes de enviar la difusión.",
-      "invalidPhoneFormat": "Formato de número de teléfono no válido"
+      "invalidPhoneFormat": "Formato de número de teléfono no válido",
+      "messageTextRequired": "message_text es obligatorio para un número de WhatsApp Web",
+      "bridgeBatchTooLarge": "Un número de WhatsApp Web envía como máximo {max} destinatarios por solicitud"
     },
     "whatsappConfig": {
       "fetchFailed": "Error al obtener la configuración",

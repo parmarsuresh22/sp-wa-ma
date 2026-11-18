@@ -966,7 +966,9 @@
         "template": "템플릿",
         "audience": "대상",
         "personalize": "개인화",
-        "send": "전송"
+        "send": "전송",
+        "channel": "발신 번호",
+        "message": "메시지"
       },
       "toastGiveName": "초안을 저장하기 전에 브로드캐스트 이름을 입력하세요.",
       "toastNotSignedIn": "로그인되어 있지 않습니다.",
@@ -1089,7 +1091,26 @@
         "confirmTitle": "브로드캐스트 확인",
         "confirmDesc": "<b>{template}</b> 템플릿으로 연락처 <b>{count, number}</b>명에게 이 브로드캐스트를 보내려고 합니다. 이 작업은 되돌릴 수 없습니다.",
         "sendFrom": "발신 번호",
-        "sendFromDefault": "기본"
+        "sendFromDefault": "기본",
+        "customMessage": "사용자 지정 메시지"
+      },
+      "chooseChannel": {
+        "title": "발신 번호",
+        "subtitle": "이 캠페인을 보낼 번호입니다. Business API 번호는 승인된 템플릿을, WhatsApp Web 번호는 직접 작성한 메시지를 보냅니다.",
+        "none": "아직 연결된 WhatsApp 번호가 없습니다. 설정 → WhatsApp에서 추가하세요.",
+        "bridgeHint": "WhatsApp Web — 일반 메시지, 간격을 두고 발송",
+        "metaHint": "Business API — 승인된 템플릿",
+        "disconnected": "연결 안 됨"
+      },
+      "customMessage": {
+        "title": "메시지 작성",
+        "label": "메시지",
+        "preview": "미리보기",
+        "previewName": "Asha",
+        "warning": "WhatsApp Web 번호는 비공식입니다. 메시지는 초당 1건씩 발송되며, 대량 발송이나 신고가 있으면 WhatsApp이 번호를 정지할 수 있습니다. 대상은 작게, 메시지는 개인적으로 유지하세요.",
+        "intro": "이 텍스트가 모든 수신자에게 그대로 전송됩니다. {{name}}으로 연락처 이름을 넣을 수 있습니다.",
+        "inputPlaceholder": "안녕하세요 {{name}}님, …",
+        "nameHint": "{{name}}은 연락처 이름으로 바뀝니다."
       }
     },
     "sending": {
@@ -2974,7 +2995,9 @@
       "recipientsRequired": "`recipients`(권장) 또는 `phone_numbers`를 제공하세요 — 비어 있지 않은 배열이어야 합니다",
       "templateNameRequired": "템플릿 이름은 필수입니다",
       "templateMalformed": "로컬 템플릿 데이터가 손상되었습니다 — 브로드캐스트 전에 설정에서 \"Meta에서 동기화\"를 실행해 복구하세요.",
-      "invalidPhoneFormat": "전화번호 형식이 올바르지 않습니다"
+      "invalidPhoneFormat": "전화번호 형식이 올바르지 않습니다",
+      "messageTextRequired": "WhatsApp Web 번호에는 message_text가 필요합니다",
+      "bridgeBatchTooLarge": "WhatsApp Web 번호는 요청당 최대 {max}명에게 보낼 수 있습니다"
     },
     "whatsappConfig": {
       "fetchFailed": "설정을 가져오지 못했습니다",

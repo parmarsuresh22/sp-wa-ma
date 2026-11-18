@@ -966,7 +966,9 @@
         "template": "Modelo",
         "audience": "Público",
         "personalize": "Personalizar",
-        "send": "Enviar"
+        "send": "Enviar",
+        "channel": "Enviar de",
+        "message": "Mensagem"
       },
       "toastGiveName": "Dê um nome ao disparo antes de salvar um rascunho.",
       "toastNotSignedIn": "Você não está conectado.",
@@ -1089,7 +1091,26 @@
         "confirmTitle": "Confirmar disparo",
         "confirmDesc": "Você está prestes a enviar este disparo para <b>{count, number}</b> {count, plural, =1 {contato} other {contatos}} usando o modelo <b>{template}</b>. Esta ação não pode ser desfeita.",
         "sendFrom": "Enviar de",
-        "sendFromDefault": "padrão"
+        "sendFromDefault": "padrão",
+        "customMessage": "Mensagem personalizada"
+      },
+      "chooseChannel": {
+        "title": "Enviar de",
+        "subtitle": "Qual número envia esta campanha. Um número Business API envia um modelo aprovado; um número do WhatsApp Web envia uma mensagem que você escreve.",
+        "none": "Nenhum número de WhatsApp conectado ainda. Adicione um em Configurações → WhatsApp.",
+        "bridgeHint": "WhatsApp Web — mensagem livre, envio espaçado",
+        "metaHint": "Business API — modelo aprovado",
+        "disconnected": "Desconectado"
+      },
+      "customMessage": {
+        "title": "Escreva a mensagem",
+        "label": "Mensagem",
+        "preview": "Prévia",
+        "previewName": "Asha",
+        "warning": "Números do WhatsApp Web não são oficiais. As mensagens saem uma por segundo e o WhatsApp pode suspender um número que envia em massa ou é denunciado. Mantenha o público pequeno e a mensagem pessoal.",
+        "intro": "Este texto vai exatamente assim para cada destinatário. Use {{name}} para inserir o nome do contato.",
+        "inputPlaceholder": "Olá {{name}}, …",
+        "nameHint": "{{name}} vira o nome do contato."
       }
     },
     "sending": {
@@ -2974,7 +2995,9 @@
       "recipientsRequired": "Informe `recipients` (preferencial) ou `phone_numbers` — deve ser uma lista não vazia",
       "templateNameRequired": "O nome do modelo é obrigatório",
       "templateMalformed": "O registro local do modelo está corrompido — use \"Sincronizar da Meta\" em Configurações para corrigi-lo antes de disparar.",
-      "invalidPhoneFormat": "Formato de número de telefone inválido"
+      "invalidPhoneFormat": "Formato de número de telefone inválido",
+      "messageTextRequired": "message_text é obrigatório para um número do WhatsApp Web",
+      "bridgeBatchTooLarge": "Um número do WhatsApp Web envia no máximo {max} destinatários por solicitação"
     },
     "whatsappConfig": {
       "fetchFailed": "Falha ao buscar a configuração",

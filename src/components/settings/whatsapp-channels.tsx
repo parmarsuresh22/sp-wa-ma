@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import {
@@ -97,18 +97,26 @@ export function WhatsAppChannels() {
     [refresh, t],
   );
 
+  const removingRef = useRef<string | null>(null);
   const remove = useCallback(
     async (ch: ChannelSummary) => {
+      if (removingRef.current === ch.id) return; // guard a double-fired click
       if (!confirm(t('removeConfirm', { name: channelLabel(ch) }))) return;
-      const res = await fetch(`/api/whatsapp/channels/${ch.id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || t('removeFailed'));
-        return;
+      removingRef.current = ch.id;
+      try {
+        const res = await fetch(`/api/whatsapp/channels/${ch.id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error || t('removeFailed'));
+        } else {
+          toast.success(t('removed'));
+          setSelection(null);
+        }
+      } finally {
+        removingRef.current = null;
+        // Whatever the answer, the list on screen may be stale.
+        await refresh();
       }
-      toast.success(t('removed'));
-      setSelection(null);
-      await refresh();
     },
     [refresh, t],
   );

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useActiveChannel } from "@/hooks/use-active-channel";
+import { useChannels } from "@/hooks/use-channels";
+import { ChannelScopeSelect } from "@/components/channels/channel-scope-select";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
@@ -60,6 +63,40 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // "Which number": deals whose contact has a conversation on the active
+  // number (shared with the inbox, dashboard and contacts; migration 062).
+  const [activeChannel, setActiveChannel] = useActiveChannel();
+  const { channels } = useChannels();
+  const channelId =
+    activeChannel !== "all" && channels?.some((c) => c.id === activeChannel) ? activeChannel : null;
+  // Loaded for the active number; keyed by it so a stale set is ignored.
+  const [channelContacts, setChannelContacts] = useState<{ channelId: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    if (!channelId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("conversations")
+        .select("contact_id")
+        .eq("channel_id", channelId)
+        .limit(5000);
+      if (cancelled) return;
+      setChannelContacts({
+        channelId,
+        ids: new Set((data ?? []).map((r: { contact_id: string }) => r.contact_id)),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId, supabase]);
+  const visibleDeals = useMemo(() => {
+    if (!channelId) return deals;
+    const ids = channelContacts?.channelId === channelId ? channelContacts.ids : null;
+    if (!ids) return deals;
+    return deals.filter((d) => d.contact_id && ids.has(d.contact_id));
+  }, [deals, channelId, channelContacts]);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -321,6 +358,12 @@ export default function PipelinesPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
+          <ChannelScopeSelect
+            size="sm"
+            className="max-w-48"
+            value={channelId}
+            onChange={(id) => setActiveChannel(id ?? "all")}
+          />
           {/* Pipeline selector dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -415,10 +458,10 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineAnalytics stages={stages} deals={visibleDeals} />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}

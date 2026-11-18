@@ -41,7 +41,10 @@ export type VariableMapping =
 
 interface BroadcastPayload {
   name: string;
-  template: MessageTemplate;
+  /** Meta template; null for a WhatsApp Web number (see `messageText`). */
+  template: MessageTemplate | null;
+  /** Free-text campaign for a WhatsApp Web number; `{{name}}` per recipient. */
+  messageText?: string | null;
   audience: AudienceConfig;
   variables: Record<string, VariableMapping>;
   /**
@@ -341,9 +344,10 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           user_id: user.id,
           account_id: accountId,
           name: payload.name,
-          template_name: payload.template.name,
-          template_language: payload.template.language ?? 'en_US',
+          template_name: payload.template?.name ?? '',
+          template_language: payload.template?.language ?? 'en_US',
           template_variables: payload.variables,
+          message_text: payload.messageText?.trim() || null,
           channel_id: payload.channelId ?? null,
           audience_filter: {
             type: payload.audience.type,
@@ -452,7 +456,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       // URL on every send. Collected in the personalize step and applied
       // to all recipients; falls back to the template's stored URL on the
       // server when omitted.
-      const headerType = payload.template.header_type;
+      const headerType = payload.template?.header_type;
       const isMediaHeader =
         headerType === 'image' ||
         headerType === 'video' ||
@@ -481,6 +485,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             // Read back off the row rather than re-resolved, so this
             // pass and any later resume send identical params.
             params: Array.isArray(r.template_params) ? r.template_params : [],
+            // For a free-text campaign: what `{{name}}` becomes.
+            name: (r.contact as { name?: string | null } | null)?.name ?? null,
             ...(messageParams ? { messageParams } : {}),
           }));
 
@@ -505,8 +511,9 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 recipients: apiRecipients,
-                template_name: payload.template.name,
-                template_language: payload.template.language ?? 'en_US',
+                template_name: payload.template?.name ?? '',
+                template_language: payload.template?.language ?? 'en_US',
+                message_text: payload.messageText?.trim() || null,
                 channel_id: payload.channelId ?? null,
               }),
             });
