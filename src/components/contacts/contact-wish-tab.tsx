@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Loader2, Save, Smartphone, Trash2 } from 'lucide-react';
+import { Loader2, Save, Send, Smartphone, Trash2 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -98,13 +98,16 @@ export function ContactWishTab({
   const [templates, setTemplates] = useState<MessageTemplate[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const savedOk = useRef(false);
 
   function applyWish(row: WishRow | null) {
     setWish(row);
     setEnabled(row ? row.enabled : false);
     setMonth(row?.month ?? null);
     setDay(row?.day ?? null);
-    setText(row?.message_text ?? '');
+    // A ready-made birthday wish to keep or edit.
+    setText(row?.message_text || t('defaultMessage', { token: NAME_TOKEN }));
     setTplKey(row?.template_name ? templateKey(row.template_name, row.template_language) : '');
     setParams(readParams(row?.template_params));
   }
@@ -128,6 +131,8 @@ export function ContactWishTab({
     return () => {
       cancelled = true;
     };
+    // applyWish only sets state; re-running on its identity would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactId, t]);
 
   useEffect(() => {
@@ -201,6 +206,7 @@ export function ContactWishTab({
   }
 
   async function save() {
+    savedOk.current = false;
     if (!target) return;
     // Enabled only sticks with the required fields filled and saved;
     // anything short of that switches it back off.
@@ -266,11 +272,32 @@ export function ContactWishTab({
         return;
       }
       applyWish(body.wish);
+      savedOk.current = true;
       toast.success(t('saved'));
     } catch {
       toast.error(t('saveFailed', { reason: t('networkError') }));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Saves what is on screen, then sends that wish to the contact now.
+  async function sendTest() {
+    setTesting(true);
+    try {
+      await save();
+      if (!savedOk.current) return;
+      const res = await fetch(`/api/wishes/contact/${contactId}/test`, { method: 'POST' });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(t('testFailed', { reason: body.error || `HTTP ${res.status}` }));
+        return;
+      }
+      toast.success(t('testSent'));
+    } catch {
+      toast.error(t('testFailed', { reason: t('networkError') }));
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -308,7 +335,7 @@ export function ContactWishTab({
     );
   }
 
-  const disabled = !canSendMessages || saving || removing;
+  const disabled = !canSendMessages || saving || removing || testing;
   const fieldClass = 'bg-muted border-border text-foreground text-sm placeholder:text-muted-foreground';
   const targetName = channelLabel(target);
 
@@ -342,27 +369,6 @@ export function ContactWishTab({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">
-            {t('day')} <span className="text-red-400">*</span>
-          </Label>
-          <Select
-            value={day ? String(day) : null}
-            onValueChange={(v) => v && setDay(Number(v))}
-            disabled={disabled}
-          >
-            <SelectTrigger className="w-full" aria-label={t('day')}>
-              <SelectValue placeholder={t('pickDay')} />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: dayCount }, (_, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>
-                  {i + 1}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">
             {t('month')} <span className="text-red-400">*</span>
           </Label>
           <Select
@@ -378,6 +384,28 @@ export function ContactWishTab({
               {months.map((name, i) => (
                 <SelectItem key={name} value={String(i + 1)}>
                   {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            {t('day')} <span className="text-red-400">*</span>
+          </Label>
+          <Select
+            value={day ? String(day) : null}
+            onValueChange={(v) => v && setDay(Number(v))}
+            // The day list depends on the month, so the month comes first.
+            disabled={disabled || !month}
+          >
+            <SelectTrigger className="w-full" aria-label={t('day')}>
+              <SelectValue placeholder={t('pickDay')} />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: dayCount }, (_, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>
+                  {i + 1}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -533,7 +561,7 @@ export function ContactWishTab({
       ) : null}
 
       {canSendMessages ? (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={save}
             disabled={disabled}
@@ -542,6 +570,16 @@ export function ContactWishTab({
           >
             {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
             {t('save')}
+          </Button>
+          <Button
+            onClick={sendTest}
+            disabled={disabled}
+            size="sm"
+            variant="outline"
+            title={t('testHint')}
+          >
+            {testing ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+            {t('sendTest')}
           </Button>
           {wish ? (
             <Button onClick={remove} disabled={disabled} size="sm" variant="outline">
@@ -553,6 +591,7 @@ export function ContactWishTab({
               {t('remove')}
             </Button>
           ) : null}
+          <p className="w-full text-xs text-muted-foreground">{t('testHint')}</p>
         </div>
       ) : null}
     </div>

@@ -629,7 +629,9 @@
         "noTags": "Sin etiquetas",
         "noDeals": "Sin negocios",
         "addNotePlaceholder": "Agregar una nota...",
-        "wish": "Felicitación"
+        "wish": "Felicitación",
+        "scrollLeft": "Pestañas anteriores",
+        "scrollRight": "Más pestañas"
       },
       "actions": {
         "edit": "Editar",
@@ -791,7 +793,12 @@
       "lastSent": "Último envío: {date}",
       "lastError": "El último intento falló: {reason}",
       "schedulerOff": "El programador de felicitaciones está desactivado para {number}, así que esta felicitación aún no se puede activar.",
-      "openScheduler": "Abrir el programador"
+      "openScheduler": "Abrir el programador",
+      "defaultMessage": "¡Feliz cumpleaños, {token}! 🎂 Te deseamos un día maravilloso y un año lleno de felicidad y éxitos.",
+      "sendTest": "Enviar prueba",
+      "testSent": "Felicitación de prueba enviada a este contacto",
+      "testFailed": "No se pudo enviar la prueba: {reason}",
+      "testHint": "Enviar prueba guarda la felicitación y la envía ahora mismo a este contacto por WhatsApp. No cuenta como la felicitación de este año."
     }
   },
   "Pipelines": {
@@ -2431,7 +2438,6 @@
       "saving": "Guardando...",
       "saved": "Programación guardada",
       "saveFailed": "No se pudo guardar la programación: {reason}",
-      "invalidTimezone": "Zona horaria desconocida. Elige una de la lista, por ejemplo Asia/Kolkata.",
       "runNow": "Ejecutar ahora",
       "running": "Enviando...",
       "runDone": "Ejecución terminada: {sent} enviadas, {failed} fallidas",
@@ -2439,7 +2445,12 @@
       "runFailed": "No se pudo ejecutar: {reason}",
       "networkError": "error de red",
       "adminOnly": "Solo los administradores de la cuenta pueden cambiar la programación.",
-      "precisionNote": "Las programaciones se comprueban una vez por hora, así que una ejecución empieza dentro de la hora siguiente a la elegida. Cada ejecución envía las felicitaciones cuya fecha cayó desde la ejecución anterior, y cada contacto recibe como máximo una al año."
+      "precisionNote": "Las programaciones se comprueban una vez por hora, así que una ejecución empieza dentro de la hora siguiente a la elegida. Cada ejecución envía las felicitaciones cuya fecha cayó desde la ejecución anterior, y cada contacto recibe como máximo una al año.",
+      "hour": "Hora",
+      "minute": "Minuto",
+      "amPm": "AM o PM",
+      "am": "AM",
+      "pm": "PM"
     }
   },
   "SignupPage": {

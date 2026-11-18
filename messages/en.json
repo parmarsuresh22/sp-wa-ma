@@ -629,7 +629,9 @@
         "noTags": "No tags",
         "noDeals": "No deals",
         "addNotePlaceholder": "Add a note...",
-        "wish": "Wish"
+        "wish": "Wish",
+        "scrollLeft": "Previous tabs",
+        "scrollRight": "More tabs"
       },
       "actions": {
         "edit": "Edit",
@@ -791,7 +793,12 @@
       "lastSent": "Last sent on {date}",
       "lastError": "Last attempt failed: {reason}",
       "schedulerOff": "The Wish Scheduler is off for {number}, so this wish cannot be enabled yet.",
-      "openScheduler": "Open Wish Scheduler"
+      "openScheduler": "Open Wish Scheduler",
+      "defaultMessage": "Happy Birthday {token}! 🎂 Wishing you a wonderful day and a year full of happiness and success.",
+      "sendTest": "Send test",
+      "testSent": "Test wish sent to this contact",
+      "testFailed": "Couldn't send the test: {reason}",
+      "testHint": "Send test saves the wish and sends it to this contact on WhatsApp right now. It does not count as this year's wish."
     }
   },
   "Pipelines": {
@@ -2431,7 +2438,6 @@
       "saving": "Saving...",
       "saved": "Schedule saved",
       "saveFailed": "Couldn't save the schedule: {reason}",
-      "invalidTimezone": "Unknown time zone. Pick one from the list, for example Asia/Kolkata.",
       "runNow": "Run now",
       "running": "Sending...",
       "runDone": "Run finished: {sent} sent, {failed} failed",
@@ -2439,7 +2445,12 @@
       "runFailed": "Couldn't run: {reason}",
       "networkError": "network error",
       "adminOnly": "Only account admins can change the schedule.",
-      "precisionNote": "Schedules are checked once an hour, so a run starts within the hour after the chosen time. A run sends every wish whose date fell since the previous run, and each contact is wished at most once a year."
+      "precisionNote": "Schedules are checked once an hour, so a run starts within the hour after the chosen time. A run sends every wish whose date fell since the previous run, and each contact is wished at most once a year.",
+      "hour": "Hour",
+      "minute": "Minute",
+      "amPm": "AM or PM",
+      "am": "AM",
+      "pm": "PM"
     }
   },
   "SignupPage": {

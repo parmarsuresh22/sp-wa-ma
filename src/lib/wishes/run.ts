@@ -158,11 +158,13 @@ export function selectDueWishes(
   return due
 }
 
-async function sendWish(
+export async function sendWish(
   db: SupabaseClient,
   channel: ChannelRow,
   wish: ContactWishRow,
   auditUserId: string,
+  /** The teammate behind a manual test send; null for the scheduler. */
+  senderId: string | null = null,
 ): Promise<void> {
   const { data: contact, error } = await db
     .from('contacts')
@@ -195,6 +197,7 @@ async function sendWish(
       channelId: channel.id,
       messageType: 'text',
       contentText: renderBroadcastText(wish.message_text!, name),
+      senderId,
     })
     return
   }
@@ -211,6 +214,7 @@ async function sendWish(
     templateLanguage: wish.template_language,
     templateParams: params.body,
     templateMessageParams: params,
+    senderId,
   })
 }
 

@@ -9,7 +9,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { useChannels, channelLabel, type ChannelSummary } from '@/hooks/use-channels';
 import { isValidTimeZone, WISH_FREQUENCIES, type WishFrequency } from '@/lib/wishes/schedule';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -54,16 +53,66 @@ interface Schedule {
   wish_count: number;
 }
 
-const TIMEZONE_LIST_ID = 'wish-scheduler-timezones';
+const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 
-function supportedTimeZones(): string[] {
+/** The time zones offered in the dropdown — India first, the default. */
+const TIMEZONES: { id: string; name: string }[] = [
+  { id: 'Asia/Kolkata', name: 'India (IST)' },
+  { id: 'Asia/Dubai', name: 'Dubai, Abu Dhabi' },
+  { id: 'Asia/Riyadh', name: 'Riyadh, Kuwait, Qatar' },
+  { id: 'Asia/Karachi', name: 'Pakistan' },
+  { id: 'Asia/Kathmandu', name: 'Nepal' },
+  { id: 'Asia/Dhaka', name: 'Bangladesh' },
+  { id: 'Asia/Colombo', name: 'Sri Lanka' },
+  { id: 'Asia/Bangkok', name: 'Bangkok, Jakarta' },
+  { id: 'Asia/Singapore', name: 'Singapore, Kuala Lumpur' },
+  { id: 'Asia/Hong_Kong', name: 'Hong Kong' },
+  { id: 'Asia/Tokyo', name: 'Tokyo, Seoul' },
+  { id: 'Australia/Sydney', name: 'Sydney, Melbourne' },
+  { id: 'Pacific/Auckland', name: 'Auckland' },
+  { id: 'Europe/Moscow', name: 'Moscow' },
+  { id: 'Africa/Nairobi', name: 'Nairobi' },
+  { id: 'Africa/Johannesburg', name: 'Johannesburg' },
+  { id: 'Africa/Lagos', name: 'Lagos' },
+  { id: 'Europe/Paris', name: 'Paris, Berlin, Madrid' },
+  { id: 'Europe/London', name: 'London, Dublin' },
+  { id: 'UTC', name: 'UTC' },
+  { id: 'America/Sao_Paulo', name: 'São Paulo' },
+  { id: 'America/New_York', name: 'New York, Toronto' },
+  { id: 'America/Chicago', name: 'Chicago, Mexico City' },
+  { id: 'America/Denver', name: 'Denver' },
+  { id: 'America/Los_Angeles', name: 'Los Angeles, Vancouver' },
+];
+
+/** "GMT+5:30" for a zone, right now. */
+function zoneOffset(tz: string): string {
   try {
-    return (Intl as unknown as { supportedValuesOf(key: string): string[] }).supportedValuesOf(
-      'timeZone',
-    );
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date())
+      .find((x) => x.type === 'timeZoneName');
+    return part?.value ?? '';
   } catch {
-    return [];
+    return '';
   }
+}
+
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
+
+/** "14:05" → { hour: "2", minute: "05", period: "PM" } */
+function splitTime(value: string): { hour: string; minute: string; period: 'AM' | 'PM' } {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value) ?? ['', '9', '00'];
+  const h = Math.min(23, Number(m[1]));
+  return {
+    hour: String(h % 12 === 0 ? 12 : h % 12),
+    minute: m[2],
+    period: h >= 12 ? 'PM' : 'AM',
+  };
+}
+
+function joinTime(hour: string, minute: string, period: string): string {
+  const h = (Number(hour) % 12) + (period === 'PM' ? 12 : 0);
+  return `${String(h).padStart(2, '0')}:${minute}`;
 }
 
 /**
@@ -75,7 +124,6 @@ export function WishScheduler() {
   const t = useTranslations('Settings.wishes');
   const { channels } = useChannels();
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
-  const timeZones = useMemo(supportedTimeZones, []);
 
   const load = useCallback(async () => {
     try {
@@ -99,11 +147,6 @@ export function WishScheduler() {
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead title={t('title')} description={t('description')} />
-      <datalist id={TIMEZONE_LIST_ID}>
-        {timeZones.map((tz) => (
-          <option key={tz} value={tz} />
-        ))}
-      </datalist>
 
       {schedules === null || channels === null ? (
         <div className="flex items-center justify-center py-10">
@@ -145,7 +188,9 @@ function ScheduleCard({
 
   const [enabled, setEnabled] = useState(schedule.enabled);
   const [frequency, setFrequency] = useState<WishFrequency>(schedule.frequency);
-  const [timezone, setTimezone] = useState(schedule.timezone);
+  const [timezone, setTimezone] = useState(
+    isValidTimeZone(schedule.timezone) ? schedule.timezone : DEFAULT_TIMEZONE,
+  );
   const [time, setTime] = useState(schedule.time_of_day);
   const [dayOfWeek, setDayOfWeek] = useState(schedule.day_of_week ?? 1);
   const [dayOfMonth, setDayOfMonth] = useState(schedule.day_of_month ?? 1);
@@ -154,7 +199,18 @@ function ScheduleCard({
   const [running, setRunning] = useState(false);
 
   const id = `wish-${schedule.channel_id}`;
-  const tzValid = isValidTimeZone(timezone.trim());
+  const clock = splitTime(time);
+  // The listed zones, plus the saved one if it is not among them.
+  const zoneItems = useMemo(() => {
+    const zones = TIMEZONES.some((z) => z.id === timezone)
+      ? TIMEZONES
+      : [...TIMEZONES, { id: timezone, name: timezone }];
+    return zones.map((z) => {
+      const offset = zoneOffset(z.id);
+      return { id: z.id, label: offset && z.id !== 'UTC' ? `${z.name} · ${offset}` : z.name };
+    });
+  }, [timezone]);
+  const minuteItems = MINUTES.includes(clock.minute) ? MINUTES : [...MINUTES, clock.minute].sort();
   const shownTz = isValidTimeZone(schedule.timezone) ? schedule.timezone : 'UTC';
 
   const weekdays = useMemo(() => {
@@ -171,7 +227,7 @@ function ScheduleCard({
     !schedule.saved ||
     enabled !== schedule.enabled ||
     frequency !== schedule.frequency ||
-    timezone.trim() !== schedule.timezone ||
+    timezone !== schedule.timezone ||
     time !== schedule.time_of_day ||
     (frequency === 'weekly' && dayOfWeek !== schedule.day_of_week) ||
     ((frequency === 'monthly' || frequency === 'yearly') && dayOfMonth !== schedule.day_of_month) ||
@@ -187,10 +243,6 @@ function ScheduleCard({
       : fallback;
 
   async function save() {
-    if (!tzValid) {
-      toast.error(t('invalidTimezone'));
-      return;
-    }
     setSaving(true);
     try {
       const res = await fetch('/api/wishes/schedules', {
@@ -200,7 +252,7 @@ function ScheduleCard({
           channel_id: schedule.channel_id,
           enabled,
           frequency,
-          timezone: timezone.trim(),
+          timezone,
           time_of_day: time || '09:00',
           day_of_week: dayOfWeek,
           day_of_month: dayOfMonth,
@@ -306,19 +358,24 @@ function ScheduleCard({
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor={`${id}-tz`} className="text-muted-foreground">
-              {t('timezone')}
-            </Label>
-            <Input
-              id={`${id}-tz`}
-              list={TIMEZONE_LIST_ID}
+            <Label className="text-muted-foreground">{t('timezone')}</Label>
+            <Select
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onValueChange={(v) => v && setTimezone(String(v))}
               disabled={disabled}
-              aria-invalid={!tzValid}
-              autoComplete="off"
-              spellCheck={false}
-            />
+              items={Object.fromEntries(zoneItems.map((z) => [z.id, z.label]))}
+            >
+              <SelectTrigger className="w-full" aria-label={t('timezone')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {zoneItems.map((z) => (
+                  <SelectItem key={z.id} value={z.id}>
+                    {z.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {frequency === 'weekly' && (
@@ -391,16 +448,55 @@ function ScheduleCard({
 
           {frequency !== 'hourly' && (
             <div className="grid gap-1.5">
-              <Label htmlFor={`${id}-time`} className="text-muted-foreground">
-                {t('time')}
-              </Label>
-              <Input
-                id={`${id}-time`}
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                disabled={disabled}
-              />
+              <Label className="text-muted-foreground">{t('time')}</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Select
+                  value={clock.hour}
+                  onValueChange={(v) => v && setTime(joinTime(String(v), clock.minute, clock.period))}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="w-full" aria-label={t('hour')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOURS.map((h) => (
+                      <SelectItem key={h} value={h}>
+                        {h}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={clock.minute}
+                  onValueChange={(v) => v && setTime(joinTime(clock.hour, String(v), clock.period))}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="w-full" aria-label={t('minute')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {minuteItems.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={clock.period}
+                  onValueChange={(v) => v && setTime(joinTime(clock.hour, clock.minute, String(v)))}
+                  disabled={disabled}
+                  items={{ AM: t('am'), PM: t('pm') }}
+                >
+                  <SelectTrigger className="w-full" aria-label={t('amPm')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AM">{t('am')}</SelectItem>
+                    <SelectItem value="PM">{t('pm')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
         </div>
@@ -432,7 +528,7 @@ function ScheduleCard({
 
         {canEditSettings ? (
           <div className="flex flex-wrap gap-2">
-            <Button onClick={save} disabled={disabled || !dirty || !tzValid}>
+            <Button onClick={save} disabled={disabled || !dirty}>
               {saving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />

@@ -18,7 +18,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollableTabsList } from '@/components/contacts/scrollable-tabs-list';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -468,7 +469,12 @@ export function ContactDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3 max-w-[calc(100%-2rem)] justify-start overflow-x-auto">
+              <ScrollableTabsList
+                wrapperClassName="mx-4 mt-3"
+                className="bg-muted/50 border-b border-border"
+                previousLabel={t('tabs.scrollLeft')}
+                nextLabel={t('tabs.scrollRight')}
+              >
                 <TabsTrigger
                   value="details"
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
@@ -505,7 +511,7 @@ export function ContactDetailView({
                 >
                   {t('tabs.wish')}
                 </TabsTrigger>
-              </TabsList>
+              </ScrollableTabsList>
 
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">

@@ -629,7 +629,9 @@
         "noTags": "Sem tags",
         "noDeals": "Sem negócios",
         "addNotePlaceholder": "Adicionar uma nota...",
-        "wish": "Felicitação"
+        "wish": "Felicitação",
+        "scrollLeft": "Abas anteriores",
+        "scrollRight": "Mais abas"
       },
       "actions": {
         "edit": "Editar",
@@ -791,7 +793,12 @@
       "lastSent": "Último envio: {date}",
       "lastError": "A última tentativa falhou: {reason}",
       "schedulerOff": "O agendador de felicitações está desativado para {number}, então esta felicitação ainda não pode ser ativada.",
-      "openScheduler": "Abrir o agendador"
+      "openScheduler": "Abrir o agendador",
+      "defaultMessage": "Feliz aniversário, {token}! 🎂 Desejamos um dia maravilhoso e um ano cheio de felicidade e sucesso.",
+      "sendTest": "Enviar teste",
+      "testSent": "Felicitação de teste enviada a este contato",
+      "testFailed": "Não foi possível enviar o teste: {reason}",
+      "testHint": "Enviar teste salva a felicitação e a envia agora mesmo a este contato pelo WhatsApp. Não conta como a felicitação deste ano."
     }
   },
   "Pipelines": {
@@ -2431,7 +2438,6 @@
       "saving": "Salvando...",
       "saved": "Agendamento salvo",
       "saveFailed": "Não foi possível salvar o agendamento: {reason}",
-      "invalidTimezone": "Fuso horário desconhecido. Escolha um da lista, por exemplo Asia/Kolkata.",
       "runNow": "Executar agora",
       "running": "Enviando...",
       "runDone": "Execução concluída: {sent} enviadas, {failed} com falha",
@@ -2439,7 +2445,12 @@
       "runFailed": "Não foi possível executar: {reason}",
       "networkError": "erro de rede",
       "adminOnly": "Somente administradores da conta podem alterar o agendamento.",
-      "precisionNote": "Os agendamentos são verificados uma vez por hora, então uma execução começa dentro da hora seguinte ao horário escolhido. Cada execução envia as felicitações cuja data caiu desde a execução anterior, e cada contato recebe no máximo uma por ano."
+      "precisionNote": "Os agendamentos são verificados uma vez por hora, então uma execução começa dentro da hora seguinte ao horário escolhido. Cada execução envia as felicitações cuja data caiu desde a execução anterior, e cada contato recebe no máximo uma por ano.",
+      "hour": "Hora",
+      "minute": "Minuto",
+      "amPm": "AM ou PM",
+      "am": "AM",
+      "pm": "PM"
     }
   },
   "SignupPage": {
