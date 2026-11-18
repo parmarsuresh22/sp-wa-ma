@@ -23,9 +23,19 @@ and polish.
 > `supabase/migrations/062_channel_scoping.sql` (nullable `channel_id`
 > on `flows`, `automations` and `ai_configs`; `dashboard_overview()`
 > gains a `p_channel` argument; new `filter_contacts()` RPC), then
-> `supabase/migrations/063_ai_handoff_toggle.sql` (`ai_configs.handoff_enabled`).
+> `supabase/migrations/063_ai_handoff_toggle.sql` (`ai_configs.handoff_enabled`)
+> and `supabase/migrations/064_ai_knowledge_fts_any_word.sql` (forgiving
+> keyword search for the knowledge base).
 
 ### Added
+
+- **Knowledge base actually reaches the bot.** A knowledge base of up to
+  eight chunks is now handed to the model whole on every reply, and the
+  keyword search for larger ones matches any word instead of requiring
+  all of them. Before, "where is he working" against a résumé found
+  nothing because "working" and "currently" did not appear, and the
+  auto-reply said it had no information. Semantic search (embeddings
+  key) is unchanged and still the best option for large bases.
 
 - **AI handoff is now a switch.** Settings → AI Assistant gains "Hand
   off to a human when needed" (on by default, the previous behaviour).

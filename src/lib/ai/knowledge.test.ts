@@ -19,13 +19,15 @@ interface FakeState {
   existingChunkIds: string[]
   events: string[]
   insertError: unknown
+  allChunks: { content: string; document_id: string; chunk_index: number }[]
 }
 
 function makeDb() {
   const state: FakeState = {
     semantic: [],
     fts: [],
-    chunkCount: 5, // account has a non-empty KB by default
+    chunkCount: 50, // a KB large enough to be searched (not handed over whole)
+    allChunks: [] as { content: string; document_id: string; chunk_index: number }[],
     rpcCalls: [],
     inserted: null,
     deletedIds: null,
@@ -43,15 +45,25 @@ function makeDb() {
       return Promise.resolve({ data: null, error: null })
     },
     from: () => ({
-      // retrieveKnowledge's empty-KB count guard.
+      // retrieveKnowledge's empty-KB count guard (awaited bare) and the
+      // small-KB "load everything" path (.order().order() awaited).
       select: () => ({
         eq: () => {
           state.events.push('list')
-          return Promise.resolve({
+          const result = {
             count: state.chunkCount,
             data: state.existingChunkIds.map((id) => ({ id })),
             error: null,
-          })
+          }
+          const ordered = {
+            order: () => ordered,
+            then: (resolve: (v: unknown) => unknown) =>
+              resolve({ data: state.allChunks, error: null }),
+          }
+          return {
+            ...ordered,
+            then: (resolve: (v: unknown) => unknown) => resolve(result),
+          }
         },
       }),
       delete: () => ({
@@ -80,6 +92,31 @@ beforeEach(() => {
 })
 
 describe('retrieveKnowledge', () => {
+  it('hands a small knowledge base over whole, in document order, without searching', async () => {
+    const { db, state } = makeDb()
+    state.chunkCount = 3
+    state.allChunks = [
+      { content: 'A1', document_id: 'a', chunk_index: 0 },
+      { content: 'A2', document_id: 'a', chunk_index: 1 },
+      { content: 'B1', document_id: 'b', chunk_index: 0 },
+    ]
+    const out = await retrieveKnowledge(db, 'acct', { embeddingsApiKey: 'sk-x' }, 'where does he work')
+    expect(out).toEqual(['A1', 'A2', 'B1'])
+    expect(state.rpcCalls).toEqual([])
+    expect(h.embedTexts).not.toHaveBeenCalled()
+  })
+
+  it('caps the whole-KB handover by characters', async () => {
+    const { db, state } = makeDb()
+    state.chunkCount = 2
+    state.allChunks = [
+      { content: 'x'.repeat(15_000), document_id: 'a', chunk_index: 0 },
+      { content: 'y'.repeat(2_000), document_id: 'a', chunk_index: 1 },
+    ]
+    const out = await retrieveKnowledge(db, 'acct', { embeddingsApiKey: null }, 'q')
+    expect(out).toHaveLength(1)
+  })
+
   it('returns [] for an empty query without touching the DB', async () => {
     const { db, state } = makeDb()
     expect(await retrieveKnowledge(db, 'acct', { embeddingsApiKey: null }, '  ')).toEqual([])

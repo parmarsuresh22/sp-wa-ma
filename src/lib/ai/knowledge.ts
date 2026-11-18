@@ -16,6 +16,17 @@ export interface IngestResult {
 
 const CHUNK_DELETE_BATCH = 100
 
+/**
+ * A knowledge base this small is handed to the model whole instead of
+ * searched: keyword search is language- and wording-sensitive (a
+ * customer asking in Hindi, or "where does he work" against a résumé
+ * that says "Senior Analyst at …", finds nothing), and a handful of
+ * chunks costs less than the search would miss. Capped in characters
+ * so a few very large chunks cannot blow the prompt up.
+ */
+export const SMALL_KB_MAX_CHUNKS = 8
+export const SMALL_KB_MAX_CHARS = 16_000
+
 interface MatchRow {
   id: string
   content: string
@@ -101,14 +112,40 @@ export async function retrieveKnowledge(
   // every draft / auto-reply would pay for a query embedding + two RPCs
   // just to get []. One cheap indexed COUNT (head, no rows) instead of a
   // paid embeddings call on the hot path.
+  let chunkCount = 0
   try {
     const { count, error } = await db
       .from('ai_knowledge_chunks')
       .select('id', { count: 'exact', head: true })
       .eq('account_id', accountId)
     if (error || !count) return []
+    chunkCount = count
   } catch {
     return []
+  }
+
+  // Small knowledge base → everything, in document order.
+  if (chunkCount <= SMALL_KB_MAX_CHUNKS) {
+    try {
+      const { data, error } = await db
+        .from('ai_knowledge_chunks')
+        .select('content, document_id, chunk_index')
+        .eq('account_id', accountId)
+        .order('document_id', { ascending: true })
+        .order('chunk_index', { ascending: true })
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const out: string[] = []
+        let chars = 0
+        for (const row of data as { content: string }[]) {
+          if (chars + row.content.length > SMALL_KB_MAX_CHARS) break
+          out.push(row.content)
+          chars += row.content.length
+        }
+        if (out.length > 0) return out
+      }
+    } catch (err) {
+      console.error('[ai knowledge] small-KB load failed, falling back to search:', err)
+    }
   }
 
   const picked = new Map<string, string>() // id → content, preserves order
