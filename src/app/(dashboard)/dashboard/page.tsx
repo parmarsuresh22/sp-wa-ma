@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
+import { readCache, writeCache } from '@/lib/client-cache'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useActiveChannel } from '@/hooks/use-active-channel'
 import { useChannels } from '@/hooks/use-channels'
@@ -49,12 +50,21 @@ function DashboardPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const range = parseOverviewRange(searchParams.get('range'))
-  const { defaultCurrency, profile } = useAuth()
+  const { defaultCurrency, profile, user } = useAuth()
 
-  const [overview, setOverview] = useState<DashboardOverview | null>(null)
+  // Coming back to the dashboard shows the last numbers at once; the
+  // fetches below then replace them.
+  const cacheKey = `dashboard:${user?.id ?? ''}`
+  const [overview, setOverview] = useState<DashboardOverview | null>(
+    () => readCache<DashboardOverview>(`${cacheKey}:overview:${range}`) ?? null,
+  )
   const [failed, setFailed] = useState(false)
-  const [activity, setActivity] = useState<ActivityItem[] | null>(null)
-  const [activityLoading, setActivityLoading] = useState(true)
+  const [activity, setActivity] = useState<ActivityItem[] | null>(
+    () => readCache<ActivityItem[]>(`${cacheKey}:activity`) ?? null,
+  )
+  const [activityLoading, setActivityLoading] = useState(
+    () => readCache<ActivityItem[]>(`${cacheKey}:activity`) === undefined,
+  )
   const [now, setNow] = useState(() => Date.now())
   const requestRef = useRef(0)
   const debounceRef = useRef<number | null>(null)
@@ -71,6 +81,7 @@ function DashboardPageInner() {
       .then((data) => {
         if (request !== requestRef.current) return
         setOverview(data)
+        if (user?.id) writeCache(`${cacheKey}:overview:${range}`, data)
         setFailed(false)
         setNow(Date.now())
       })
@@ -79,7 +90,7 @@ function DashboardPageInner() {
         console.error('[dashboard] overview failed:', err)
         setFailed(true)
       })
-  }, [channelId])
+  }, [channelId, cacheKey, range, user?.id])
 
   useEffect(() => {
     refresh(range)
@@ -87,10 +98,13 @@ function DashboardPageInner() {
 
   useEffect(() => {
     loadActivity(createClient(), 50)
-      .then(setActivity)
+      .then((rows) => {
+        setActivity(rows)
+        if (user?.id) writeCache(`${cacheKey}:activity`, rows)
+      })
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
-  }, [])
+  }, [cacheKey, user?.id])
 
   useEffect(() => {
     const tick = window.setInterval(() => {

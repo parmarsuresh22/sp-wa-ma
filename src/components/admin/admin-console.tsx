@@ -195,7 +195,10 @@ function RequestsSection({
   onOpenAccount: (id: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const pending = requests.filter((r) => r.status === 'pending');
+  // Decisions made here but not yet confirmed by the server: the row
+  // leaves the waiting list at once and comes back if the call fails.
+  const [decidedLocally, setDecidedLocally] = useState<Set<string>>(new Set());
+  const pending = requests.filter((r) => r.status === 'pending' && !decidedLocally.has(r.id));
   const decided = requests.filter((r) => r.status !== 'pending').slice(0, 15);
 
   async function decide(r: NumberRequest, action: 'approve' | 'reject') {
@@ -205,6 +208,8 @@ function RequestsSection({
       if (note === null) return;
     }
     setBusy(r.id);
+    setDecidedLocally((prev) => new Set(prev).add(r.id));
+    const settle = toast.loading(action === 'approve' ? 'Creating the number on the bridge…' : 'Rejecting…');
     try {
       await api(`/api/admin8085/requests/${r.id}`, {
         method: 'POST',
@@ -215,12 +220,18 @@ function RequestsSection({
         action === 'approve'
           ? 'Approved — the account can now scan its QR code'
           : 'Request rejected',
+        { id: settle },
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err), { duration: 8000 });
+      toast.error(err instanceof Error ? err.message : String(err), { id: settle, duration: 8000 });
     } finally {
       setBusy(null);
       await onChanged();
+      setDecidedLocally((prev) => {
+        const next = new Set(prev);
+        next.delete(r.id);
+        return next;
+      });
     }
   }
 

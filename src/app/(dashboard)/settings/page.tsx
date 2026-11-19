@@ -7,23 +7,81 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 import { SettingsRail } from '@/components/settings/settings-rail';
-import { SettingsOverview } from '@/components/settings/settings-overview';
-import { ProfileForm } from '@/components/settings/profile-form';
-import { SecurityPanel } from '@/components/settings/security-panel';
-import { AppearancePanel } from '@/components/settings/appearance-panel';
-import { WhatsAppChannels } from '@/components/settings/whatsapp-channels';
-import { TemplateManager } from '@/components/settings/template-manager';
-import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
-import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
-import { DealsSettings } from '@/components/settings/deals-settings';
-import { InboxSettings } from '@/components/settings/inbox-settings';
-import { WishScheduler } from '@/components/settings/wish-scheduler';
-import { MembersTab } from '@/components/settings/members-tab';
-import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import dynamic from 'next/dynamic';
 import {
   resolveSection,
   type SettingsSection,
 } from '@/components/settings/settings-sections';
+
+/** Placeholder while a section's code is fetched (first open only). */
+function PanelSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" aria-busy="true">
+      <div className="h-6 w-56 rounded-md bg-muted" />
+      <div className="h-4 w-96 max-w-full rounded-md bg-muted" />
+      <div className="h-40 rounded-xl border border-border bg-card" />
+      <div className="h-24 rounded-xl border border-border bg-card" />
+    </div>
+  );
+}
+
+// Thirteen sections used to ship in one bundle, so opening Settings
+// downloaded the template editor, the wish scheduler and the rest even
+// to change a name. Each is now its own chunk, fetched when its section
+// is opened (and kept afterwards); only that section's data loads too.
+// (next/dynamic needs its options written inline as an object literal.)
+const SettingsOverview = dynamic(
+  () => import('@/components/settings/settings-overview').then((m) => m.SettingsOverview),
+  { loading: () => <PanelSkeleton /> },
+);
+const ProfileForm = dynamic(
+  () => import('@/components/settings/profile-form').then((m) => m.ProfileForm),
+  { loading: () => <PanelSkeleton /> },
+);
+const SecurityPanel = dynamic(
+  () => import('@/components/settings/security-panel').then((m) => m.SecurityPanel),
+  { loading: () => <PanelSkeleton /> },
+);
+const AppearancePanel = dynamic(
+  () => import('@/components/settings/appearance-panel').then((m) => m.AppearancePanel),
+  { loading: () => <PanelSkeleton /> },
+);
+const WhatsAppChannels = dynamic(
+  () => import('@/components/settings/whatsapp-channels').then((m) => m.WhatsAppChannels),
+  { loading: () => <PanelSkeleton /> },
+);
+const TemplateManager = dynamic(
+  () => import('@/components/settings/template-manager').then((m) => m.TemplateManager),
+  { loading: () => <PanelSkeleton /> },
+);
+const QuickRepliesManager = dynamic(
+  () => import('@/components/settings/quick-replies-manager').then((m) => m.QuickRepliesManager),
+  { loading: () => <PanelSkeleton /> },
+);
+const FieldsAndTagsPanel = dynamic(
+  () => import('@/components/settings/fields-and-tags-panel').then((m) => m.FieldsAndTagsPanel),
+  { loading: () => <PanelSkeleton /> },
+);
+const DealsSettings = dynamic(
+  () => import('@/components/settings/deals-settings').then((m) => m.DealsSettings),
+  { loading: () => <PanelSkeleton /> },
+);
+const InboxSettings = dynamic(
+  () => import('@/components/settings/inbox-settings').then((m) => m.InboxSettings),
+  { loading: () => <PanelSkeleton /> },
+);
+const WishScheduler = dynamic(
+  () => import('@/components/settings/wish-scheduler').then((m) => m.WishScheduler),
+  { loading: () => <PanelSkeleton /> },
+);
+const MembersTab = dynamic(
+  () => import('@/components/settings/members-tab').then((m) => m.MembersTab),
+  { loading: () => <PanelSkeleton /> },
+);
+const ApiKeysSettings = dynamic(
+  () => import('@/components/settings/api-keys-settings').then((m) => m.ApiKeysSettings),
+  { loading: () => <PanelSkeleton /> },
+);
 
 // `useSearchParams` opts this page out of static prerendering unless it
 // sits under a Suspense boundary. Without one, the production build hits
@@ -71,20 +129,21 @@ function SettingsPageInner() {
     [mode, defaultCurrency],
   );
 
-  const panel: Record<SettingsSection, ReactNode> = {
-    overview: <SettingsOverview onSelect={go} />,
-    profile: <ProfileForm />,
-    security: <SecurityPanel />,
-    appearance: <AppearancePanel />,
-    whatsapp: <WhatsAppChannels />,
-    templates: <TemplateManager />,
-    'quick-replies': <QuickRepliesManager />,
-    fields: <FieldsAndTagsPanel />,
-    inbox: <InboxSettings />,
-    wishes: <WishScheduler />,
-    deals: <DealsSettings />,
-    members: <MembersTab />,
-    api: <ApiKeysSettings />,
+  // Functions, not elements: only the open section is ever created.
+  const panel: Record<SettingsSection, () => ReactNode> = {
+    overview: () => <SettingsOverview onSelect={go} />,
+    profile: () => <ProfileForm />,
+    security: () => <SecurityPanel />,
+    appearance: () => <AppearancePanel />,
+    whatsapp: () => <WhatsAppChannels />,
+    templates: () => <TemplateManager />,
+    'quick-replies': () => <QuickRepliesManager />,
+    fields: () => <FieldsAndTagsPanel />,
+    inbox: () => <InboxSettings />,
+    wishes: () => <WishScheduler />,
+    deals: () => <DealsSettings />,
+    members: () => <MembersTab />,
+    api: () => <ApiKeysSettings />,
   };
 
   return (
@@ -100,7 +159,7 @@ function SettingsPageInner() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
         <SettingsRail active={section} onSelect={go} hints={hints} />
-        <div className="min-w-0">{panel[section]}</div>
+        <div className="min-w-0">{panel[section]()}</div>
       </div>
     </div>
   );

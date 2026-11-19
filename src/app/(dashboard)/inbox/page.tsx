@@ -10,6 +10,8 @@ import {
 } from "@/lib/inbox/conversations";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useAuth } from "@/hooks/use-auth";
+import { readCache, writeCache } from "@/lib/client-cache";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { parseInboxFilter } from "@/lib/inbox/inbox-filters";
 import { MessageThread } from "@/components/inbox/message-thread";
@@ -50,7 +52,18 @@ function InboxPageInner() {
    */
   const deepLinkConvId = searchParams.get("c");
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Coming back to the inbox shows the list as it was left, at once;
+  // the fetch in ConversationList then replaces it with fresh rows.
+  const { user } = useAuth();
+  const conversationsCacheKey = `inbox:conversations:${user?.id ?? ""}`;
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => readCache<Conversation[]>(conversationsCacheKey) ?? []
+  );
+  useEffect(() => {
+    if (user?.id && conversations.length > 0) {
+      writeCache(conversationsCacheKey, conversations);
+    }
+  }, [conversations, conversationsCacheKey, user?.id]);
   const [activeConversation, setActiveConversation] =
     useState<Conversation | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
@@ -415,7 +428,6 @@ function InboxPageInner() {
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
         loaded.length > 0
       ) {
-        autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one
         // (e.g. because the user clicked it in the list and we
         // router.replace()'d the URL, which made the ConversationList
@@ -425,9 +437,16 @@ function InboxPageInner() {
         // conversationId didn't change, MessageThread wouldn't
         // refetch. The thread would read "No messages yet" until a
         // full page reload rehydrated state from scratch.
-        if (activeConversation?.id === deepLinkConvId) return;
+        if (activeConversation?.id === deepLinkConvId) {
+          autoSelectedForDeepLinkRef.current = deepLinkConvId;
+          return;
+        }
         const match = loaded.find((c) => c.id === deepLinkConvId);
+        // Marked as handled only once found: the list arrives in two
+        // steps (newest screenful, then everything), and the linked
+        // thread may only be in the second.
         if (match) {
+          autoSelectedForDeepLinkRef.current = deepLinkConvId;
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
           setMessages([]);

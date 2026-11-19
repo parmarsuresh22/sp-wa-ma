@@ -43,6 +43,21 @@ and polish.
 > `data_table_rows`, and `data_table_id` on `ai_configs`, `flows` and
 > `automations`; `redeem_invitation` now counts them as account data).
 
+### Changed
+
+- **Faster screens.** Clicking a menu item shows a page skeleton at once
+  instead of leaving the old screen frozen. Settings loads only the
+  section that is open (each of its 13 sections is now its own chunk).
+  The inbox fetches the newest 40 chats first and the rest behind them,
+  and both the inbox and the dashboard repaint from what they last
+  showed when you come back to them, then refresh.
+- **Changes show immediately.** Removing, renaming or starring a
+  WhatsApp number, sending or cancelling a WhatsApp Web number request,
+  deleting a contact and deciding a request on the admin page all update
+  the screen before the server answers, and roll back if it refuses.
+  Removing a WhatsApp Web number no longer waits for the bridge: the
+  session is logged out there after the response.
+
 ### Fixed
 
 - **"Draft with AI" failed when the business had spoken last** — which is

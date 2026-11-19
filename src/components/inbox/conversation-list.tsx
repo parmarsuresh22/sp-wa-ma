@@ -40,6 +40,9 @@ interface ConversationListProps {
   initialFilter?: InboxFilter;
 }
 
+/** Rows fetched for the first paint, before the full list follows. */
+const FIRST_SCREEN_ROWS = 40;
+
 const STATUS_COLORS: Record<ConversationStatus, string> = {
   open: "bg-primary",
   pending: "bg-amber-500",
@@ -97,7 +100,11 @@ export function ConversationList({
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
-  const [loading, setLoading] = useState(true);
+  // Rows handed in already (the last list this tab showed) mean there
+  // is something to paint, so no spinner while the refetch runs.
+  const [loading, setLoading] = useState(() => conversations.length === 0);
+  const startedEmptyRef = useRef(conversations.length === 0);
+  const firstLoadRef = useRef(true);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -127,10 +134,30 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select(CONVERSATION_SELECT)
-        .order("last_message_at", { ascending: false });
+      const newestFirst = () =>
+        supabase
+          .from("conversations")
+          .select(CONVERSATION_SELECT)
+          .order("last_message_at", { ascending: false });
+
+      // Very first load with nothing on screen: fetch just the newest
+      // screenful, show it, and only then pull the whole list. An
+      // account with thousands of chats sees its inbox as fast as one
+      // with ten. Skipped on refetches — the list is already showing.
+      const firstLoad = firstLoadRef.current;
+      firstLoadRef.current = false;
+      if (firstLoad && startedEmptyRef.current) {
+        const head = await newestFirst().limit(FIRST_SCREEN_ROWS);
+        if (cancelled) return;
+        if (!head.error && head.data && head.data.length > 0) {
+          onConversationsLoadedRef.current(normalizeConversations(head.data));
+          setLoading(false);
+          // Fewer than a screenful: that was everything.
+          if (head.data.length < FIRST_SCREEN_ROWS) return;
+        }
+      }
+
+      const { data, error } = await newestFirst();
 
       if (cancelled) return;
 

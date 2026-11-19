@@ -49,6 +49,19 @@ function load(force = false): Promise<ChannelSummary[]> {
   return inflight;
 }
 
+/**
+ * Change the shared list in place — every screen showing it updates at
+ * once. Used for optimistic edits (a number removed, renamed, made the
+ * default) so the screen does not wait on the server; the caller then
+ * calls `refresh()` to settle on what the server really has.
+ */
+export function mutateChannels(update: (rows: ChannelSummary[]) => ChannelSummary[]): void {
+  if (!cache) return;
+  cache = update(cache);
+  const rows = cache;
+  listeners.forEach((fn) => fn(rows));
+}
+
 /** Human label for a channel: name, else number, else id. */
 export function channelLabel(ch: Pick<ChannelSummary, 'label' | 'display_phone' | 'phone_number_id' | 'provider'> | null | undefined): string {
   if (!ch) return '';

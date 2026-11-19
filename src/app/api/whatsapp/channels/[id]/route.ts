@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import {
@@ -98,7 +98,7 @@ export async function PATCH(request: Request, { params }: Params) {
  * Removes the channel. Conversations keep their history (their
  * `channel_id` is nulled by the FK) and fall back to the account
  * default on the next reply. A bridge channel's session is logged out
- * and deleted on the bridge, best-effort. If the default was removed
+ * and deleted on the bridge, best-effort, after the response. If the default was removed
  * and other channels remain, the oldest one becomes the default.
  */
 export async function DELETE(_request: Request, { params }: Params) {
@@ -117,10 +117,6 @@ export async function DELETE(_request: Request, { params }: Params) {
       return NextResponse.json({ success: true, already_removed: true })
     }
 
-    if (channel.provider === 'waha') {
-      await teardownBridgeSession(channel)
-    }
-
     const { error } = await supabase
       .from('whatsapp_config')
       .delete()
@@ -128,6 +124,14 @@ export async function DELETE(_request: Request, { params }: Params) {
       .eq('account_id', accountId)
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Logging the session out of the bridge and deleting it there takes
+    // two round trips of up to 30 s each. The number is already gone
+    // from the account, so do that after the response instead of making
+    // the person watch a spinner for it.
+    if (channel.provider === 'waha') {
+      after(() => teardownBridgeSession(channel))
     }
 
     if (channel.is_default) {

@@ -281,14 +281,20 @@ export default function ContactsPage() {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
+    // Off the table now; the refetch settles the page (and restores the
+    // row if the delete was refused).
+    const targetId = deleteTarget.id;
+    setContacts((prev) => prev.filter((c) => c.id !== targetId));
+    setDeleteConfirmOpen(false);
 
     const { error } = await supabase
       .from('contacts')
       .delete()
-      .eq('id', deleteTarget.id);
+      .eq('id', targetId);
 
     if (error) {
       toast.error(t('toastFailedDelete'));
+      fetchContacts();
     } else {
       toast.success(t('toastDeleted'));
       fetchContacts();

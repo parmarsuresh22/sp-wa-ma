@@ -20,7 +20,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { useChannels, channelLabel, type ChannelSummary } from '@/hooks/use-channels';
+import { useChannels, channelLabel, mutateChannels, type ChannelSummary } from '@/hooks/use-channels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -118,12 +118,18 @@ export function WhatsAppChannels() {
   const hasPending = requests.some((r) => r.status === 'pending');
   useEffect(() => {
     if (!hasPending) return;
-    const timer = setInterval(() => void loadRequests(), 10_000);
+    const timer = setInterval(() => void loadRequests(), 5_000);
     return () => clearInterval(timer);
   }, [hasPending, loadRequests]);
 
   const withdrawRequest = useCallback(
     async (r: WebNumberRequest) => {
+      // Off the screen now; the reload below restores it on failure.
+      setRequests((prev) => prev.filter((x) => x.id !== r.id));
+      if (r.status === 'pending') {
+        pendingIdsRef.current.delete(r.id);
+        setUsage((u) => (u ? { ...u, pending: Math.max(0, u.pending - 1) } : u));
+      }
       const res = await fetch(`/api/whatsapp/web-number-requests/${r.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -159,6 +165,8 @@ export function WhatsAppChannels() {
 
   const setDefault = useCallback(
     async (ch: ChannelSummary) => {
+      // Move the star now; the server call confirms it.
+      mutateChannels((rows) => rows.map((c) => ({ ...c, is_default: c.id === ch.id })));
       const res = await fetch(`/api/whatsapp/channels/${ch.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -167,6 +175,7 @@ export function WhatsAppChannels() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error || t('updateFailed'));
+        await refresh();
         return;
       }
       toast.success(t('defaultSet', { name: channelLabel(ch) }));
@@ -181,6 +190,11 @@ export function WhatsAppChannels() {
       if (removingRef.current === ch.id) return; // guard a double-fired click
       if (!confirm(t('removeConfirm', { name: channelLabel(ch) }))) return;
       removingRef.current = ch.id;
+      // Take it off the screen at once (here, in the inbox dropdown,
+      // everywhere the list is shown). If the server refuses, the
+      // refresh below puts it back.
+      mutateChannels((rows) => rows.filter((c) => c.id !== ch.id));
+      setSelection(null);
       try {
         const res = await fetch(`/api/whatsapp/channels/${ch.id}`, { method: 'DELETE' });
         if (!res.ok) {
@@ -395,7 +409,13 @@ export function WhatsAppChannels() {
         open={addBridgeOpen}
         onOpenChange={setAddBridgeOpen}
         usage={usage}
-        onRequested={loadRequests}
+        onRequested={(created) => {
+          // Show the pending card straight from the server's answer.
+          pendingIdsRef.current.add(created.id);
+          setRequests((prev) => [created, ...prev.filter((x) => x.id !== created.id)]);
+          setUsage((u) => (u ? { ...u, pending: u.pending + 1 } : u));
+          void loadRequests();
+        }}
       />
 
       <RenameDialog
@@ -681,7 +701,7 @@ function AddBridgeDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   usage: WebNumberUsage | null;
-  onRequested: () => Promise<void> | void;
+  onRequested: (created: WebNumberRequest) => void;
 }) {
   const t = useTranslations('Settings.whatsapp.channels');
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -724,7 +744,7 @@ function AddBridgeDialog({
       }
       toast.success(t('requestSent'), { duration: 8000 });
       onOpenChange(false);
-      await onRequested();
+      onRequested(data.request as WebNumberRequest);
     } finally {
       setSaving(false);
     }
@@ -816,6 +836,10 @@ function RenameDialog({
   async function submit() {
     if (!channel) return;
     setSaving(true);
+    // Show the new name now and close; a refusal reloads the old one.
+    const nextLabel = value.trim() || null;
+    mutateChannels((rows) => rows.map((c) => (c.id === channel.id ? { ...c, label: nextLabel } : c)));
+    onOpenChange(false);
     try {
       const res = await fetch(`/api/whatsapp/channels/${channel.id}`, {
         method: 'PATCH',
@@ -825,9 +849,7 @@ function RenameDialog({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error || t('updateFailed'));
-        return;
       }
-      onOpenChange(false);
       await onRenamed();
     } finally {
       setSaving(false);
