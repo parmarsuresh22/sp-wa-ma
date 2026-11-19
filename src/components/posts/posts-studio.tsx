@@ -364,27 +364,57 @@ export function PostsStudio() {
   }, [loadDrive, t]);
 
   // ---- contact picker ---------------------------------------
+  // Only the contacts of the number the broadcast leaves from: people
+  // who have a chat on that number. The list shows straight away and
+  // typing narrows it.
   const [contactQuery, setContactQuery] = useState('');
   const [contactHits, setContactHits] = useState<PickedContact[]>([]);
+  const [numberContactCount, setNumberContactCount] = useState<number | null>(null);
+  const pickerOpen = broadcastOn && !!effectiveBroadcastChannelId;
   useEffect(() => {
+    if (!pickerOpen || !effectiveBroadcastChannelId) return;
+    const channelId = effectiveBroadcastChannelId;
     const term = contactQuery.trim();
-    if (term.length < 2) {
-      setContactHits([]);
-      return;
-    }
     let cancelled = false;
-    const timer = setTimeout(async () => {
-      let query = supabase.from('contacts').select('id, name, phone').not('phone', 'is', null);
-      const filter = contactSearchFilter(term);
-      if (filter) query = query.or(filter);
-      const { data } = await query.order('name').limit(8);
-      if (!cancelled) setContactHits((data as PickedContact[] | null) ?? []);
-    }, 250);
+    const timer = setTimeout(
+      async () => {
+        let query = supabase
+          .from('contacts')
+          .select('id, name, phone, conversations!inner(channel_id)')
+          .eq('conversations.channel_id', channelId)
+          .not('phone', 'is', null);
+        const filter = term.length >= 2 ? contactSearchFilter(term) : null;
+        if (filter) query = query.or(filter);
+        const { data } = await query.order('name').limit(50);
+        if (cancelled) return;
+        setContactHits(
+          ((data as PickedContact[] | null) ?? []).map((c) => ({ id: c.id, name: c.name, phone: c.phone })),
+        );
+      },
+      term ? 250 : 0,
+    );
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [contactQuery, supabase]);
+  }, [contactQuery, supabase, pickerOpen, effectiveBroadcastChannelId]);
+
+  useEffect(() => {
+    if (!pickerOpen || !effectiveBroadcastChannelId) return;
+    let cancelled = false;
+    supabase
+      .from('contacts')
+      .select('id, conversations!inner(channel_id)', { count: 'exact', head: true })
+      .eq('conversations.channel_id', effectiveBroadcastChannelId)
+      .not('phone', 'is', null)
+      .then(({ count }) => {
+        if (!cancelled) setNumberContactCount(count ?? 0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, pickerOpen, effectiveBroadcastChannelId]);
+  const broadcastChannelName = channelLabel(webChannels.find((c) => c.id === effectiveBroadcastChannelId));
 
   // ---- broadcast loop ---------------------------------------
   const patchHistory = useCallback((postId: string, tally: PostBroadcastResult) => {
@@ -713,7 +743,13 @@ export function PostsStudio() {
                     <p className="mb-1 text-xs text-muted-foreground">{t('broadcastFrom')}</p>
                     <Select
                       value={effectiveBroadcastChannelId}
-                      onValueChange={(v) => setBroadcastChannelId(v ? String(v) : null)}
+                      onValueChange={(v) => {
+                        // Each number has its own contacts; start the choice again.
+                        setBroadcastChannelId(v ? String(v) : null);
+                        setPicked([]);
+                        setContactHits([]);
+                        setNumberContactCount(null);
+                      }}
                       items={channelItems(webChannels)}
                     >
                       <SelectTrigger className="w-full bg-muted sm:w-80">
@@ -729,6 +765,11 @@ export function PostsStudio() {
                     </Select>
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  {numberContactCount === null
+                    ? t('numberContactsLoading')
+                    : t('numberContacts', { count: numberContactCount, name: broadcastChannelName })}
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {(['contacts', 'tags', 'all'] as AudienceMode[]).map((mode) => (
                     <button
@@ -768,7 +809,6 @@ export function PostsStudio() {
                                   setPicked((prev) =>
                                     prev.length >= MAX_BROADCAST_RECIPIENTS ? prev : [...prev, h],
                                   );
-                                  setContactQuery('');
                                 }}
                               >
                                 <span className="truncate">{h.name || h.phone}</span>
@@ -801,7 +841,11 @@ export function PostsStudio() {
                   (tags.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{t('noTags')}</p>
                   ) : (
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {t('tagsOnNumber', { name: broadcastChannelName })}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
                       {tags.map((tag) => {
                         const on = tagIds.includes(tag.id);
                         return (
@@ -822,11 +866,14 @@ export function PostsStudio() {
                           </button>
                         );
                       })}
+                      </div>
                     </div>
                   ))}
 
                 {audienceMode === 'all' && (
-                  <p className="text-xs text-amber-300">{t('audienceAllWarning', { max: MAX_BROADCAST_RECIPIENTS })}</p>
+                  <p className="text-xs text-amber-300">
+                    {t('audienceAllWarning', { max: MAX_BROADCAST_RECIPIENTS, name: broadcastChannelName })}
+                  </p>
                 )}
                 <p className="text-xs text-muted-foreground">{t('broadcastNote', { token: '{{name}}' })}</p>
               </div>

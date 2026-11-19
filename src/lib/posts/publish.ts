@@ -109,27 +109,32 @@ interface AudienceContact {
   phone: string | null
 }
 
-/** Contact ids a tag / hand-picked audience resolves to (sorted, capped). */
-async function explicitAudienceIds(
-  db: SupabaseClient,
-  accountId: string,
-  audience: PostAudience,
-): Promise<string[] | null> {
-  if (audience.mode === 'contacts') return [...audience.contact_ids].sort()
-  if (audience.mode === 'tags') {
-    // contact_tags has no account_id; the join through contacts scopes it.
-    const { data, error } = await db
-      .from('contact_tags')
-      .select('contact_id, contacts!inner(account_id)')
-      .in('tag_id', audience.tag_ids)
-      .eq('contacts.account_id', accountId)
-      .limit(5000)
-    if (error) throw new Error(error.message)
-    const ids = [...new Set(((data ?? []) as { contact_id: string }[]).map((r) => r.contact_id))]
-    return ids.sort().slice(0, MAX_BROADCAST_RECIPIENTS)
-  }
-  return null // mode "all": read straight from contacts
+/**
+ * The audience is always limited to the contacts of the number the
+ * broadcast leaves from: people who have a chat on that number. An
+ * account with several numbers keeps each number's customers apart.
+ *
+ * Both filters are inner joins, so the database does the narrowing and
+ * no long id list travels in the request.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function audienceQuery(db: SupabaseClient, accountId: string, audience: PostAudience, columns: string, head: boolean): any {
+  const select =
+    columns +
+    ', conversations!inner(channel_id)' +
+    (audience.mode === 'tags' ? ', contact_tags!inner(tag_id)' : '')
+  let query = db
+    .from('contacts')
+    .select(select, head ? { count: 'exact', head: true } : undefined)
+    .eq('account_id', accountId)
+    .eq('conversations.channel_id', audience.channel_id)
+    .not('phone', 'is', null)
+  if (audience.mode === 'tags') query = query.in('contact_tags.tag_id', audience.tag_ids)
+  return query
 }
+
+/** Hand-picked ids are filtered a slice at a time to keep requests short. */
+const ID_SLICE = 100
 
 /** How many people the broadcast will reach (capped). */
 export async function countAudience(
@@ -137,23 +142,24 @@ export async function countAudience(
   accountId: string,
   audience: PostAudience,
 ): Promise<number> {
-  const ids = await explicitAudienceIds(db, accountId, audience)
-  if (ids) {
-    if (ids.length === 0) return 0
-    const { count } = await db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('account_id', accountId)
-      .in('id', ids)
-      .not('phone', 'is', null)
-    return count ?? 0
+  if (audience.mode === 'tags' && audience.tag_ids.length === 0) return 0
+  let total = 0
+  if (audience.mode === 'contacts') {
+    const ids = [...new Set(audience.contact_ids)]
+    for (let i = 0; i < ids.length; i += ID_SLICE) {
+      const { count, error } = await audienceQuery(db, accountId, audience, 'id', true).in(
+        'id',
+        ids.slice(i, i + ID_SLICE),
+      )
+      if (error) throw new Error(error.message)
+      total += count ?? 0
+    }
+  } else {
+    const { count, error } = await audienceQuery(db, accountId, audience, 'id', true)
+    if (error) throw new Error(error.message)
+    total = count ?? 0
   }
-  const { count } = await db
-    .from('contacts')
-    .select('id', { count: 'exact', head: true })
-    .eq('account_id', accountId)
-    .not('phone', 'is', null)
-  return Math.min(count ?? 0, MAX_BROADCAST_RECIPIENTS)
+  return Math.min(total, MAX_BROADCAST_RECIPIENTS)
 }
 
 /** The next few recipients after `cursor`, in a stable (id) order. */
@@ -164,23 +170,32 @@ async function nextAudienceContacts(
   cursor: string | null,
   limit: number,
 ): Promise<AudienceContact[]> {
-  const ids = await explicitAudienceIds(db, accountId, audience)
-  let query = db
-    .from('contacts')
-    .select('id, name, phone')
-    .eq('account_id', accountId)
-    .not('phone', 'is', null)
-  if (ids) {
+  const toContacts = (rows: unknown): AudienceContact[] =>
+    ((rows ?? []) as AudienceContact[]).map((r) => ({ id: r.id, name: r.name, phone: r.phone }))
+
+  if (audience.mode === 'contacts') {
+    const ids = [...new Set(audience.contact_ids)].sort()
     const rest = cursor ? ids.filter((id) => id > cursor) : ids
-    if (rest.length === 0) return []
-    // A slice wide enough to still yield `limit` rows if some have no phone.
-    query = query.in('id', rest.slice(0, limit * 4))
-  } else if (cursor) {
-    query = query.gt('id', cursor)
+    const found: AudienceContact[] = []
+    // Some picked ids may not qualify (no phone, not on this number), so
+    // keep reading slices until the chunk is full or the list ends.
+    for (let i = 0; i < rest.length && found.length < limit; i += ID_SLICE) {
+      const { data, error } = await audienceQuery(db, accountId, audience, 'id, name, phone', false)
+        .in('id', rest.slice(i, i + ID_SLICE))
+        .order('id', { ascending: true })
+        .limit(limit - found.length)
+      if (error) throw new Error(error.message)
+      found.push(...toContacts(data))
+    }
+    return found
   }
+
+  if (audience.mode === 'tags' && audience.tag_ids.length === 0) return []
+  let query = audienceQuery(db, accountId, audience, 'id, name, phone', false)
+  if (cursor) query = query.gt('id', cursor)
   const { data, error } = await query.order('id', { ascending: true }).limit(limit)
   if (error) throw new Error(error.message)
-  return (data ?? []) as AudienceContact[]
+  return toContacts(data)
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

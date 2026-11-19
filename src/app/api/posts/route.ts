@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       const total = await countAudience(db, accountId, audience)
       if (total === 0) {
         return NextResponse.json(
-          { error: 'Nobody matches that audience (contacts need a phone number)' },
+          { error: 'Nobody matches that audience. Only contacts who have a chat on the sending number, and a phone number, are included.' },
           { status: 400 },
         )
       }

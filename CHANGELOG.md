@@ -45,6 +45,12 @@ and polish.
 
 ### Changed
 
+- **Posts: a broadcast only reaches the sending number's own contacts.**
+  "Send to contacts" on the Posts page now lists, counts and messages
+  only people who have a chat on the WhatsApp number the broadcast
+  leaves from, in all three modes (specific contacts, by tag, all).
+  Contacts of the account's other numbers are left out.
+
 - **Faster screens.** Clicking a menu item shows a page skeleton at once
   instead of leaving the old screen frozen. Settings loads only the
   section that is open (each of its 13 sections is now its own chunk).
