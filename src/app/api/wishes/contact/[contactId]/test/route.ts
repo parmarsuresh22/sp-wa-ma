@@ -50,7 +50,9 @@ export async function POST(request: Request, { params }: Params) {
         { status: 400 },
       )
     }
-    if (channel.status !== 'connected') {
+    // A WhatsApp Web number's stored status can be stale; the send
+    // itself reports whether the bridge is really up.
+    if (channel.provider !== 'waha' && channel.status !== 'connected') {
       return NextResponse.json({ error: 'Number is not connected' }, { status: 400 })
     }
 

@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { resolveAuditUserId } from '@/lib/api/v1/contacts'
 import { renderBroadcastText } from '@/lib/whatsapp/broadcast-core'
+import { inspectBridgeChannel } from '@/lib/whatsapp/bridge-channel'
 import { loadChannel, type ChannelRow } from '@/lib/whatsapp/channels'
 import { findOrCreateConversationRow } from '@/lib/whatsapp/resolve-conversation'
 import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
@@ -248,9 +249,11 @@ export async function runWishSchedule(
       // Due again at once; the window still starts at the old last_run_at.
       if (schedule.enabled) patch.next_run_at = now.toISOString()
     } else if (result.error) {
-      // Nothing was checked (number gone or offline): try again at the
-      // next slot without moving the window, so its wishes are not lost.
-      patch.next_run_at = nextRun
+      // Nothing was checked (number gone or offline): try again within
+      // the hour without moving the window, so today's wishes still go
+      // out today once the number is back.
+      const retry = new Date(now.getTime() + 3_600_000).toISOString()
+      patch.next_run_at = nextRun && nextRun < retry ? nextRun : schedule.enabled ? retry : null
     } else {
       patch.last_run_at = now.toISOString()
       patch.next_run_at = nextRun
@@ -265,7 +268,20 @@ export async function runWishSchedule(
     result.error = 'Number not found'
     return finish()
   }
-  if (channel.status !== 'connected') {
+  if (channel.provider === 'waha') {
+    // The stored status of a WhatsApp Web number can be stale (it only
+    // changes when the bridge reports in), so ask the bridge directly.
+    const state = await inspectBridgeChannel(db, channel).catch((err) => ({
+      status: null,
+      error: err instanceof Error ? err.message : String(err),
+    }))
+    if ((state.status ?? '').toUpperCase() !== 'WORKING') {
+      result.error =
+        `WhatsApp Web number is not linked (bridge status: ${state.status ?? 'unknown'}` +
+        `${state.error ? `, ${state.error}` : ''}). Open Settings → WhatsApp and reconnect it.`
+      return finish()
+    }
+  } else if (channel.status !== 'connected') {
     result.error = 'Number is not connected'
     return finish()
   }
