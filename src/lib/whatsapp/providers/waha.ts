@@ -313,6 +313,33 @@ export function createWahaClient(cfg: WahaClientConfig) {
         ...(messageId ? { messageIds: [messageId] } : {}),
       })
     },
+    // ---- status (stories) -----------------------------------
+    // POST /api/{session}/status/text | /status/image. Seen by people
+    // who have the number saved. `contacts: null` = the default
+    // audience of the account.
+    async sendStatusText(session: string, text: string) {
+      await call('POST', `/api/${encodeURIComponent(session)}/status/text`, {
+        text,
+        backgroundColor: '#128C7E',
+        font: 0,
+        contacts: null,
+      })
+    },
+    async sendStatusImage(
+      session: string,
+      file: { url: string; mimetype?: string; filename?: string },
+      caption?: string,
+    ) {
+      await call('POST', `/api/${encodeURIComponent(session)}/status/image`, {
+        file: {
+          url: file.url,
+          mimetype: file.mimetype || 'image/jpeg',
+          ...(file.filename ? { filename: file.filename } : {}),
+        },
+        ...(caption ? { caption } : {}),
+        contacts: null,
+      })
+    },
     async startTyping(session: string, chatId: string) {
       await call('POST', '/api/startTyping', { session, chatId })
     },

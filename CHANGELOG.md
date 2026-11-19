@@ -79,6 +79,19 @@ and polish.
 
 ### Added
 
+- **Posts.** A new "Posts" page: upload an image (or pick one saved to
+  Google Drive), let the AI agent's key write the text and change or
+  create the image, and send the result to several places at once —
+  WhatsApp Status on any WhatsApp Web number, a message to chosen
+  contacts, tags or all contacts, and a copy in the account's Google
+  Drive. A "chat with us on WhatsApp" line with a wa.me link can be
+  added automatically. Every post is kept in a history with per-place
+  results and a "Use again" button. Requires
+  `supabase/migrations/072_posts.sql`. Google Drive needs a Google OAuth
+  client saved on the platform admin page (scope `drive.file`); image
+  work needs a Gemini or OpenAI key (`POSTS_IMAGE_MODEL` overrides the
+  model that is otherwise discovered from the key).
+
 - **Platform admin page and approval for WhatsApp Web numbers.** An
   account no longer types in a WAHA bridge address and API key: it gives
   the number a name and sends a request, which shows as "Pending

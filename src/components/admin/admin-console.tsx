@@ -169,6 +169,7 @@ export function AdminConsole({ email }: { email: string }) {
               onOpenAccount={setOpenAccount}
             />
             <BridgeSection bridge={overview.bridge} onChanged={load} />
+            <GoogleSection />
             <AccountsSection accounts={overview.accounts} onOpen={setOpenAccount} />
           </>
         ) : null}
@@ -408,6 +409,107 @@ function BridgeSection({
             {saving && <Loader2 className="size-4 animate-spin" />}
             Save
           </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ------------------------------------------------------------
+// Google Drive (the OAuth client every account connects through)
+// ------------------------------------------------------------
+
+function GoogleSection() {
+  const [info, setInfo] = useState<{ configured: boolean; client_id: string | null; redirect_uri: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [secret, setSecret] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setInfo(await api('/api/admin8085/google'));
+    } catch {
+      /* card stays in its loading text */
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api('/api/admin8085/google', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId, client_secret: secret }),
+      });
+      toast.success('Google client saved');
+      setEditing(false);
+      setClientId('');
+      setSecret('');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err), { duration: 8000 });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold">Google Drive for posts</h2>
+          <p className="text-xs text-muted-foreground">
+            {!info
+              ? 'Loading…'
+              : info.configured
+                ? `Accounts can connect their Google Drive. Client: ${info.client_id}`
+                : 'Not set up. Accounts cannot connect Google Drive until a Google OAuth client is saved here.'}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setEditing((v) => !v)}>
+          {editing ? 'Close' : info?.configured ? 'Change' : 'Set up'}
+        </Button>
+      </div>
+      {editing && info && (
+        <div className="mt-3 space-y-3">
+          <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+            <li>In Google Cloud Console, create a project and enable the Google Drive API.</li>
+            <li>
+              Configure the OAuth consent screen (External) with the scope{' '}
+              <span className="font-mono">.../auth/drive.file</span>, and publish it or add your
+              customers as test users.
+            </li>
+            <li>
+              Create an OAuth client ID of type Web application with this authorised redirect URI:{' '}
+              <span className="break-all font-mono text-foreground">{info.redirect_uri}</span>
+            </li>
+            <li>Paste its client ID and client secret below.</li>
+          </ol>
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <Input
+              autoComplete="off"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="xxxx.apps.googleusercontent.com"
+              className="bg-muted font-mono text-sm"
+            />
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              placeholder="Client secret"
+              className="bg-muted font-mono text-sm"
+            />
+            <Button onClick={() => void save()} disabled={saving || !clientId.trim() || !secret.trim()}>
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              Save
+            </Button>
+          </div>
         </div>
       )}
     </section>
