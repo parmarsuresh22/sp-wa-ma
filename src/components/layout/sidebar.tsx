@@ -18,6 +18,7 @@ import {
   Radio,
   Settings,
   Shield,
+  Table2,
   User,
   UserCog,
   Users,
@@ -99,6 +100,7 @@ const navItems: NavItem[] = [
   { href: "/automations", labelKey: "automations", icon: Zap },
   { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
+  { href: "/data", labelKey: "dataTables", icon: Table2 },
 ];
 
 const bottomNavItems = [
@@ -190,8 +192,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             <BrandMark className="h-8 w-8 shrink-0" />
-            <span className="text-sm font-semibold text-foreground">
-              {t("title")}
+            <span className="flex items-baseline gap-1.5 text-foreground">
+              <span className="text-base font-semibold">{t("title")}</span>
+              <span className="text-[10px] font-normal text-muted-foreground">
+                {t("titleBy")}
+              </span>
             </span>
           </Link>
           <button

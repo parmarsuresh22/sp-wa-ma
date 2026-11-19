@@ -33,6 +33,8 @@ export interface AiConfig {
   /** Only auto-reply on this WhatsApp number; null = every number (062).
    *  Inbox drafting and the Playground ignore it. */
   channelId?: string | null
+  /** The data table the auto-reply may answer from (070); null = none. */
+  dataTableId?: string | null
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */

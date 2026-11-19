@@ -20,6 +20,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChannelScopeSelect } from '@/components/channels/channel-scope-select';
+import { DataTableField } from '@/components/data-tables/data-table-select';
 import {
   CircleAlert,
   Plus,
@@ -319,6 +320,13 @@ function TriggerPanel({
             onChange={(channel_id) => setState((s) => ({ ...s, channel_id }))}
           />
         </div>
+        <DataTableField
+          variant="flow"
+          compact
+          value={state.data_table_id}
+          onChange={(data_table_id) => setState((s) => ({ ...s, data_table_id }))}
+          channelId={state.channel_id}
+        />
         {state.trigger_type === 'keyword' && (
           <div>
             <label className="text-muted-foreground mb-1 block text-xs">

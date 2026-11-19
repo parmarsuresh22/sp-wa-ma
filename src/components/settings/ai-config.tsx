@@ -32,6 +32,7 @@ import type { AccountMember } from '@/types';
 import { fetchAccountMembers, memberLabel } from '@/lib/account/members';
 import { useTranslations } from 'next-intl';
 import { ChannelScopeSelect } from '@/components/channels/channel-scope-select';
+import { DataTableField } from '@/components/data-tables/data-table-select';
 import { invalidateAiAccountStatus } from '@/lib/ai/account-status-cache';
 
 const MASKED_KEY = '••••••••••••••••';
@@ -82,6 +83,7 @@ export function AiConfig() {
   const [handoffAgentId, setHandoffAgentId] = useState('');
   // Only auto-reply on one number; null = every number (062).
   const [channelId, setChannelId] = useState<string | null>(null);
+  const [dataTableId, setDataTableId] = useState<string | null>(null);
   // Hand off to a human (and pause) when the bot cannot help (063).
   const [handoffEnabled, setHandoffEnabled] = useState(true);
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -112,6 +114,7 @@ export function AiConfig() {
         setMaxPerConversation(data.auto_reply_max_per_conversation ?? 3);
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setChannelId((data.channel_id as string | null | undefined) ?? null);
+        setDataTableId((data.data_table_id as string | null | undefined) ?? null);
         setHandoffEnabled(data.handoff_enabled !== false);
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -174,6 +177,7 @@ export function AiConfig() {
     auto_reply_max_per_conversation: maxPerConversation,
     handoff_agent_id: handoffAgentId || null,
     channel_id: channelId,
+    data_table_id: dataTableId,
     handoff_enabled: handoffEnabled,
   });
 
@@ -521,6 +525,15 @@ export function AiConfig() {
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>
+
+            <DataTableField
+              id="ai-table"
+              variant="ai"
+              value={dataTableId}
+              onChange={setDataTableId}
+              channelId={channelId}
+              disabled={disabled || !autoReplyEnabled}
+            />
 
             <div className="flex items-center justify-between gap-4">
               <div>

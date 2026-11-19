@@ -38,9 +38,29 @@ and polish.
 > `/api/wishes/cron` every 15 minutes; afterwards set the app URL once:
 > `INSERT INTO internal_settings (key, value) VALUES ('app_url',
 > 'https://your-app') ON CONFLICT (key) DO UPDATE SET value =
-> EXCLUDED.value;`).
+> EXCLUDED.value;`) and
+> `supabase/migrations/070_data_tables.sql` (`data_tables`,
+> `data_table_rows`, and `data_table_id` on `ai_configs`, `flows` and
+> `automations`; `redeem_invitation` now counts them as account data).
 
 ### Added
+
+- **Data tables.** A new "Data tables" page: upload an Excel/CSV file or
+  paste a Google Sheet link (shared as "Anyone with the link") and every
+  sheet becomes a table attached to a WhatsApp number. Tables are edited
+  in place — cells, rows, columns — and load 50 rows at a time with
+  search, so a 20,000-row sheet opens as fast as a small one. Each
+  table is **General** (anyone may ask about any row) or **Private** (a
+  sender only ever gets the rows whose phone column matches the number
+  they write from; the match is done in code before anything reaches
+  the model). The AI Agent, each flow and each automation get a "Data
+  table" dropdown: the auto-reply answers from the chosen table, and
+  flow / automation messages can use `{{table.column_key}}` for the
+  sender's own row. New endpoints: `POST /api/data-tables/import`,
+  `POST /api/data-tables/[id]/refresh`.
+
+- **The app is now called Atlas** ("Atlas by LLC Solution" in the
+  sidebar, "Atlas" in the browser tab).
 
 - **Automated wishes.** A contact gains a "Wish" tab: a day and a
   month, and what to send once a year on that date. The wish goes out on

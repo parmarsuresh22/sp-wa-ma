@@ -14,11 +14,12 @@ interface AiConfigRow {
   handoff_agent_id: string | null
   handoff_enabled?: boolean | null
   channel_id?: string | null
+  data_table_id?: string | null
   embeddings_api_key: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, base_url, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, embeddings_api_key'
+  'provider, model, base_url, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, data_table_id, embeddings_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -84,6 +85,7 @@ export async function loadAiConfig(
     handoffAgentId: row.handoff_agent_id,
     handoffEnabled: row.handoff_enabled !== false,
     channelId: row.channel_id ?? null,
+    dataTableId: row.data_table_id ?? null,
     embeddingsApiKey,
   }
 }

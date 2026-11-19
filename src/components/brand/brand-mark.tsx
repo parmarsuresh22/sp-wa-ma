@@ -16,7 +16,7 @@ export const BRAND_CHEVRON_STROKE = 10;
 
 export function BrandMark({
   className,
-  title = 'wacrm',
+  title = 'Atlas',
   ...props
 }: SVGProps<SVGSVGElement> & { title?: string }) {
   return (

@@ -105,6 +105,7 @@ export async function PATCH(
     'trigger_config',
     'is_active',
     'channel_id',
+    'data_table_id',
   ] as const) {
     if (k in body) update[k] = body[k]
   }
@@ -114,6 +115,13 @@ export async function PATCH(
     (typeof update.channel_id !== 'string' || !isUuid(update.channel_id))
   ) {
     return NextResponse.json({ error: 'channel_id must be a uuid or null' }, { status: 400 })
+  }
+  if (
+    update.data_table_id !== undefined &&
+    update.data_table_id !== null &&
+    (typeof update.data_table_id !== 'string' || !isUuid(update.data_table_id))
+  ) {
+    return NextResponse.json({ error: 'data_table_id must be a uuid or null' }, { status: 400 })
   }
 
   // If this PATCH leaves the automation active (either explicitly

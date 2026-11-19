@@ -82,6 +82,8 @@ interface PutBody {
   entry_node_id?: string | null
   /** Pin to one WhatsApp number; null = every number (062). */
   channel_id?: string | null
+  /** Data table for `{{table.*}}`; null = none (070). */
+  data_table_id?: string | null
   fallback_policy?: Record<string, unknown>
   nodes?: Array<{
     node_key: string
@@ -154,6 +156,15 @@ export async function PUT(
       return NextResponse.json({ error: 'channel_id must be a uuid or null' }, { status: 400 })
     }
     flowPatch.channel_id = body.channel_id
+  }
+  if (body.data_table_id !== undefined) {
+    if (
+      body.data_table_id !== null &&
+      (typeof body.data_table_id !== 'string' || !isUuid(body.data_table_id))
+    ) {
+      return NextResponse.json({ error: 'data_table_id must be a uuid or null' }, { status: 400 })
+    }
+    flowPatch.data_table_id = body.data_table_id
   }
 
   if (body.nodes !== undefined) {

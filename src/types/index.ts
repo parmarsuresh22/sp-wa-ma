@@ -679,6 +679,8 @@ export interface Automation {
   is_active: boolean;
   /** Only fire for events on this WhatsApp number; null = every number (062). */
   channel_id?: string | null;
+  /** The data table `{{table.*}}` placeholders read from (070). */
+  data_table_id?: string | null;
   execution_count: number;
   last_executed_at?: string | null;
   created_at: string;

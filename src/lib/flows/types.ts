@@ -239,6 +239,8 @@ export interface FlowRow {
   entry_node_id: string | null;
   /** Only start for messages on this number; NULL = every number (062). */
   channel_id?: string | null;
+  /** The data table `{{table.*}}` placeholders read from (070). */
+  data_table_id?: string | null;
   fallback_policy: FlowFallbackPolicy;
   execution_count: number;
   last_executed_at: string | null;

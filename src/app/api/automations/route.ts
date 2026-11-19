@@ -63,9 +63,16 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: t('common.invalidJson') }, { status: 400 })
 
-  const { name, description, trigger_type, trigger_config, is_active, steps, template, channel_id } = body
+  const { name, description, trigger_type, trigger_config, is_active, steps, template, channel_id, data_table_id } = body
   if (channel_id !== undefined && channel_id !== null && (typeof channel_id !== 'string' || !isUuid(channel_id))) {
     return NextResponse.json({ error: 'channel_id must be a uuid or null' }, { status: 400 })
+  }
+  if (
+    data_table_id !== undefined &&
+    data_table_id !== null &&
+    (typeof data_table_id !== 'string' || !isUuid(data_table_id))
+  ) {
+    return NextResponse.json({ error: 'data_table_id must be a uuid or null' }, { status: 400 })
   }
 
   let effectiveSteps: BuilderStepInput[] | undefined = steps
@@ -122,6 +129,8 @@ export async function POST(request: Request) {
       trigger_type: effectiveTriggerType,
       trigger_config: effectiveTriggerConfig ?? {},
       is_active: !!is_active,
+      ...(channel_id !== undefined ? { channel_id } : {}),
+      ...(data_table_id !== undefined ? { data_table_id } : {}),
     })
     .select()
     .single()

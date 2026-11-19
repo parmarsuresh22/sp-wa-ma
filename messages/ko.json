@@ -17,7 +17,7 @@
     "linkInvalid": "이 링크로는 로그인할 수 없습니다. 이메일 인증 중이었다면 이미 인증이 완료되었을 수 있으니 아래에서 로그인하세요. 비밀번호 재설정은 새 링크를 요청한 뒤 요청한 브라우저에서 열어 주세요."
   },
   "Sidebar": {
-    "title": "WhatsApp용 CRM 템플릿",
+    "title": "Atlas",
     "primaryNav": "기본 메뉴",
     "dashboard": "대시보드",
     "inbox": "인박스",
@@ -41,7 +41,9 @@
     "defaultAvatar": "아바타",
     "menuProfile": "프로필",
     "menuSettings": "설정",
-    "menuSignOut": "로그아웃"
+    "menuSignOut": "로그아웃",
+    "titleBy": "by LLC Solution",
+    "dataTables": "데이터 테이블"
   },
   "Header": {
     "dashboard": "대시보드",
@@ -2650,7 +2652,7 @@
     }
   },
   "Metadata": {
-    "description": "직접 호스팅할 수 있는 WhatsApp용 CRM 템플릿입니다."
+    "description": "직접 호스팅할 수 있는 Atlas입니다."
   },
   "Currency": {
     "USD": "미국 달러",
@@ -3182,5 +3184,78 @@
     "allNumbers": "모든 번호",
     "number": "번호",
     "runsOn": "실행 대상"
+  },
+  "DataTables": {
+    "title": "데이터 테이블",
+    "description": "AI 에이전트, 플로우, 자동화가 답변에 사용할 수 있는 스프레드시트입니다. Excel 파일을 업로드하거나 Google 시트를 연결하고, 여기에서 편집한 뒤 AI 에이전트, 플로우 또는 자동화에서 선택하세요.",
+    "upload": "스프레드시트 업로드",
+    "googleSheet": "Google 시트 링크",
+    "newTable": "새 테이블",
+    "attachesTo": "새 테이블은 {number}에 연결됩니다.",
+    "attachesToAll": "새 테이블은 모든 번호에서 사용할 수 있습니다. 한 번호에만 연결하려면 위에서 번호를 선택하세요.",
+    "emptyTitle": "아직 데이터 테이블이 없습니다",
+    "emptyDesc": "Excel 또는 CSV 파일을 업로드하거나 Google 시트 링크를 붙여넣으세요. 각 시트가 여기에서 편집할 수 있는 테이블이 됩니다.",
+    "accessPrivateShort": "비공개",
+    "accessGeneralShort": "일반",
+    "columnCount": "열 {count}개",
+    "allNumbers": "모든 번호",
+    "googleSheetTitle": "Google 시트 가져오기",
+    "googleSheetDesc": "Google 시트에서 공유를 선택하고 일반 액세스를 링크가 있는 모든 사용자(뷰어)로 설정한 다음 링크를 여기에 붙여넣으세요. 각 탭이 테이블이 됩니다. 나중에 테이블에서 새로고침을 누르면 최신 데이터를 가져옵니다.",
+    "googleSheetUrl": "Google 시트 링크",
+    "tableName": "테이블 이름",
+    "googleSheetNamePlaceholder": "예: 학생 성적",
+    "cancel": "취소",
+    "import": "가져오기",
+    "loadFailed": "데이터를 불러오지 못했습니다",
+    "saveFailed": "변경 사항을 저장하지 못했습니다",
+    "importFailed": "스프레드시트를 가져오지 못했습니다",
+    "imported": "테이블 {tables}개, 행 {rows}개를 가져왔습니다",
+    "importTruncated": "일부 시트가 20,000행을 넘어 초과한 행은 제외되었습니다.",
+    "untitled": "제목 없는 테이블",
+    "starterName": "이름",
+    "starterPhone": "전화번호",
+    "back": "모든 테이블",
+    "refresh": "Google에서 새로고침",
+    "deleteTable": "테이블 삭제",
+    "number": "WhatsApp 번호",
+    "access": "누구에게 무엇을 알려줄지",
+    "accessGeneral": "일반: 누구나 모든 행에 대해 물어볼 수 있음",
+    "accessPrivate": "비공개: 발신자 본인의 행만",
+    "phoneColumn": "전화번호 열",
+    "phoneColumnNone": "없음",
+    "privateNeedsPhone": "전화번호 열을 선택하세요. 선택하기 전에는 이 비공개 테이블과 일치하는 사람이 없으므로 아무것도 공유되지 않습니다.",
+    "accessPrivateHint": "메시지를 보낸 번호와 전화번호가 일치하는 행만 그 사람에게 전달됩니다. 다른 행은 절대 공유되지 않습니다.",
+    "accessGeneralHint": "이 WhatsApp 번호로 메시지를 보내는 누구나 이 테이블의 모든 내용을 물어볼 수 있습니다. 개인 기록에는 비공개를 사용하세요.",
+    "searchRows": "행 검색",
+    "addRow": "행 추가",
+    "addColumn": "열 추가",
+    "rowCount": "행 {count}개",
+    "previousPage": "이전 페이지",
+    "pageOf": "{page} / {pages}",
+    "nextPage": "다음 페이지",
+    "noColumns": "이 테이블에는 아직 열이 없습니다. 열을 추가해 시작하세요.",
+    "columnName": "열 이름",
+    "deleteColumn": "{name} 열 삭제",
+    "phoneBadge": "전화번호",
+    "noMatches": "검색과 일치하는 행이 없습니다.",
+    "noRows": "아직 행이 없습니다. 행을 추가해 시작하세요.",
+    "deleteRow": "행 삭제",
+    "placeholderHint": "플로우나 자동화의 메시지에 열 코드(예: {example}, 각 열 이름 아래에 표시됨)를 쓰면 발신자 본인의 값이 들어갑니다. 변경 사항은 바로 저장됩니다.",
+    "confirmDeleteRow": "이 행을 삭제할까요?",
+    "newColumnName": "열 {n}",
+    "confirmDeleteColumn": "{name} 열과 그 값을 삭제할까요?",
+    "confirmRefresh": "이 테이블을 Google 시트의 현재 내용으로 바꿀까요? 여기에서 편집한 내용은 덮어쓰여집니다.",
+    "refreshFailed": "Google에서 새로고침하지 못했습니다",
+    "refreshed": "새로고침 완료: 행 {count}개",
+    "confirmDeleteTable": "{name} 테이블과 모든 행을 삭제할까요? 되돌릴 수 없습니다.",
+    "tableDeleted": "테이블이 삭제되었습니다",
+    "selectNone": "데이터 테이블 없음",
+    "selectLabel": "데이터 테이블",
+    "fieldLabel": "데이터 테이블",
+    "fieldDesc": {
+      "ai": "자동 응답이 이 테이블을 바탕으로 답변합니다. 비공개 테이블은 발신자의 전화번호에 해당하는 행만 알려줍니다.",
+      "flow": "이 플로우의 메시지에서 테이블의 열 코드를 사용할 수 있으며, 발신자마다 자신의 행이 적용됩니다.",
+      "automation": "이 자동화의 메시지에서 테이블의 열 코드를 사용할 수 있으며, 연락처마다 자신의 행이 적용됩니다."
+    }
   }
 }

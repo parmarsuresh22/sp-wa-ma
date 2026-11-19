@@ -7,6 +7,7 @@ import { buildSystemPrompt } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
+import { tableExcerptsForAi } from '@/lib/data-tables/lookup'
 import { engineSendText, loadConversationSender } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -134,6 +135,18 @@ export async function dispatchInboundToAiReply(
       config,
       latestUserMessage(messages),
     )
+
+    // The attached data table (070): this customer's own rows for a
+    // private table, the matching rows for a general one. Filtered in
+    // code before the model sees anything.
+    const tableExcerpts = await tableExcerptsForAi(
+      db,
+      accountId,
+      config.dataTableId,
+      contactId,
+      latestUserMessage(messages),
+    )
+    if (tableExcerpts.length > 0) knowledge.unshift(...tableExcerpts)
 
     const handoffEnabled = config.handoffEnabled !== false
     const systemPrompt = buildSystemPrompt({

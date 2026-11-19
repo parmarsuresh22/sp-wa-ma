@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { ChannelScopeSelect } from "@/components/channels/channel-scope-select"
+import { DataTableSelect } from "@/components/data-tables/data-table-select"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -109,6 +110,8 @@ export interface BuilderInitial {
   is_active: boolean
   /** Only fire on this WhatsApp number; null = every number (062). */
   channel_id?: string | null
+  /** Data table for `{{table.*}}` placeholders; null = none (070). */
+  data_table_id?: string | null
   steps: BuilderStep[]
 }
 
@@ -703,6 +706,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         trigger_config: state.trigger_config,
         is_active: state.is_active,
         channel_id: state.channel_id ?? null,
+        data_table_id: state.data_table_id ?? null,
         steps: toApiSteps(state.steps),
       }
 
@@ -768,6 +772,13 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           className="hidden sm:flex max-w-48"
           value={state.channel_id ?? null}
           onChange={(channel_id) => patchTop("channel_id", channel_id)}
+        />
+        <DataTableSelect
+          size="sm"
+          className="hidden sm:flex max-w-48"
+          value={state.data_table_id ?? null}
+          onChange={(data_table_id) => patchTop("data_table_id", data_table_id)}
+          channelId={state.channel_id ?? null}
         />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="hidden sm:inline">{t("active")}</span>

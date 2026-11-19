@@ -40,6 +40,7 @@ import {
   engineSendText,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
+import { tableValuesForContact } from "@/lib/data-tables/lookup";
 import { addContactTagAndDispatch } from "@/lib/contacts/tag-events";
 import { removeContactTag } from "@/lib/contacts/tag-write";
 import { checkRunTimeout, markRunTimedOut, type RunTimeoutCheck } from "./timeout";
@@ -586,8 +587,12 @@ async function evaluateConditionNode(
  */
 function interpolateVars(template: string, vars: Record<string, unknown>): string {
   if (!template) return "";
-  return template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
-    const v = vars[key];
+  // `{{table.key}}` reads the sender's own row of the flow's data table,
+  // loaded once when the run started (see startNewRun).
+  return template.replace(/\{\{(vars|table)\.([a-zA-Z0-9_]+)\}\}/g, (_, ns, key) => {
+    const source =
+      ns === "table" ? (vars.__table as Record<string, unknown> | undefined) : vars;
+    const v = source?.[key];
     return v === undefined || v === null ? "" : String(v);
   });
 }
@@ -1268,6 +1273,15 @@ async function startNewRun(
   input: DispatchInboundInput,
   nodes: Map<string, FlowNodeRow>,
 ): Promise<DispatchInboundResult> {
+  // The sender's row of the flow's data table, matched by their phone
+  // number — never anyone else's. Kept on the run for `{{table.*}}`.
+  const tableValues = await tableValuesForContact(
+    db,
+    flow.account_id,
+    flow.data_table_id,
+    input.contactId,
+  );
+
   // INSERT — partial unique index `idx_one_active_run_per_contact`
   // catches concurrent inserts with 23505. We catch and return as
   // consumed:true (the parallel webhook handles it).
@@ -1287,6 +1301,7 @@ async function startNewRun(
       conversation_id: input.conversationId,
       status: "active",
       current_node_key: flow.entry_node_id,
+      ...(tableValues ? { vars: { __table: tableValues } } : {}),
     })
     .select("*")
     .maybeSingle();

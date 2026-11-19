@@ -25,6 +25,7 @@ import { engineSendText, engineSendTemplate, engineSendInteractive } from './met
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 import { getT } from '@/lib/i18n/translate'
+import { tableValuesForContact } from '@/lib/data-tables/lookup'
 import { isWithinTimeWindow } from './time-of-day'
 
 /** Step errors land in automation_logs and are shown on the logs page. */
@@ -41,6 +42,9 @@ export interface AutomationContext {
   conversation_id?: string
   /** Arbitrary variables accumulated during execution. */
   vars?: Record<string, unknown>
+  /** The contact's own row of the automation's data table (070), for
+   *  `{{table.key}}`. Matched by their phone number. */
+  table?: Record<string, string>
   /** The tag id that was added, for tag_added trigger. */
   tag_id?: string
   /** Agent the conversation was assigned to, for conversation_assigned. */
@@ -149,7 +153,16 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     for (const automation of automations as Automation[]) {
       if (!triggerMatches(automation, input.context)) continue
       try {
-        await executeAutomation(automation, input)
+        const table = await tableValuesForContact(
+          db,
+          automation.account_id,
+          automation.data_table_id,
+          input.contactId,
+        )
+        await executeAutomation(
+          automation,
+          table ? { ...input, context: { ...input.context, table } } : input,
+        )
       } catch (err) {
         console.error('[automations] execute failed:', automation.id, err)
       }
@@ -1184,6 +1197,7 @@ function interpolate(s: string, args: ExecuteArgs): string {
     const [ns, prop] = String(key).split('.')
     if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
     if (ns === 'vars' && prop) return String(args.context.vars?.[prop] ?? '')
+    if (ns === 'table' && prop) return String(args.context.table?.[prop] ?? '')
     return ''
   })
 }

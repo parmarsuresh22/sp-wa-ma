@@ -36,7 +36,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, api_key, embeddings_api_key',
+        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, data_table_id, api_key, embeddings_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -238,6 +238,14 @@ export async function POST(request: Request) {
       typeof body.channel_id === 'string' && body.channel_id.trim() ? body.channel_id.trim() : null
     if (channelId && !isUuid(channelId)) return bad('channel_id must be a uuid or null')
 
+    // Optional data table the auto-reply answers from (070).
+    const tableProvided = 'data_table_id' in body
+    const dataTableId =
+      typeof body.data_table_id === 'string' && body.data_table_id.trim()
+        ? body.data_table_id.trim()
+        : null
+    if (dataTableId && !isUuid(dataTableId)) return bad('data_table_id must be a uuid or null')
+
     const encryptedKey = rawKey ? encrypt(rawKey) : null
     const shared: Record<string, unknown> = {
       provider,
@@ -252,6 +260,7 @@ export async function POST(request: Request) {
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId
     if (channelProvided) shared.channel_id = channelId
+    if (tableProvided) shared.data_table_id = dataTableId
     if (handoffEnabledProvided) shared.handoff_enabled = handoffEnabled
     if (rawEmbeddingsKey) {
       shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
