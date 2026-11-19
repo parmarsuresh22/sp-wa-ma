@@ -112,11 +112,23 @@ export function ContactWishTab({
   const [schedulerOn, setSchedulerOn] = useState<Record<string, boolean> | null>(null);
   const [templates, setTemplates] = useState<MessageTemplate[] | null>(null);
 
+  // Wishes belong to one WhatsApp number: the one selected on the
+  // contacts page (or the only one). The same contact under another
+  // number has its own, separate wishes and its own switch.
+  const list = useMemo(() => channels ?? [], [channels]);
+  const target = list.find((c) => c.id === channelId) ?? (list.length === 1 ? list[0] : null);
+  const targetId = target?.id ?? null;
+
   useEffect(() => {
+    if (!targetId) return;
     let cancelled = false;
     (async () => {
+      setWishes(null);
       try {
-        const res = await fetch(`/api/wishes/contact/${contactId}`, { cache: 'no-store' });
+        const res = await fetch(
+          `/api/wishes/contact/${contactId}?channel_id=${encodeURIComponent(targetId)}`,
+          { cache: 'no-store' },
+        );
         const body = (await res.json().catch(() => ({}))) as { wishes?: WishRow[] };
         if (cancelled) return;
         if (!res.ok) throw new Error();
@@ -135,7 +147,7 @@ export function ContactWishTab({
     return () => {
       cancelled = true;
     };
-  }, [contactId, t]);
+  }, [contactId, targetId, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,7 +167,6 @@ export function ContactWishTab({
     };
   }, [contactId]);
 
-  const list = useMemo(() => channels ?? [], [channels]);
   const hasApiNumber = list.some((c) => c.provider !== 'waha');
 
   useEffect(() => {
@@ -174,33 +185,28 @@ export function ContactWishTab({
     };
   }, [hasApiNumber, templates]);
 
-  if (wishes === null || channels === null || schedulerOn === null) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const spinner = (
+    <div className="flex items-center justify-center py-8">
+      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+  if (channels === null) return spinner;
 
-  if (list.length === 0) {
+  if (!target) {
     return (
       <p className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-        {t('noNumbers')}
+        {list.length === 0 ? t('noNumbers') : t('pickNumber')}
       </p>
     );
   }
 
-  const shared = { contactId, channelId, channels: list, schedulerOn, templates };
+  if (wishes === null || schedulerOn === null) return spinner;
+
+  const shared = { contactId, channelId: target.id, channels: list, schedulerOn, templates };
   const toggle = (key: string) => setOpenKey((prev) => (prev === key ? null : key));
 
-  // The number wishes are saved on (see WishCard): the contacts-page
-  // selection, the only number, or the one the saved wishes already use.
-  const masterTarget =
-    list.find((c) => c.id === channelId) ??
-    (list.length === 1 ? list[0] : null) ??
-    list.find((c) => wishes.some((w) => w.channel_id === c.id)) ??
-    null;
-  const masterScheduled = !!masterTarget && !!schedulerOn[masterTarget.id];
+  const masterTarget = target;
+  const masterScheduled = !!schedulerOn[masterTarget.id];
 
   const savedCount = wishes.length;
   async function switchMaster(next: boolean) {
@@ -215,7 +221,7 @@ export function ContactWishTab({
       const res = await fetch(`/api/wishes/contact/${contactId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: next }),
+        body: JSON.stringify({ enabled: next, channel_id: masterTarget.id }),
       });
       const body = (await res.json().catch(() => ({}))) as { wishes?: WishRow[]; error?: string };
       if (!res.ok || !body.wishes) {
@@ -241,9 +247,11 @@ export function ContactWishTab({
             {t('enable')}
           </Label>
           <p className="mt-0.5 text-xs text-muted-foreground">{t('enableDesc')}</p>
-          {!masterTarget ? (
-            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t('pickNumber')}</p>
-          ) : !masterScheduled ? (
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-foreground">
+            <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
+            {t('onlyThisNumber', { number: channelLabel(masterTarget) })}
+          </p>
+          {!masterScheduled ? (
             <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
               {t('schedulerOff', { number: channelLabel(masterTarget) })}{' '}
               <Link href="/settings?tab=wishes" className="underline underline-offset-2">

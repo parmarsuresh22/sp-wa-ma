@@ -15,17 +15,24 @@ const OCCASIONS = ['birthday', 'anniversary', 'other'] as const
 // A leap year, so 29 February is a valid day to pick.
 const LEAP_YEAR = 2024
 
-/** GET /api/wishes/contact/[contactId] — the contact's wishes, oldest first. */
-export async function GET(_request: Request, { params }: Params) {
+/**
+ * GET /api/wishes/contact/[contactId]?channel_id=<number>
+ *
+ * The contact's wishes, oldest first. Wishes belong to one WhatsApp
+ * number; with `channel_id` only that number's are returned.
+ */
+export async function GET(request: Request, { params }: Params) {
   try {
     const { contactId } = await params
     const { supabase, accountId } = await getCurrentAccount()
-    const { data, error } = await supabase
+    const channelId = new URL(request.url).searchParams.get('channel_id')
+    let query = supabase
       .from('contact_wishes')
       .select('*')
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
-      .order('created_at', { ascending: true })
+    if (channelId) query = query.eq('channel_id', channelId)
+    const { data, error } = await query.order('created_at', { ascending: true })
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
@@ -173,6 +180,7 @@ export async function PUT(request: Request, { params }: Params) {
         .select('id, month, day')
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
+        .eq('channel_id', channel.id)
         .eq('id', wishId)
         .maybeSingle()
       if (!found) {
@@ -185,6 +193,7 @@ export async function PUT(request: Request, { params }: Params) {
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
+        .eq('channel_id', channel.id)
       if ((count ?? 0) >= MAX_WISHES_PER_CONTACT) {
         return NextResponse.json(
           { error: `A contact can have at most ${MAX_WISHES_PER_CONTACT} wishes` },
@@ -234,21 +243,36 @@ export async function PUT(request: Request, { params }: Params) {
 /**
  * PATCH /api/wishes/contact/[contactId]
  *
- * Body: { enabled } — the contact's master switch. Off switches every
- * wish of the contact off (they are kept). On switches back on the
- * ones that are complete and whose number has its Wish Scheduler on.
+ * Body: { enabled, channel_id } — the contact's master switch on ONE
+ * WhatsApp number. Off switches that number's wishes for the contact
+ * off (they are kept); on switches back on the complete ones, if the
+ * number's Wish Scheduler is on. The same contact's wishes on any
+ * other number are never touched.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { contactId } = await params
     const { supabase, accountId } = await requireRole('agent')
-    const body = (await request.json().catch(() => null)) as { enabled?: unknown } | null
+    const body = (await request.json().catch(() => null)) as {
+      enabled?: unknown
+      channel_id?: unknown
+    } | null
     if (typeof body?.enabled !== 'boolean') {
       return NextResponse.json({ error: 'enabled must be true or false' }, { status: 400 })
     }
+    const channelId = typeof body.channel_id === 'string' ? body.channel_id : ''
+    const channel = channelId ? await loadChannel(supabase, accountId, channelId) : null
+    if (!channel) {
+      return NextResponse.json({ error: 'Pick the number these wishes are sent from' }, { status: 400 })
+    }
 
     const scope = () =>
-      supabase.from('contact_wishes').select('*').eq('account_id', accountId).eq('contact_id', contactId)
+      supabase
+        .from('contact_wishes')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .eq('channel_id', channel.id)
 
     if (!body.enabled) {
       const { error } = await supabase
@@ -256,6 +280,7 @@ export async function PATCH(request: Request, { params }: Params) {
         .update({ enabled: false })
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
+        .eq('channel_id', channel.id)
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }

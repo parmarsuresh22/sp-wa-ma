@@ -33,7 +33,12 @@ and polish.
 > `supabase/migrations/067_wishes.sql` (`contact_wishes` and
 > `wish_schedules` for automated wishes) and
 > `supabase/migrations/068_wish_occasions.sql` (several wishes per
-> contact, with an `occasion`).
+> contact, with an `occasion`) and
+> `supabase/migrations/069_wish_cron.sql` (pg_cron + pg_net call
+> `/api/wishes/cron` every 15 minutes; afterwards set the app URL once:
+> `INSERT INTO internal_settings (key, value) VALUES ('app_url',
+> 'https://your-app') ON CONFLICT (key) DO UPDATE SET value =
+> EXCLUDED.value;`).
 
 ### Added
 

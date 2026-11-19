@@ -811,7 +811,8 @@
       "newWish": "New wish",
       "cancel": "Cancel",
       "statusOn": "On",
-      "statusOff": "Off"
+      "statusOff": "Off",
+      "onlyThisNumber": "Applies to {number} only. Other numbers keep their own wishes for this contact."
     }
   },
   "Pipelines": {
@@ -2458,7 +2459,7 @@
       "runFailed": "Couldn't run: {reason}",
       "networkError": "network error",
       "adminOnly": "Only account admins can change the schedule.",
-      "precisionNote": "Schedules are checked once an hour, so a run starts within the hour after the chosen time. A run sends every wish whose date fell since the previous run, and each contact is wished at most once a year.",
+      "precisionNote": "Schedules are checked every 15 minutes, so a run starts within 15 minutes after the chosen time. A run sends every wish whose date fell since the previous run, and each wish goes out at most once a year.",
       "hour": "Hour",
       "minute": "Minute",
       "amPm": "AM or PM",

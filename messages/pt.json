@@ -811,7 +811,8 @@
       "newWish": "Nova felicitação",
       "cancel": "Cancelar",
       "statusOn": "Ativa",
-      "statusOff": "Inativa"
+      "statusOff": "Inativa",
+      "onlyThisNumber": "Vale apenas para {number}. Os outros números mantêm suas próprias felicitações para este contato."
     }
   },
   "Pipelines": {
@@ -2458,7 +2459,7 @@
       "runFailed": "Não foi possível executar: {reason}",
       "networkError": "erro de rede",
       "adminOnly": "Somente administradores da conta podem alterar o agendamento.",
-      "precisionNote": "Os agendamentos são verificados uma vez por hora, então uma execução começa dentro da hora seguinte ao horário escolhido. Cada execução envia as felicitações cuja data caiu desde a execução anterior, e cada contato recebe no máximo uma por ano.",
+      "precisionNote": "Os agendamentos são verificados a cada 15 minutos, então uma execução começa em até 15 minutos após o horário escolhido. Cada execução envia as felicitações cuja data caiu desde a execução anterior, e cada felicitação é enviada no máximo uma vez por ano.",
       "hour": "Hora",
       "minute": "Minuto",
       "amPm": "AM ou PM",

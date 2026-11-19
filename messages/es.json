@@ -811,7 +811,8 @@
       "newWish": "Nueva felicitación",
       "cancel": "Cancelar",
       "statusOn": "Activa",
-      "statusOff": "Inactiva"
+      "statusOff": "Inactiva",
+      "onlyThisNumber": "Solo se aplica a {number}. Los demás números mantienen sus propias felicitaciones para este contacto."
     }
   },
   "Pipelines": {
@@ -2458,7 +2459,7 @@
       "runFailed": "No se pudo ejecutar: {reason}",
       "networkError": "error de red",
       "adminOnly": "Solo los administradores de la cuenta pueden cambiar la programación.",
-      "precisionNote": "Las programaciones se comprueban una vez por hora, así que una ejecución empieza dentro de la hora siguiente a la elegida. Cada ejecución envía las felicitaciones cuya fecha cayó desde la ejecución anterior, y cada contacto recibe como máximo una al año.",
+      "precisionNote": "Las programaciones se comprueban cada 15 minutos, así que una ejecución empieza dentro de los 15 minutos siguientes a la hora elegida. Cada ejecución envía las felicitaciones cuya fecha cayó desde la ejecución anterior, y cada felicitación se envía como máximo una vez al año.",
       "hour": "Hora",
       "minute": "Minuto",
       "amPm": "AM o PM",
