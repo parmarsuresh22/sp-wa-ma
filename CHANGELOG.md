@@ -45,6 +45,11 @@ and polish.
 
 ### Changed
 
+- **Posts: one sending number per post.** The Posts page now starts by
+  asking which WhatsApp number the post goes out from. The "chat with
+  us" link, the Status tick, the contact list and the list of earlier
+  posts all follow that one number; other numbers are kept separate.
+
 - **Posts: a broadcast only reaches the sending number's own contacts.**
   "Send to contacts" on the Posts page now lists, counts and messages
   only people who have a chat on the WhatsApp number the broadcast

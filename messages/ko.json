@@ -3279,6 +3279,10 @@
   "Posts": {
     "title": "Posts",
     "description": "Make one post and send it to several places: WhatsApp Status, a broadcast to your contacts, and a copy in Google Drive.",
+    "fromTitle": "Post from",
+    "fromHint": "Choose the WhatsApp number this post goes out from. The link, Status, contacts and earlier posts below belong to this number only.",
+    "includeLinkFrom": "Adds \"Chat with us on WhatsApp\" and a link to {name} ({phone}) at the end.",
+    "historyTitleFrom": "Earlier posts from {name}",
     "imageTitle": "Image",
     "imageHint": "PNG, JPEG or WebP, up to 5 MB. A post can also be text only.",
     "imageAlt": "Post image",

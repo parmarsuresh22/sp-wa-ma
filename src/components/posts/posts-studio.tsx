@@ -134,10 +134,6 @@ export function PostsStudio() {
     () => (channels ?? []).filter((c) => c.provider === 'waha'),
     [channels],
   );
-  const linkableChannels = useMemo(
-    () => (channels ?? []).filter((c) => !!c.display_phone),
-    [channels],
-  );
 
   // ---- composer state ---------------------------------------
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -150,10 +146,11 @@ export function PostsStudio() {
   const topRef = useRef<HTMLDivElement>(null);
 
   const [includeLink, setIncludeLink] = useState(true);
-  const [linkChannelId, setLinkChannelId] = useState<string | null>(null);
-  const [statusIds, setStatusIds] = useState<string[]>([]);
+  // The one WhatsApp number this post goes out from. Its link, Status,
+  // contacts and history are all the page shows; other numbers stay apart.
+  const [fromChannelId, setFromChannelId] = useState<string | null>(null);
+  const [statusOn, setStatusOn] = useState(false);
   const [broadcastOn, setBroadcastOn] = useState(false);
-  const [broadcastChannelId, setBroadcastChannelId] = useState<string | null>(null);
   const [audienceMode, setAudienceMode] = useState<AudienceMode>('contacts');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [picked, setPicked] = useState<PickedContact[]>([]);
@@ -163,17 +160,15 @@ export function PostsStudio() {
   const [progress, setProgress] = useState<{ postId: string; tally: PostBroadcastResult } | null>(null);
   const stopRef = useRef(false);
 
-  // Sensible defaults once the numbers are known.
-  const effectiveLinkChannelId =
-    linkChannelId && linkableChannels.some((c) => c.id === linkChannelId)
-      ? linkChannelId
-      : (linkableChannels[0]?.id ?? null);
-  const effectiveBroadcastChannelId =
-    broadcastChannelId && webChannels.some((c) => c.id === broadcastChannelId)
-      ? broadcastChannelId
-      : (webChannels[0]?.id ?? null);
-  const linkPhone = linkableChannels.find((c) => c.id === effectiveLinkChannelId)?.display_phone ?? null;
-  const finalText = includeLink ? withWhatsAppLink(caption, linkPhone) : caption.trim();
+  const channelsLoaded = !!channels;
+  const fromChannel =
+    webChannels.find((c) => c.id === fromChannelId) ?? webChannels[0] ?? null;
+  const fromId = fromChannel?.id ?? null;
+  const fromName = channelLabel(fromChannel);
+  const fromConnected = fromChannel?.status === 'connected';
+  const effectiveBroadcastChannelId = fromId;
+  const linkPhone = fromChannel?.display_phone ?? null;
+  const finalText = includeLink && linkPhone ? withWhatsAppLink(caption, linkPhone) : caption.trim();
 
   // ---- reference data ---------------------------------------
   const [tags, setTags] = useState<TagOption[]>([]);
@@ -226,9 +221,14 @@ export function PostsStudio() {
   const loadHistory = useCallback(
     async (page: number) => {
       const from = page * HISTORY_PAGE;
-      const { data, count, error } = await supabase
-        .from('posts')
-        .select('*', { count: 'exact' })
+      let query = supabase.from('posts').select('*', { count: 'exact' });
+      // Only what was posted from the chosen number.
+      if (fromId) {
+        query = query.or(
+          `link_channel_id.eq.${fromId},status_channel_ids.cs.{${fromId}},audience->>channel_id.eq.${fromId}`,
+        );
+      }
+      const { data, count, error } = await query
         .order('created_at', { ascending: false })
         .range(from, from + HISTORY_PAGE - 1);
       if (error) {
@@ -239,11 +239,12 @@ export function PostsStudio() {
       setHistory((data as PostRow[] | null) ?? []);
       setHistoryTotal(count ?? 0);
     },
-    [supabase, t],
+    [supabase, t, fromId],
   );
   useEffect(() => {
+    if (!channelsLoaded) return;
     void loadHistory(historyPage);
-  }, [loadHistory, historyPage]);
+  }, [loadHistory, historyPage, channelsLoaded]);
 
   // ---- image ------------------------------------------------
   const onFile = useCallback(
@@ -414,7 +415,7 @@ export function PostsStudio() {
       cancelled = true;
     };
   }, [supabase, pickerOpen, effectiveBroadcastChannelId]);
-  const broadcastChannelName = channelLabel(webChannels.find((c) => c.id === effectiveBroadcastChannelId));
+  const broadcastChannelName = fromName;
 
   // ---- broadcast loop ---------------------------------------
   const patchHistory = useCallback((postId: string, tally: PostBroadcastResult) => {
@@ -457,7 +458,8 @@ export function PostsStudio() {
       (audienceMode === 'all' ||
         (audienceMode === 'tags' && tagIds.length > 0) ||
         (audienceMode === 'contacts' && picked.length > 0)));
-  const hasDestination = statusIds.length > 0 || broadcastOn || (saveToDrive && !!mediaUrl);
+  const statusReady = statusOn && !!fromId && fromConnected;
+  const hasDestination = statusReady || broadcastOn || (saveToDrive && !!mediaUrl);
   const canPost = hasContent && hasDestination && audienceReady && !posting && !uploading && !aiBusy;
 
   const submit = useCallback(async () => {
@@ -471,9 +473,10 @@ export function PostsStudio() {
           caption,
           media_url: mediaUrl,
           media_mime: mediaMime,
-          include_link: includeLink,
-          link_channel_id: effectiveLinkChannelId,
-          status_channel_ids: statusIds,
+          channel_id: fromId,
+          include_link: includeLink && !!linkPhone,
+          link_channel_id: fromId,
+          status_channel_ids: statusReady && fromId ? [fromId] : [],
           audience: broadcastOn
             ? {
                 mode: audienceMode,
@@ -512,7 +515,7 @@ export function PostsStudio() {
       setMediaMime(null);
       setAiPrompt('');
       setPicked([]);
-      setStatusIds([]);
+      setStatusOn(false);
       setBroadcastOn(false);
 
       if (post.results.broadcast && !post.results.broadcast.done) {
@@ -529,14 +532,15 @@ export function PostsStudio() {
     canPost,
     caption,
     effectiveBroadcastChannelId,
-    effectiveLinkChannelId,
+    fromId,
     includeLink,
+    linkPhone,
     mediaMime,
     mediaUrl,
     picked,
     runBroadcast,
     saveToDrive,
-    statusIds,
+    statusReady,
     t,
     tagIds,
   ]);
@@ -546,7 +550,6 @@ export function PostsStudio() {
     setMediaUrl(post.media_url);
     setMediaMime(post.media_mime);
     setIncludeLink(post.include_link);
-    if (post.link_channel_id) setLinkChannelId(post.link_channel_id);
     topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
@@ -585,6 +588,45 @@ export function PostsStudio() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)] xl:items-start">
         {/* ---------------- composer ---------------- */}
         <div className="space-y-4">
+          <Section title={t('fromTitle')} hint={t('fromHint')}>
+            {!channelsLoaded ? (
+              <Loader2 className="size-4 animate-spin text-primary" />
+            ) : webChannels.length === 0 || !fromId ? (
+              <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                {t('noWebNumber')}
+              </p>
+            ) : (
+              <>
+                <Select
+                  value={fromId}
+                  onValueChange={(v) => {
+                    // Each number has its own contacts and history; start again.
+                    setFromChannelId(v ? String(v) : null);
+                    setPicked([]);
+                    setContactHits([]);
+                    setContactQuery('');
+                    setNumberContactCount(null);
+                    setHistory(null);
+                    setHistoryPage(0);
+                  }}
+                  items={channelItems(webChannels)}
+                >
+                  <SelectTrigger className="w-full bg-muted sm:w-80">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {webChannels.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {channelItems([c])[c.id]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!fromConnected && <p className="text-xs text-amber-300">{t('numberDisconnected')}</p>}
+              </>
+            )}
+          </Section>
+
           <Section title={t('imageTitle')} hint={t('imageHint')}>
             <input
               ref={fileRef}
@@ -670,30 +712,12 @@ export function PostsStudio() {
             <p className="text-right text-[11px] text-muted-foreground">
               {caption.length}/{MAX_CAPTION_LENGTH}
             </p>
-            <Check checked={includeLink} onChange={setIncludeLink} disabled={linkableChannels.length === 0}>
+            <Check checked={includeLink && !!linkPhone} onChange={setIncludeLink} disabled={!linkPhone}>
               {t('includeLink')}
               <span className="block text-xs text-muted-foreground">
-                {linkableChannels.length === 0 ? t('includeLinkNoNumber') : t('includeLinkHint')}
+                {!linkPhone ? t('includeLinkNoNumber') : t('includeLinkFrom', { name: fromName, phone: linkPhone })}
               </span>
             </Check>
-            {includeLink && linkableChannels.length > 1 && effectiveLinkChannelId && (
-              <Select
-                value={effectiveLinkChannelId}
-                onValueChange={(v) => setLinkChannelId(v ? String(v) : null)}
-                items={channelItems(linkableChannels)}
-              >
-                <SelectTrigger className="w-full bg-muted sm:w-80">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {linkableChannels.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {channelItems([c])[c.id]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
             {finalText && (
               <div>
                 <p className="mb-1 text-xs text-muted-foreground">{t('preview')}</p>
@@ -706,65 +730,26 @@ export function PostsStudio() {
 
           <Section title={t('whereTitle')} hint={t('whereHint')}>
             {/* WhatsApp Status */}
-            {webChannels.length === 0 ? (
+            {!fromId ? (
               <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
                 {t('noWebNumber')}
               </p>
             ) : (
-              webChannels.map((c) => {
-                const connected = c.status === 'connected';
-                return (
-                  <Check
-                    key={c.id}
-                    checked={statusIds.includes(c.id)}
-                    disabled={!connected}
-                    onChange={(on) =>
-                      setStatusIds((prev) => (on ? [...prev, c.id] : prev.filter((id) => id !== c.id)))
-                    }
-                  >
-                    {t('statusOn', { name: channelLabel(c) })}
-                    <span className="block text-xs text-muted-foreground">
-                      {connected ? t('statusHint') : t('numberDisconnected')}
-                    </span>
-                  </Check>
-                );
-              })
+              <Check checked={statusOn && fromConnected} disabled={!fromConnected} onChange={setStatusOn}>
+                {t('statusOn', { name: fromName })}
+                <span className="block text-xs text-muted-foreground">
+                  {fromConnected ? t('statusHint') : t('numberDisconnected')}
+                </span>
+              </Check>
             )}
 
             {/* Broadcast */}
-            <Check checked={broadcastOn} onChange={setBroadcastOn} disabled={webChannels.length === 0}>
+            <Check checked={broadcastOn && !!fromId} onChange={setBroadcastOn} disabled={!fromId}>
               {t('broadcast')}
               <span className="block text-xs text-muted-foreground">{t('broadcastHint')}</span>
             </Check>
             {broadcastOn && effectiveBroadcastChannelId && (
               <div className="ml-6 space-y-3 rounded-lg border border-border p-3">
-                {webChannels.length > 1 && (
-                  <div>
-                    <p className="mb-1 text-xs text-muted-foreground">{t('broadcastFrom')}</p>
-                    <Select
-                      value={effectiveBroadcastChannelId}
-                      onValueChange={(v) => {
-                        // Each number has its own contacts; start the choice again.
-                        setBroadcastChannelId(v ? String(v) : null);
-                        setPicked([]);
-                        setContactHits([]);
-                        setNumberContactCount(null);
-                      }}
-                      items={channelItems(webChannels)}
-                    >
-                      <SelectTrigger className="w-full bg-muted sm:w-80">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {webChannels.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {channelItems([c])[c.id]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 <p className="text-xs text-muted-foreground">
                   {numberContactCount === null
                     ? t('numberContactsLoading')
@@ -954,7 +939,9 @@ export function PostsStudio() {
 
         {/* ---------------- history ---------------- */}
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">{t('historyTitle')}</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">
+            {fromId ? t('historyTitleFrom', { name: fromName }) : t('historyTitle')}
+          </h2>
           {history === null ? (
             <div className="flex justify-center py-10">
               <Loader2 className="size-5 animate-spin text-primary" />

@@ -27,6 +27,7 @@ export const maxDuration = 60
  *   caption?: string,
  *   media_url?: string,          // an image this account uploaded
  *   media_mime?: string,
+ *   channel_id?: string,         // the WhatsApp Web number the post goes out from
  *   include_link?: boolean,      // add "chat with us" + wa.me link
  *   link_channel_id?: string,    // whose number the link carries
  *   status_channel_ids?: string[],   // WhatsApp Web numbers to post a Status on
@@ -81,11 +82,22 @@ export async function POST(request: Request) {
     const channels = await listChannels(db, accountId)
     const webChannels = channels.filter((c) => c.provider === 'waha')
 
+    // The number the post goes out from. When given, the link, the Status
+    // and the broadcast must all be this one number.
+    const fromChannel =
+      typeof body.channel_id === 'string' ? (webChannels.find((c) => c.id === body.channel_id) ?? null) : null
+    if (body.channel_id && !fromChannel) {
+      return NextResponse.json(
+        { error: 'Choose a WhatsApp Web number of this account to post from' },
+        { status: 400 },
+      )
+    }
+
     // The contact line.
     const includeLink = body.include_link === true
-    const linkChannel = includeLink
-      ? (channels.find((c) => c.id === body.link_channel_id) ?? channels[0] ?? null)
-      : null
+    const linkChannel =
+      fromChannel ??
+      (includeLink ? (channels.find((c) => c.id === body.link_channel_id) ?? channels[0] ?? null) : null)
     if (includeLink && !linkChannel?.display_phone) {
       return NextResponse.json(
         { error: 'The chosen WhatsApp number has no phone number yet; connect it first' },
@@ -110,6 +122,15 @@ export async function POST(request: Request) {
     if (audience && !webChannels.some((c) => c.id === audience.channel_id)) {
       return NextResponse.json(
         { error: 'The broadcast must leave from a WhatsApp Web number of this account' },
+        { status: 400 },
+      )
+    }
+    if (
+      fromChannel &&
+      (statusChannels.some((c) => c.id !== fromChannel.id) || (audience && audience.channel_id !== fromChannel.id))
+    ) {
+      return NextResponse.json(
+        { error: 'The Status and the contacts must belong to the number the post is sent from' },
         { status: 400 },
       )
     }
