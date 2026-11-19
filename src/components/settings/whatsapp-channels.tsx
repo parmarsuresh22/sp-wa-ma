@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import {
   CheckCircle2,
+  Clock,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -47,6 +48,22 @@ import { WhatsAppConfig } from './whatsapp-config';
 
 type Selection = { kind: 'channel'; id: string } | { kind: 'new-meta' } | null;
 
+/** A request for a WhatsApp Web number (migration 071). */
+interface WebNumberRequest {
+  id: string;
+  label: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  channel_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+interface WebNumberUsage {
+  linked: number;
+  pending: number;
+  limit: number;
+}
+
 /**
  * Settings → WhatsApp. The account's numbers ("channels", migration
  * 061): Meta Cloud API numbers and WhatsApp Web sessions on a self-run
@@ -62,6 +79,67 @@ export function WhatsAppChannels() {
   const [selection, setSelection] = useState<Selection>(null);
   const [addBridgeOpen, setAddBridgeOpen] = useState(false);
   const [renaming, setRenaming] = useState<ChannelSummary | null>(null);
+
+  // WhatsApp Web numbers are approved by the platform before they can
+  // be linked: a request sits here as "pending approval" and turns into
+  // a channel (with a QR code) once approved.
+  const [requests, setRequests] = useState<WebNumberRequest[]>([]);
+  const [usage, setUsage] = useState<WebNumberUsage | null>(null);
+  const pendingIdsRef = useRef<Set<string>>(new Set());
+
+  const loadRequests = useCallback(async () => {
+    try {
+      const res = await fetch('/api/whatsapp/web-number-requests', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { requests?: WebNumberRequest[]; usage?: WebNumberUsage };
+      const rows = data.requests ?? [];
+      // A request we were waiting on just got approved: show its QR.
+      const approved = rows.find(
+        (r) => r.status === 'approved' && r.channel_id && pendingIdsRef.current.has(r.id),
+      );
+      pendingIdsRef.current = new Set(rows.filter((r) => r.status === 'pending').map((r) => r.id));
+      setRequests(rows);
+      setUsage(data.usage ?? null);
+      if (approved?.channel_id) {
+        await refresh();
+        setSelection({ kind: 'channel', id: approved.channel_id });
+        toast.success(t('requestApproved', { name: approved.label || t('unnamedNumber') }));
+      }
+    } catch {
+      /* next poll retries */
+    }
+  }, [refresh, t]);
+
+  useEffect(() => {
+    void loadRequests();
+  }, [loadRequests]);
+
+  // Poll only while something is waiting for a decision.
+  const hasPending = requests.some((r) => r.status === 'pending');
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = setInterval(() => void loadRequests(), 10_000);
+    return () => clearInterval(timer);
+  }, [hasPending, loadRequests]);
+
+  const withdrawRequest = useCallback(
+    async (r: WebNumberRequest) => {
+      const res = await fetch(`/api/whatsapp/web-number-requests/${r.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || t('updateFailed'));
+      } else if (r.status === 'pending') {
+        toast.success(t('requestCancelled'));
+      }
+      await loadRequests();
+    },
+    [loadRequests, t],
+  );
+
+  const openRequests = useMemo(
+    () => requests.filter((r) => r.status === 'pending' || r.status === 'rejected'),
+    [requests],
+  );
 
   // What the page shows: the user's pick when it still exists, else
   // the default channel, else (fresh account) the blank Meta form.
@@ -116,9 +194,10 @@ export function WhatsAppChannels() {
         removingRef.current = null;
         // Whatever the answer, the list on screen may be stale.
         await refresh();
+        void loadRequests();
       }
     },
-    [refresh, t],
+    [refresh, loadRequests, t],
   );
 
   const onMetaChanged = useCallback(
@@ -154,6 +233,59 @@ export function WhatsAppChannels() {
           ) : undefined
         }
       />
+
+      {/* WhatsApp Web numbers waiting for (or refused) approval */}
+      {openRequests.length > 0 && (
+        <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {openRequests.map((r) => {
+            const pending = r.status === 'pending';
+            return (
+              <div
+                key={r.id}
+                className={cn(
+                  'flex items-start gap-3 rounded-xl border border-dashed bg-card p-3',
+                  pending ? 'border-amber-500/50' : 'border-red-500/40',
+                )}
+              >
+                <div
+                  className={cn(
+                    'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full',
+                    pending ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400',
+                  )}
+                >
+                  {pending ? <Clock className="size-4" /> : <XCircle className="size-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {r.label || t('unnamedNumber')}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      'mt-0.5 h-5 px-1.5 text-[10px] font-normal',
+                      pending ? 'border-amber-500/50 text-amber-300' : 'border-red-500/40 text-red-300',
+                    )}
+                  >
+                    {pending ? t('pendingApproval') : t('notApproved')}
+                  </Badge>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {pending ? t('pendingApprovalDesc') : r.note || t('notApprovedDesc')}
+                  </p>
+                  {canEditSettings && (
+                    <button
+                      type="button"
+                      onClick={() => void withdrawRequest(r)}
+                      className="mt-1.5 text-xs text-muted-foreground underline hover:text-foreground"
+                    >
+                      {pending ? t('cancelRequest') : t('dismissRequest')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Channel list */}
       {loading && !channels ? (
@@ -262,10 +394,8 @@ export function WhatsAppChannels() {
       <AddBridgeDialog
         open={addBridgeOpen}
         onOpenChange={setAddBridgeOpen}
-        onCreated={async (id) => {
-          await refresh();
-          setSelection({ kind: 'channel', id });
-        }}
+        usage={usage}
+        onRequested={loadRequests}
       />
 
       <RenameDialog
@@ -545,75 +675,56 @@ function BridgeChannelPanel({
 function AddBridgeDialog({
   open,
   onOpenChange,
-  onCreated,
+  usage,
+  onRequested,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (channelId: string) => Promise<void> | void;
+  usage: WebNumberUsage | null;
+  onRequested: () => Promise<void> | void;
 }) {
   const t = useTranslations('Settings.whatsapp.channels');
-  const { channels } = useChannels();
-  // A bridge already linked on this account: the server reuses its
-  // address and saved API key, so the form only asks for a name.
-  const existingBridge = useMemo(
-    () => (channels ?? []).find((c) => c.provider === 'waha' && c.bridge_configured) ?? null,
-    [channels],
-  );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [label, setLabel] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [sessionName, setSessionName] = useState('');
   const [saving, setSaving] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setLabel('');
-      setBaseUrl('');
-      setApiKey('');
-      setSessionName('');
       setFieldError(null);
       setConfirmOpen(false);
     }
   }, [open]);
 
-  const firstBridge = !existingBridge;
+  const used = usage ? usage.linked + usage.pending : 0;
+  const atLimit = !!usage && used >= usage.limit;
 
-  function requestLink() {
-    if (firstBridge && (!baseUrl.trim() || !apiKey.trim())) {
-      toast.error(t('bridgeFieldsRequired'));
-      return;
-    }
-    setConfirmOpen(true);
-  }
-
+  // The number is hosted for the account, so all it gives is a name;
+  // the request then waits for approval before a QR code is issued.
   async function submit() {
     setConfirmOpen(false);
     setSaving(true);
     setFieldError(null);
     try {
-      const res = await fetch('/api/whatsapp/channels', {
+      const res = await fetch('/api/whatsapp/web-number-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: 'waha',
-          label: label.trim() || null,
-          // Blank = reuse the bridge (and key) already linked on this account.
-          bridge_base_url: firstBridge ? baseUrl.trim() : '',
-          bridge_api_key: firstBridge ? apiKey.trim() : '',
-          session_name: sessionName.trim() || null,
-        }),
+        body: JSON.stringify({ label: label.trim() || null }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFieldError(data.error || t('createFailed'));
-        toast.error(data.error || t('createFailed'), { duration: 8000 });
+        const message =
+          data.code === 'web_number_limit' && data.usage
+            ? t('limitReached', { limit: data.usage.limit })
+            : data.error || t('requestFailed');
+        setFieldError(message);
+        toast.error(message, { duration: 8000 });
         return;
       }
-      toast.success(t('created'));
+      toast.success(t('requestSent'), { duration: 8000 });
       onOpenChange(false);
-      await onCreated(data.channel.id as string);
+      await onRequested();
     } finally {
       setSaving(false);
     }
@@ -624,7 +735,7 @@ function AddBridgeDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('addBridgeTitle')}</DialogTitle>
-          <DialogDescription>{firstBridge ? t('addBridgeDesc') : t('addBridgeDescReuse')}</DialogDescription>
+          <DialogDescription>{t('addBridgeDescApproval')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -633,55 +744,18 @@ function AddBridgeDialog({
               name="waha-channel-label"
               autoComplete="off"
               value={label}
+              maxLength={80}
               onChange={(e) => setLabel(e.target.value)}
               placeholder={t('labelPlaceholder')}
               className="bg-muted border-border"
             />
           </div>
-          {firstBridge && (
-          <>
-          <div className="space-y-2">
-            <Label>{t('bridgeUrl')}</Label>
-            <Input
-              type="url"
-              name="waha-bridge-url"
-              autoComplete="off"
-              inputMode="url"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://waha.example.com"
-              className="bg-muted border-border font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">{t('bridgeUrlHint')}</p>
-          </div>
-          <div className="space-y-2">
-            <Label>{t('bridgeApiKey')}</Label>
-            <Input
-              type="password"
-              name="waha-bridge-api-key"
-              autoComplete="new-password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="WAHA_API_KEY"
-              className="bg-muted border-border font-mono text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>
-              {t('sessionName')} <span className="text-muted-foreground">{t('optional')}</span>
-            </Label>
-            <Input
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              placeholder="wacrm-sales"
-              className="bg-muted border-border font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">{t('sessionNameHint')}</p>
-          </div>
-          </>
-          )}
-          {!firstBridge && (
-            <p className="text-xs text-muted-foreground">{t('bridgeReuseNote')}</p>
+          {usage && (
+            <p className={cn('text-xs', atLimit ? 'text-amber-300' : 'text-muted-foreground')}>
+              {atLimit
+                ? t('limitReached', { limit: usage.limit })
+                : t('webNumberLimit', { used, limit: usage.limit })}
+            </p>
           )}
           {fieldError && <p className="text-sm text-red-400">{fieldError}</p>}
         </div>
@@ -689,14 +763,14 @@ function AddBridgeDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t('cancel')}
           </Button>
-          <Button onClick={requestLink} disabled={saving}>
+          <Button onClick={() => setConfirmOpen(true)} disabled={saving || atLimit}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
-            {saving ? t('creating') : t('create')}
+            {saving ? t('requestSending') : t('requestSubmit')}
           </Button>
         </DialogFooter>
       </DialogContent>
 
-      {/* Read-and-accept before a QR code is issued. */}
+      {/* Read-and-accept before the request is sent. */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -709,7 +783,7 @@ function AddBridgeDialog({
             </Button>
             <Button onClick={() => void submit()} disabled={saving}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
-              {t('acceptAndLink')}
+              {t('acceptAndRequest')}
             </Button>
           </DialogFooter>
         </DialogContent>

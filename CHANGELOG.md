@@ -64,6 +64,20 @@ and polish.
 
 ### Added
 
+- **Platform admin page and approval for WhatsApp Web numbers.** An
+  account no longer types in a WAHA bridge address and API key: it gives
+  the number a name and sends a request, which shows as "Pending
+  approval" until the platform owner approves it; the number is then
+  created on the platform's bridge and its QR code appears. Each account
+  may hold 2 WhatsApp Web numbers (linked + pending) unless the owner
+  changes its limit. The hidden page `/admin8085` — a 404 for everyone
+  but the platform owner (`SUPER_ADMIN_EMAILS`, confirmed email) — lists
+  every account with its usage, lets the owner read an account's chats
+  and contacts, approve or reject requests, set the per-account limit and
+  set the platform bridge. Requires
+  `supabase/migrations/071_platform_admin.sql`. Direct
+  `POST /api/whatsapp/channels` is now platform-owner only.
+
 - **Data tables.** A new "Data tables" page: upload an Excel/CSV file or
   paste a Google Sheet link (shared as "Anyone with the link") and every
   sheet becomes a table attached to a WhatsApp number. Tables are edited

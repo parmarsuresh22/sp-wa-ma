@@ -20,6 +20,9 @@ const tablesWithoutDomainData = new Set([
   // account the function would still consider empty.
   "contact_wishes",
   "wish_schedules",
+  // Migration 071. A request to be given a WhatsApp Web number is not
+  // domain data: it holds a name and a status, nothing a merge could lose.
+  "web_number_requests",
 ]);
 
 function accountScopedTables(): Set<string> {
