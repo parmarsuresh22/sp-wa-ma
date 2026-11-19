@@ -43,6 +43,25 @@ and polish.
 > `data_table_rows`, and `data_table_id` on `ai_configs`, `flows` and
 > `automations`; `redeem_invitation` now counts them as account data).
 
+### Fixed
+
+- **"Draft with AI" failed when the business had spoken last** — which is
+  every thread once the auto-reply bot is on. The transcript ended on an
+  assistant turn and the model returned nothing. The draft now closes such
+  a transcript with a follow-up cue, opens Gemini transcripts with a
+  customer turn, gets 60 s instead of the platform default, and reads the
+  AI agent's data table like the auto-reply does.
+- **Several WhatsApp numbers, one contact.** A chat whose number was
+  removed is no longer preferred over the number's own chat for the same
+  contact, and replying from it is refused (with the chat to use) instead
+  of splitting the conversation across two threads; with no other chat it
+  is adopted by the default number as before. Its composer follows the
+  default number's rules (no 24-hour lock on a WhatsApp Web number). The
+  inbox reloads the number list when it meets a number linked elsewhere.
+  Automation send steps no longer fail with a lookup error when a contact
+  has a chat on more than one number, and assign / close steps act on the
+  chat the event happened in.
+
 ### Added
 
 - **Data tables.** A new "Data tables" page: upload an Excel/CSV file or

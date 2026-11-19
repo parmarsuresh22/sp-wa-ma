@@ -39,3 +39,22 @@ export async function buildConversationContext(
       content: m.content_text!.trim(),
     }))
 }
+
+/** Stand-in customer turn for a draft when the business spoke last. */
+export const DRAFT_FOLLOW_UP_CUE =
+  '(The customer has not written anything since the last message above. Write a short follow-up the business could send next.)'
+
+/**
+ * Shape a transcript for "Draft with AI". A draft is often requested
+ * right after the business (or the auto-reply bot) has answered, so the
+ * transcript ends on an assistant turn — and a chat model asked to
+ * continue after its own turn returns nothing (Gemini) or rejects the
+ * request. Close it with a customer-side cue so there is a turn to
+ * answer. A transcript that already ends with the customer is returned
+ * unchanged.
+ */
+export function withDraftCue(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length === 0) return messages
+  if (messages[messages.length - 1].role === 'user') return messages
+  return [...messages, { role: 'user', content: DRAFT_FOLLOW_UP_CUE }]
+}

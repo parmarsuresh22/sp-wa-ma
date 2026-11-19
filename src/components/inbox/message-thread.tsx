@@ -294,9 +294,27 @@ export function MessageThread({
   // The number this thread runs on. A WhatsApp Web (bridge) number has
   // no 24-hour customer-service window and no templates, so neither is
   // shown there.
-  const { byId: channelById } = useChannels();
-  const isBridgeChannel =
-    channelById(conversation?.channel_id ?? null)?.provider === "waha";
+  const { byId: channelById, channels, refresh: refreshChannels } = useChannels();
+  // A thread whose number was removed has no channel; a reply then
+  // leaves from the default number (first in the list), so the composer
+  // follows that number's rules rather than assuming the Business API.
+  const threadChannelId = conversation?.channel_id ?? null;
+  const threadChannel = threadChannelId
+    ? channelById(threadChannelId)
+    : (channels?.[0] ?? null);
+  const isBridgeChannel = threadChannel?.provider === "waha";
+
+  // A number linked after this tab loaded (another tab, a teammate) is
+  // missing from the cached list — reload it once per unknown id, or the
+  // thread is treated as a Business API number: 24-hour lock, templates.
+  const refreshedForChannel = useRef<string | null>(null);
+  useEffect(() => {
+    if (!threadChannelId || !channels) return;
+    if (channels.some((c) => c.id === threadChannelId)) return;
+    if (refreshedForChannel.current === threadChannelId) return;
+    refreshedForChannel.current = threadChannelId;
+    void refreshChannels();
+  }, [threadChannelId, channels, refreshChannels]);
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {

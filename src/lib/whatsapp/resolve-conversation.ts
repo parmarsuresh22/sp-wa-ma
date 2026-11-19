@@ -186,6 +186,9 @@ export async function findOrCreateConversationRow(
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
       .or(`channel_id.eq.${channelId},channel_id.is.null`)
+      // The number's own thread first; a thread left without a number
+      // (its number was removed) is only adopted when there is no own one.
+      .order('channel_id', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
       .limit(1);
     if (error) {

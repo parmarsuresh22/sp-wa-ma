@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { loadAiConfig } from '@/lib/ai/config'
-import { buildConversationContext } from '@/lib/ai/context'
+import { buildConversationContext, withDraftCue } from '@/lib/ai/context'
+import { tableExcerptsForAi } from '@/lib/data-tables/lookup'
 import { retrieveKnowledge } from '@/lib/ai/knowledge'
 import { generateReply } from '@/lib/ai/generate'
 import { buildSystemPrompt } from '@/lib/ai/defaults'
@@ -13,6 +14,10 @@ import { AiError } from '@/lib/ai/types'
 import { getT } from '@/lib/i18n/translate'
 
 const t = getT('Api')
+
+// A thinking model can take well over the platform's default budget;
+// without this the function is cut off and the button just "fails".
+export const maxDuration = 60
 
 /**
  * POST /api/ai/draft  (agent+)
@@ -50,7 +55,7 @@ export async function POST(request: Request) {
     // row means "not yours / not found" either way.
     const { data: conversation, error: convErr } = await supabase
       .from('conversations')
-      .select('id')
+      .select('id, contact_id')
       .eq('id', conversationId)
       .maybeSingle()
     if (convErr) {
@@ -101,13 +106,30 @@ export async function POST(request: Request) {
       latestUserMessage(messages),
     )
 
+    // The data table chosen for the AI agent (070) — the same rows the
+    // auto-reply would see for this contact, filtered in code.
+    const tableExcerpts = await tableExcerptsForAi(
+      supabase,
+      accountId,
+      config.dataTableId,
+      (conversation as { contact_id?: string | null }).contact_id ?? null,
+      latestUserMessage(messages),
+    )
+    if (tableExcerpts.length > 0) knowledge.unshift(...tableExcerpts)
+
     const systemPrompt = buildSystemPrompt({
       userPrompt: config.systemPrompt,
       mode: 'draft',
       knowledge,
     })
 
-    const { text, usage } = await generateReply({ config, systemPrompt, messages })
+    // The business usually spoke last (the bot already answered); give
+    // the model a turn to respond to.
+    const { text, usage } = await generateReply({
+      config,
+      systemPrompt,
+      messages: withDraftCue(messages),
+    })
 
     // Record spend on the account's BYO key. Best-effort + via the
     // service role (the log has no `authenticated` INSERT policy). This

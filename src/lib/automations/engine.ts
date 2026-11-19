@@ -896,11 +896,15 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         agentId = profiles?.[0]?.user_id
       }
       if (!agentId) return 'no agent resolved'
-      await db
+      // Only the thread the event happened in, when we know it — the
+      // contact may have another chat on a different WhatsApp number.
+      let assign = db
         .from('conversations')
         .update({ assigned_agent_id: agentId })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+      if (args.context.conversation_id) assign = assign.eq('id', args.context.conversation_id)
+      await assign
       return `assigned to ${agentId}`
     }
 
@@ -1011,11 +1015,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
     case 'close_conversation': {
       if (!args.contactId) throw new Error(tErr('needsContact', { step: 'close_conversation' }))
-      await db
+      let close = db
         .from('conversations')
         .update({ status: 'closed', updated_at: new Date().toISOString() })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+      if (args.context.conversation_id) close = close.eq('id', args.context.conversation_id)
+      await close
       return 'conversation closed'
     }
 
@@ -1053,13 +1059,22 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
     return data.id as string
   }
   if (!args.contactId) throw new Error(tErr('noContactForConversation'))
-  const { data, error } = await supabaseAdmin()
+  // A contact has one conversation per WhatsApp number, so this can
+  // match several rows (`.maybeSingle()` errored on that and failed the
+  // step). Prefer the number the automation is pinned to, else the
+  // thread that was active most recently.
+  const { data: rows, error } = await supabaseAdmin()
     .from('conversations')
-    .select('id')
+    .select('id, channel_id')
     .eq('account_id', args.automation.account_id)
     .eq('contact_id', args.contactId)
-    .maybeSingle()
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .limit(20)
   if (error) throw new Error(getT('LibErrors.send')('conversationLookupFailed', { message: error.message }))
+  const candidates = (rows ?? []) as { id: string; channel_id?: string | null }[]
+  const pinned = (args.automation as { channel_id?: string | null }).channel_id ?? null
+  const data =
+    (pinned ? candidates.find((c) => c.channel_id === pinned) : undefined) ?? candidates[0] ?? null
   if (!data?.id) {
     throw new Error(
       tErr(args.triggerEvent === 'tag_added' ? 'tagAddedNoConversation' : 'noConversation'),

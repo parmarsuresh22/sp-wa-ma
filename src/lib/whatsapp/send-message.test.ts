@@ -230,6 +230,10 @@ function sendPathDb(
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
+        // The "does this contact already have a chat on that number"
+        // check for a thread with no number of its own.
+        neq: () => builder,
+        limit: () => builder,
         insert: (row: Record<string, unknown>) => {
           if (table === 'messages') captured.message = row;
           return builder;

@@ -51,3 +51,31 @@ describe('buildConversationContext', () => {
     expect(out).toEqual([{ role: 'user', content: 'real' }])
   })
 })
+
+describe('withDraftCue', () => {
+  it('leaves a transcript that ends with the customer unchanged', async () => {
+    const { withDraftCue } = await import('./context')
+    const msgs = [
+      { role: 'assistant' as const, content: 'Hello' },
+      { role: 'user' as const, content: 'Price?' },
+    ]
+    expect(withDraftCue(msgs)).toBe(msgs)
+  })
+
+  it('closes a transcript the business ended with a customer-side cue', async () => {
+    const { withDraftCue, DRAFT_FOLLOW_UP_CUE } = await import('./context')
+    const msgs = [
+      { role: 'user' as const, content: 'Hi' },
+      { role: 'assistant' as const, content: 'How can I help?' },
+    ]
+    const out = withDraftCue(msgs)
+    expect(out).toHaveLength(3)
+    expect(out[2]).toEqual({ role: 'user', content: DRAFT_FOLLOW_UP_CUE })
+    expect(msgs).toHaveLength(2)
+  })
+
+  it('returns an empty transcript as is', async () => {
+    const { withDraftCue } = await import('./context')
+    expect(withDraftCue([])).toEqual([])
+  })
+})

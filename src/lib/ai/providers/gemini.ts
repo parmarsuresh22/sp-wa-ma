@@ -91,6 +91,20 @@ export async function geminiHttpError(res: Response): Promise<AiError> {
 }
 
 /**
+ * Gemini expects the dialogue to open with the customer. A thread the
+ * business started (a wish, a broadcast, a message typed on the phone)
+ * opens with an assistant turn, so lead with a neutral customer-side
+ * marker instead of dropping that context.
+ */
+export function normalizeForGemini(messages: ProviderArgs['messages']): ProviderArgs['messages'] {
+  const merged = mergeConsecutive(messages)
+  if (merged.length > 0 && merged[0].role === 'assistant') {
+    return [{ role: 'user', content: '(The business started this conversation.)' }, ...merged]
+  }
+  return merged
+}
+
+/**
  * Call Gemini (OpenAI-compatible chat completions) with the caller's own
  * key. Returns the raw assistant text + token usage; handoff parsing
  * happens in `generateReply`.
@@ -110,7 +124,7 @@ export async function generateGemini(args: ProviderArgs): Promise<ProviderResult
         model,
         messages: [
           { role: 'system', content: systemPrompt },
-          ...mergeConsecutive(messages),
+          ...normalizeForGemini(messages),
         ],
         max_tokens: GEMINI_MAX_TOKENS,
         reasoning_effort: 'low',

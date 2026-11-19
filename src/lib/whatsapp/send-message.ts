@@ -31,7 +31,7 @@ import {
   type InteractiveMessagePayload,
 } from '@/lib/whatsapp/interactive';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
-import { resolveSendChannel } from '@/lib/whatsapp/channels';
+import { channelDisplayName, resolveSendChannel } from '@/lib/whatsapp/channels';
 import {
   senderForChannel,
   UnsupportedOnChannelError,
@@ -282,6 +282,30 @@ export async function sendMessageToConversation(
         : 'WhatsApp not configured. Please set up your WhatsApp integration first.',
       requestedChannelId ? 404 : 400
     );
+  }
+
+  // The thread's own number was removed, so this send would leave from
+  // another one. If the contact already has a chat on that number, the
+  // customer's reply lands there, not here — refuse rather than split
+  // the conversation across two threads.
+  const ownChannelId =
+    (conversation as { channel_id?: string | null }).channel_id ?? null;
+  if (!ownChannelId) {
+    const { data: siblings } = await db
+      .from('conversations')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contact.id)
+      .eq('channel_id', channel.id)
+      .neq('id', conversationId)
+      .limit(1);
+    if (Array.isArray(siblings) && siblings.length > 0) {
+      throw new SendMessageError(
+        'conversation_number_removed',
+        `The WhatsApp number this chat ran on was removed. Continue in this contact's chat on ${channelDisplayName(channel)}.`,
+        409
+      );
+    }
   }
 
   // Self-heal legacy CBC ciphertexts. Fire-and-forget; idempotent.
