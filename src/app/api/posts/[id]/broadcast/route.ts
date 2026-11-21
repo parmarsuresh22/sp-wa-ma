@@ -20,7 +20,7 @@ type Params = { params: Promise<{ id: string }> }
 export async function POST(_request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const { accountId, userId } = await requireRole('agent')
+    const { accountId, userId } = await requireRole('agent', 'posts')
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }

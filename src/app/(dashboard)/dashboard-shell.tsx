@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { canSeeSection, firstAllowedPath, sectionForPath } from "@/lib/auth/sections";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
@@ -15,8 +16,20 @@ import { BrowserNotificationsListener } from "@/components/notifications/browser
 // client components can't export Next's metadata object.
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, profileLoading, accountRole, allowedSections } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // A member limited to some sections (migration 076) cannot open the
+  // others by typing the address: they are sent to their first allowed
+  // page. The database enforces the same list, so this is about not
+  // showing an empty screen, not about security.
+  const section = sectionForPath(pathname ?? "");
+  const blocked =
+    !!user && !profileLoading && !!accountRole && !!section && !canSeeSection(accountRole, allowedSections, section);
+  useEffect(() => {
+    if (blocked) router.replace(firstAllowedPath(accountRole, allowedSections));
+  }, [blocked, router, accountRole, allowedSections]);
   const t = useTranslations("DashboardShell");
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
@@ -42,6 +55,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return null;
+  // Do not flash a page the member may not see while the redirect runs.
+  const hideContent = blocked || (!!section && profileLoading);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -59,7 +74,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           {/* Above every page: writes are being rejected and here's why.
               Renders nothing unless the account/role failed to resolve. */}
           <AccountAccessAlert />
-          {children}
+          {hideContent ? null : children}
         </main>
       </div>
     </div>

@@ -17,6 +17,7 @@
 // revoke and re-issue.
 // ============================================================
 
+import { cleanSections, roleCanBeRestricted } from "@/lib/auth/sections";
 import { NextResponse } from "next/server";
 
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
@@ -182,7 +183,7 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as
-      | { role?: unknown; expiresInDays?: unknown; label?: unknown }
+      | { role?: unknown; expiresInDays?: unknown; label?: unknown; allowed_sections?: unknown }
       | null;
 
     const role = body?.role;
@@ -228,6 +229,9 @@ export async function POST(request: Request) {
         created_by_user_id: ctx.userId,
         label,
         expires_at: expiresAt.toISOString(),
+        // Which parts of the portal the new member may open. Only an
+        // agent or viewer can be limited; null = everything.
+        allowed_sections: roleCanBeRestricted(role) ? cleanSections(body?.allowed_sections) : null,
       })
       .select("id, role, label, expires_at, created_at")
       .single();

@@ -21,6 +21,8 @@
 //   the role anyway.
 // ============================================================
 
+import { SectionChecklist } from './section-checklist';
+import { cleanSections, type SectionKey } from '@/lib/auth/sections';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -83,6 +85,7 @@ interface Member {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  allowed_sections?: string[] | null;
 }
 
 interface Invitation {
@@ -127,6 +130,7 @@ function fmtExpiresIn(iso: string, t: (key: string, values?: Record<string, stri
 export function MembersTab() {
   const t = useTranslations('Settings.members');
   const tRoles = useTranslations('Settings.roles');
+  const tSections = useTranslations('Settings.memberSections');
   const { user, canManageMembers } = useAuth();
   const { getPresence, getRow, now } = usePresence();
 
@@ -179,6 +183,28 @@ export function MembersTab() {
   useEffect(() => {
     void loadEverything();
   }, [loadEverything]);
+
+  // Which member's "sections" panel is open.
+  const [sectionsFor, setSectionsFor] = useState<string | null>(null);
+
+  async function handleSectionsChange(member: Member, next: SectionKey[] | null) {
+    const before = member.allowed_sections ?? null;
+    setMembers((prev) => prev.map((m) => (m.user_id === member.user_id ? { ...m, allowed_sections: next } : m)));
+    try {
+      const res = await fetch(`/api/account/members/${member.user_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowed_sections: next }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || 'Could not save');
+      }
+    } catch (err) {
+      setMembers((prev) => prev.map((m) => (m.user_id === member.user_id ? { ...m, allowed_sections: before } : m)));
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   async function handleRoleChange(member: Member, nextRole: AccountRole) {
     if (member.role === nextRole) return;
@@ -347,7 +373,7 @@ export function MembersTab() {
                   // 128px width doesn't force the name into a 50-pixel
                   // truncation. Desktop (sm+): everything inline as
                   // before.
-                  className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
+                  className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-4">
                     <Tooltip>
@@ -454,6 +480,18 @@ export function MembersTab() {
                         user moused over. Now red is the default
                         state with a darker shade on hover so the
                         affordance reads at-a-glance. */}
+                    {canManageMembers && !isOwnerRow && !isSelf && (member.role === 'agent' || member.role === 'viewer') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSectionsFor(sectionsFor === member.user_id ? null : member.user_id)}
+                        disabled={isBusy}
+                      >
+                        {member.allowed_sections
+                          ? tSections('some', { count: member.allowed_sections.length })
+                          : tSections('allShort')}
+                      </Button>
+                    )}
                     {canManageMembers && !isOwnerRow && !isSelf && (
                       <Button
                         variant="outline"
@@ -466,6 +504,15 @@ export function MembersTab() {
                       </Button>
                     )}
                   </div>
+                  {sectionsFor === member.user_id && (member.role === 'agent' || member.role === 'viewer') && (
+                    <div className="w-full basis-full rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="mb-2 text-xs text-muted-foreground">{tSections('title')}</p>
+                      <SectionChecklist
+                        value={cleanSections(member.allowed_sections ?? null)}
+                        onChange={(next) => void handleSectionsChange(member, next)}
+                      />
+                    </div>
+                  )}
                 </li>
               );
             })}

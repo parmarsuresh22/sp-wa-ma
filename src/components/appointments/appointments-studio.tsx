@@ -183,7 +183,7 @@ const STATUS_STYLE: Record<Status, string> = {
 
 export function AppointmentsStudio() {
   const t = useTranslations('Appointments');
-  const { canEditSettings } = useAuth();
+  const { canEditSettings, canSendMessages } = useAuth();
   const { channels } = useChannels();
   const supabase = useMemo(() => createClient(), []);
 
@@ -298,7 +298,7 @@ export function AppointmentsStudio() {
             {(
               [
                 ['list', t('tabList'), CalendarCheck],
-                ['new', t('tabNew'), CalendarPlus],
+                ...(canSendMessages ? ([['new', t('tabNew'), CalendarPlus]] as [Tab, string, typeof CalendarCheck][]) : []),
                 ['settings', t('tabSettings'), Settings2],
               ] as [Tab, string, typeof CalendarCheck][]
             ).map(([id, label, Icon]) => (
@@ -859,6 +859,9 @@ function AppointmentCard({
   const cameraRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [openingChat, setOpeningChat] = useState(false);
+  // Viewers read; only agents and above act on an appointment.
+  const { canSendMessages } = useAuth();
+  const readOnly = !canSendMessages;
 
   // Straight to this customer's chat on this number, to write to them.
   const openChat = async () => {
@@ -1009,7 +1012,7 @@ function AppointmentCard({
           ))}
         </div>
       )}
-      {a.status === 'pending' && mode === null && (
+      {a.status === 'pending' && mode === null && !readOnly && (
         <div className="mt-2 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2.5">
           <p className="text-xs text-violet-200">{t('pendingNote')}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1045,7 +1048,7 @@ function AppointmentCard({
         </p>
       )}
 
-      {mode === null && (
+      {mode === null && !readOnly && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {a.status === 'booked' && (
             <>

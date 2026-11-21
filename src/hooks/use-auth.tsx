@@ -1,5 +1,6 @@
 "use client";
 
+import { cleanSections, type SectionKey } from "@/lib/auth/sections";
 import {
   createContext,
   useContext,
@@ -22,6 +23,8 @@ import {
 } from "@/lib/auth/roles";
 
 interface Profile {
+  /** Sections this member may open; null = all (migration 076). */
+  allowed_sections?: string[] | null;
   id: string;
   full_name: string | null;
   email: string;
@@ -130,6 +133,8 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /** Sections this member may open; null = every section. */
+  allowedSections: SectionKey[] | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -192,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await supabase
           .from("profiles")
           .select(
-            "id, full_name, email, avatar_url, role, beta_features, account_id, account_role",
+            "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, allowed_sections",
           )
           .eq("user_id", userId)
           .maybeSingle();
@@ -410,8 +415,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canManageMembers: role ? canManageMembersFor(role) : false,
       canEditSettings: role ? canEditSettingsFor(role) : false,
       canSendMessages: role ? canSendMessagesFor(role) : false,
+      // Sections this member may open (migration 076); null = all.
+      allowedSections:
+        role === "owner" || role === "admin" ? null : cleanSections(profile?.allowed_sections ?? null),
     };
-  }, [profile?.account_role, profile?.account_id]);
+  }, [profile?.account_role, profile?.account_id, profile?.allowed_sections]);
 
   // Signed out is not a broken account — the shell redirects to /login
   // before anything reads this.
@@ -481,6 +489,7 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      allowedSections: null,
     };
   }
   return ctx;

@@ -14,6 +14,8 @@
 // and maps Postgres SQLSTATEs back to HTTP statuses.
 // ============================================================
 
+import { supabaseAdmin } from "@/lib/flows/admin-client";
+import { cleanSections } from "@/lib/auth/sections";
 import { NextResponse } from "next/server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
@@ -61,8 +63,36 @@ export async function PATCH(
     const { userId } = await params;
 
     const body = (await request.json().catch(() => null)) as
-      | { role?: unknown }
+      | { role?: unknown; allowed_sections?: unknown }
       | null;
+
+    // Which sections this member may open (migration 076). Sent on its
+    // own (no `role`) by the Members tab's tick boxes.
+    if (body && "allowed_sections" in body && !("role" in body)) {
+      const sections = body.allowed_sections === null ? null : cleanSections(body.allowed_sections);
+      if (body.allowed_sections !== null && sections === null) {
+        return NextResponse.json({ error: "allowed_sections must be a list or null" }, { status: 400 });
+      }
+      // Service role: members cannot edit this column themselves. The
+      // account filter keeps an admin inside their own account, and
+      // owners / admins are never restricted.
+      const { data: updated, error: secErr } = await supabaseAdmin()
+        .from("profiles")
+        .update({ allowed_sections: sections })
+        .eq("user_id", userId)
+        .eq("account_id", ctx.accountId)
+        .in("account_role", ["agent", "viewer"])
+        .select("user_id");
+      if (secErr) {
+        console.error("[PATCH member sections]", secErr);
+        return NextResponse.json({ error: "Could not save the sections" }, { status: 500 });
+      }
+      if (!updated || updated.length === 0) {
+        return NextResponse.json({ error: "Only an agent or viewer of this account can be limited" }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true, allowed_sections: sections });
+    }
+
     const role = body?.role;
 
     if (!isAccountRole(role)) {

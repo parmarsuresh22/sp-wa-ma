@@ -45,6 +45,8 @@ export interface Profile {
    * `@/lib/auth/roles` rather than comparing this string directly.
    */
   account_role?: AccountRole;
+  /** Sections this member may open; null = all (migration 076). */
+  allowed_sections?: string[] | null;
   created_at: string;
 }
 
@@ -75,6 +77,8 @@ export interface AccountMember {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  /** Sections this member may open; null = all (migration 076). */
+  allowed_sections?: string[] | null;
 }
 
 /**

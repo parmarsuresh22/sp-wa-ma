@@ -33,7 +33,7 @@ export const maxDuration = 60
  */
 export async function POST(request: Request) {
   try {
-    const { accountId, userId } = await requireRole('agent')
+    const { accountId, userId } = await requireRole('agent', 'appointments')
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     const channelId = typeof body?.channel_id === 'string' ? body.channel_id : ''
     const contactId = typeof body?.contact_id === 'string' ? body.contact_id : ''

@@ -1694,6 +1694,28 @@
     }
   },
   "Settings": {
+    "memberSections": {
+      "title": "What this member can see",
+      "all": "All sections",
+      "allHint": "The member can open every part of the portal their role allows.",
+      "allShort": "Sees everything",
+      "some": "{count, plural, =0 {Sees nothing} one {Sees # section} other {Sees # sections}}",
+      "listHint": "Only the ticked sections appear in their menu and on their dashboard. The rest cannot be opened or read, even by typing the address. Settings stays visible but only owners and admins can change anything there.",
+      "noneHint": "Nothing is ticked: this member can sign in but will see no data.",
+      "name": {
+        "dashboard": "Dashboard",
+        "inbox": "Inbox",
+        "contacts": "Contacts",
+        "pipelines": "Pipelines",
+        "broadcasts": "Broadcasts",
+        "posts": "Posts",
+        "appointments": "Appointments",
+        "automations": "Automations",
+        "flows": "Flows",
+        "agents": "AI Agents",
+        "data": "Data tables"
+      }
+    },
     "pageTitle": "설정",
     "pageDesc": "계정과 워크스페이스에 관한 모든 것을 한곳에서 관리하세요. 관리할 섹션을 선택하세요.",
     "sectionsNav": "설정 섹션",

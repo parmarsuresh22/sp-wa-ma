@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
+import { canSeeSection, type SectionKey } from '@/lib/auth/sections'
 import { readCache, writeCache } from '@/lib/client-cache'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useActiveChannel } from '@/hooks/use-active-channel'
@@ -51,7 +52,10 @@ function DashboardPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const range = parseOverviewRange(searchParams.get('range'))
-  const { defaultCurrency, profile, user } = useAuth()
+  const { defaultCurrency, profile, user, accountRole, allowedSections } = useAuth()
+  // A member limited to some sections sees only those sections' cards.
+  const sees = (section: SectionKey) => canSeeSection(accountRole, allowedSections, section)
+  const seesInbox = sees('inbox')
 
   // Coming back to the dashboard shows the last numbers at once; the
   // fetches below then replace them.
@@ -175,33 +179,39 @@ function DashboardPageInner() {
         channelId={channelId}
       />
 
-      {data && needsSetup(data.setup) ? (
+      {data && seesInbox && needsSetup(data.setup) ? (
         <SetupChecklist setup={data.setup} />
       ) : (
         <>
           {/* First thing on the page when appointments are in use;
               renders nothing otherwise. */}
-          <AppointmentsCalendarCard channelId={channelId} />
-          <AttentionRow data={data} now={now} onlineCount={onlineCount} />
-          <KpiRow data={data} currency={defaultCurrency} />
+          {sees('appointments') && <AppointmentsCalendarCard channelId={channelId} />}
+          {seesInbox && <AttentionRow data={data} now={now} onlineCount={onlineCount} />}
+          {seesInbox && <KpiRow data={data} currency={defaultCurrency} />}
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-            <MessageVolumeCard data={data} />
-            <ReplyQueueCard data={data} now={now} />
-          </div>
+          {seesInbox && (
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+              <MessageVolumeCard data={data} />
+              <ReplyQueueCard data={data} now={now} />
+            </div>
+          )}
 
           {/* Renders nothing unless booking in chat is on for a number. */}
-          <AppointmentsTrendCard channelId={channelId} />
+          {sees('appointments') && <AppointmentsTrendCard channelId={channelId} />}
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-            <PipelineCard data={data} currency={defaultCurrency} />
-            <TeamCard data={data} now={now} />
-            <div className="lg:col-span-2 2xl:col-span-1">
-              <CampaignsCard data={data} />
+          {(sees('pipelines') || seesInbox || sees('broadcasts')) && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {sees('pipelines') && <PipelineCard data={data} currency={defaultCurrency} />}
+              {seesInbox && <TeamCard data={data} now={now} />}
+              {sees('broadcasts') && (
+                <div className="lg:col-span-2 2xl:col-span-1">
+                  <CampaignsCard data={data} />
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
-          <ActivityFeed items={activity} loading={activityLoading} />
+          {seesInbox && <ActivityFeed items={activity} loading={activityLoading} />}
         </>
       )}
     </div>

@@ -19,7 +19,7 @@ const UUID = /^[0-9a-f-]{36}$/i
  */
 export async function GET(request: Request) {
   try {
-    const { accountId } = await requireRole('agent')
+    const { accountId } = await requireRole('agent', 'appointments')
     const channelId = new URL(request.url).searchParams.get('channel_id') ?? ''
     if (!UUID.test(channelId)) return NextResponse.json({ error: 'Choose a WhatsApp number' }, { status: 400 })
 

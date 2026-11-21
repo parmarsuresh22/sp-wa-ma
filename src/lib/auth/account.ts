@@ -30,6 +30,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { hasMinRole, isAccountRole, type AccountRole } from "./roles";
+import { canSeeSection, cleanSections, type SectionKey } from "./sections";
 import { getT } from "@/lib/i18n/translate";
 
 const t = getT("LibErrors.auth");
@@ -92,6 +93,11 @@ export interface AccountContext {
   role: AccountRole;
   /** Lightweight account meta — id + name. */
   account: { id: string; name: string };
+  /**
+   * Sections this member may open (migration 076); null = all. Always
+   * null for owners and admins. Checked by `requireRole(min, section)`.
+   */
+  allowedSections: SectionKey[] | null;
 }
 
 /**
@@ -119,7 +125,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("account_id, account_role")
+    .select("account_id, account_role, allowed_sections")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -172,6 +178,10 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     accountId: data.account_id,
     role: data.account_role,
     account: { id: account.id, name: account.name },
+    allowedSections:
+      data.account_role === "owner" || data.account_role === "admin"
+        ? null
+        : cleanSections((data as { allowed_sections?: unknown }).allowed_sections),
   };
 }
 
@@ -182,12 +192,19 @@ export async function getCurrentAccount(): Promise<AccountContext> {
  * `getCurrentAccount`, plus `ForbiddenError("Insufficient role")`
  * when the caller is below `min`.
  */
-export async function requireRole(min: AccountRole): Promise<AccountContext> {
+export async function requireRole(
+  min: AccountRole,
+  /** Also require that this member may open that section of the portal. */
+  section?: SectionKey,
+): Promise<AccountContext> {
   const ctx = await getCurrentAccount();
   if (!hasMinRole(ctx.role, min)) {
     throw new ForbiddenError(
       t("requiresRole", { min: t(`roleNames.${min}`) }),
     );
+  }
+  if (section && !canSeeSection(ctx.role, ctx.allowedSections, section)) {
+    throw new ForbiddenError("You do not have access to this part of the portal");
   }
   return ctx;
 }

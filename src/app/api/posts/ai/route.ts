@@ -36,7 +36,7 @@ const CAPTION_SYSTEM_PROMPT = [
  */
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId, userId } = await requireRole('agent')
+    const { supabase, accountId, userId } = await requireRole('agent', 'posts')
 
     const limit = checkRateLimit(`ai-draft:${userId}`, RATE_LIMITS.aiDraft)
     if (!limit.success) return rateLimitResponse(limit)

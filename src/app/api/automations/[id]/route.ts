@@ -74,7 +74,7 @@ export async function PATCH(
   // which bypasses RLS, so enforce the role here.
   let accountId: string
   try {
-    const ctx = await requireRole('agent')
+    const ctx = await requireRole('admin')
     accountId = ctx.accountId
   } catch (err) {
     return toErrorResponse(err)
@@ -178,7 +178,7 @@ export async function DELETE(
   // client below bypasses the agent-gated automations_delete RLS).
   let accountId: string
   try {
-    const ctx = await requireRole('agent')
+    const ctx = await requireRole('admin')
     accountId = ctx.accountId
   } catch (err) {
     return toErrorResponse(err)

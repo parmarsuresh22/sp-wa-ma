@@ -14,6 +14,8 @@
 // shouts this in copy.
 // ============================================================
 
+import { SectionChecklist } from './section-checklist';
+import type { SectionKey } from '@/lib/auth/sections';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, Loader2, MessageCircle, Sparkles } from 'lucide-react';
@@ -76,8 +78,11 @@ export function InviteMemberDialog({
 }: InviteMemberDialogProps) {
   const t = useTranslations('Settings.invite');
   const tRoles = useTranslations('Settings.roles');
+  const tSections = useTranslations('Settings.memberSections');
   const { account } = useAuth();
   const [role, setRole] = useState<InviteRole>('agent');
+  // Sections the new member may open; null = all. Agents and viewers only.
+  const [sections, setSections] = useState<SectionKey[] | null>(null);
   const [expiry, setExpiry] = useState<string>('7');
   const [label, setLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -85,6 +90,7 @@ export function InviteMemberDialog({
 
   function reset() {
     setRole('agent');
+    setSections(null);
     setExpiry('7');
     setLabel('');
     setResult(null);
@@ -110,6 +116,7 @@ export function InviteMemberDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role,
+          allowed_sections: role === 'admin' ? null : sections,
           expiresInDays: Number(expiry),
           label: trimmedLabel || undefined,
         }),
@@ -286,6 +293,13 @@ export function InviteMemberDialog({
                   {tRoles(`${role}Hint` as 'adminHint' | 'agentHint' | 'viewerHint')}
                 </p>
               </div>
+
+              {role !== 'admin' && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">{tSections('title')}</Label>
+                  <SectionChecklist value={sections} onChange={setSections} />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label className="text-muted-foreground">{t('validForLabel')}</Label>

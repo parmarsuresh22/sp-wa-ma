@@ -45,7 +45,7 @@ export const maxDuration = 60
  */
 export async function POST(request: Request) {
   try {
-    const { accountId, userId } = await requireRole('agent')
+    const { accountId, userId } = await requireRole('agent', 'posts')
 
     const limit = checkRateLimit(`posts:${userId}`, RATE_LIMITS.aiDraft)
     if (!limit.success) return rateLimitResponse(limit)

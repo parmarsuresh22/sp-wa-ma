@@ -162,6 +162,27 @@ and polish.
 
 ### Added
 
+- **Booking confirmation, pre-booking questions, WhatsApp groups and
+  per-member access.** Requires
+  `supabase/migrations/076_confirmation_groups_sections.sql`.
+  - *Appointments.* "Bookings need my confirmation": a booking made in
+    chat is held as a request until the business presses Confirm,
+    Confirm at another time, or Decline; the customer is told each time
+    in the chosen language. The assistant can be told to ask for the
+    customer's requirements, their address and any custom questions
+    before booking; the answers show on the appointment card.
+  - *WhatsApp groups (Web numbers).* A group's messages now land in one
+    chat for that group, each prefixed with the member's name, instead
+    of being filed under each member's private chat. Nothing automatic
+    (flows, automations, appointment assistant, AI agent) ever answers
+    a group.
+  - *Team members.* An agent or viewer can be limited to chosen sections
+    (when inviting, and later on the Members tab). The menu, the pages,
+    the dashboard cards, the API and the database all follow the list:
+    a member without Inbox cannot read a conversation or message.
+    Creating or changing automations, flows and quick replies is now
+    for owners and admins only.
+
 - **Appointments: more control.** A reply language for the assistant
   (Auto, English, Hindi, Hinglish, Gujarati, Tamil, Telugu and more).
   Closed dates can be added for any year, one at a time or as a From /

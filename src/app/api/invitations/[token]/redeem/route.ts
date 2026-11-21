@@ -17,6 +17,7 @@
 // guard makes brute-force retries pointless past a few attempts.
 // ============================================================
 
+import { supabaseAdmin } from "@/lib/flows/admin-client";
 import { NextResponse } from "next/server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
@@ -82,6 +83,36 @@ export async function POST(
   });
 
   if (error) return rpcErrorToResponse(error);
+
+  // Carry the invite's section list onto the new member (migration
+  // 076). Done with the service role: a member cannot change their own
+  // list. If this fails the member simply starts unrestricted-by-list
+  // is NOT acceptable, so on failure they are given no sections at all
+  // until an admin sets them.
+  try {
+    const admin = supabaseAdmin();
+    const { data: invite } = await admin
+      .from("account_invitations")
+      .select("allowed_sections, role")
+      .eq("token_hash", hashInviteToken(token))
+      .maybeSingle();
+    const sections = (invite as { allowed_sections?: string[] | null } | null)?.allowed_sections ?? null;
+    if (sections !== null) {
+      const { error: setErr } = await admin
+        .from("profiles")
+        .update({ allowed_sections: sections })
+        .eq("user_id", user.id)
+        .eq("account_id", accountId as string);
+      if (setErr) throw setErr;
+    }
+  } catch (err) {
+    console.error("[redeem] could not apply the invite's sections; locking the member down:", err);
+    await supabaseAdmin()
+      .from("profiles")
+      .update({ allowed_sections: [] })
+      .eq("user_id", user.id)
+      .eq("account_id", accountId as string);
+  }
 
   return NextResponse.json({ ok: true, accountId });
 }

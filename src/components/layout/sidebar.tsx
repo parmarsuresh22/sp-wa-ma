@@ -1,5 +1,6 @@
 "use client";
 
+import { canSeeSection, sectionForPath } from "@/lib/auth/sections";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -123,7 +124,12 @@ import { BrandMark } from "@/components/brand/brand-mark";
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { profile, profileLoading, account, accountRole, allowedSections, signOut } = useAuth();
+  // Only the sections this member may open (migration 076).
+  const visibleNav = navItems.filter((item) => {
+    const section = sectionForPath(item.href);
+    return !section || canSeeSection(accountRole, allowedSections, section);
+  });
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -216,7 +222,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {visibleNav.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));

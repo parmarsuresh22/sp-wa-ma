@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 import { canManageMembers, isAccountRole } from "@/lib/auth/roles";
+import { cleanSections } from "@/lib/auth/sections";
 import type { AccountMember } from "@/types";
 import { getT } from "@/lib/i18n/translate";
 
@@ -28,6 +29,7 @@ interface ProfileRow {
   avatar_url: string | null;
   account_role: string;
   created_at: string;
+  allowed_sections: string[] | null;
 }
 
 export async function GET() {
@@ -38,7 +40,7 @@ export async function GET() {
     // the caller's, so this query is naturally account-scoped.
     const { data, error } = await ctx.supabase
       .from("profiles")
-      .select("user_id, full_name, email, avatar_url, account_role, created_at")
+      .select("user_id, full_name, email, avatar_url, account_role, created_at, allowed_sections")
       .eq("account_id", ctx.accountId)
       .order("created_at", { ascending: true });
 
@@ -65,6 +67,9 @@ export async function GET() {
           avatar_url: row.avatar_url,
           role: row.account_role,
           joined_at: row.created_at,
+          // Only meaningful (and only shown) for agents and viewers.
+          allowed_sections:
+            row.account_role === "owner" || row.account_role === "admin" ? null : cleanSections(row.allowed_sections),
         },
       ];
     });

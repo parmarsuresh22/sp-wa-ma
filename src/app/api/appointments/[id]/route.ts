@@ -41,7 +41,7 @@ const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().sli
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    const { accountId, userId } = await requireRole('agent')
+    const { accountId, userId } = await requireRole('agent', 'appointments')
     const { id } = await params
     if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null

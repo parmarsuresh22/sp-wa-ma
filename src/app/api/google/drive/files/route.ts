@@ -20,7 +20,7 @@ function driveErrorResponse(err: unknown) {
  */
 export async function GET(request: Request) {
   try {
-    const { accountId } = await requireRole('agent')
+    const { accountId } = await requireRole('agent', 'posts')
     const db = supabaseAdmin()
     const conn = await openDrive(db, accountId)
     const page = new URL(request.url).searchParams.get('page')
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const { accountId } = await requireRole('agent')
+    const { accountId } = await requireRole('agent', 'posts')
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     const fileId = typeof body?.file_id === 'string' ? body.file_id : ''
     if (!fileId) return NextResponse.json({ error: 'file_id is required' }, { status: 400 })
