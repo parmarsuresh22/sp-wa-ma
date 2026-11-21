@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { getSuperAdmin } from '@/lib/admin/super-admin'
+import { loadAdminHome } from '@/lib/admin/overview'
 import { AdminConsole } from '@/components/admin/admin-console'
 
 export const metadata: Metadata = {
@@ -25,5 +26,9 @@ export const dynamic = 'force-dynamic'
 export default async function PlatformAdminPage() {
   const admin = await getSuperAdmin()
   if (!admin) notFound()
-  return <AdminConsole email={admin.email} />
+  // The list and the requests travel with the page itself, so it opens
+  // already filled in; the usage counts follow from the browser. If this
+  // read fails the page still opens and loads everything from there.
+  const initial = await loadAdminHome(admin.db).catch(() => null)
+  return <AdminConsole email={admin.email} initial={initial} />
 }

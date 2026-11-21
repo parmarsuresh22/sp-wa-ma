@@ -45,6 +45,14 @@ and polish.
 
 ### Changed
 
+- **Platform admin page: faster, and usable on a phone.** The page now
+  arrives with the account list and the number requests already in it;
+  the usage counts load afterwards and fill in. Account details, chat
+  lists and messages are fetched only when opened and are shown at once
+  on a second visit. On a phone, accounts and contacts are cards instead
+  of wide tables, and an opened chat takes the whole screen, starts at
+  the newest message and has larger text.
+
 - **Posts: one sending number per post.** The Posts page now starts by
   asking which WhatsApp number the post goes out from. The "chat with
   us" link, the Status tick, the contact list and the list of earlier

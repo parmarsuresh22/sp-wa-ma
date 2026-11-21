@@ -3,7 +3,7 @@
 /* The platform admin page (/admin8085). One person uses it, so its
  * text is plain English rather than routed through the locale files. */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { readCache, writeCache } from '@/lib/client-cache';
+import type { AdminHome } from '@/lib/admin/overview';
 
 // ------------------------------------------------------------
 // Shapes returned by /api/admin8085/*
@@ -31,24 +33,31 @@ interface AccountStats {
   name: string;
   created_at: string;
   owner_email: string | null;
-  last_sign_in_at: string | null;
-  members: number;
-  meta_numbers: number;
-  web_numbers: number;
-  web_connected: number;
-  web_pending: number;
   web_number_limit: number;
-  contacts: number;
-  conversations: number;
-  messages_total: number;
-  messages_7d: number;
-  messages_30d: number;
-  last_message_at: string | null;
-  flows: number;
-  automations: number;
-  broadcasts: number;
-  data_tables: number;
-  ai_enabled: boolean;
+  // The usage counts arrive a moment after the list itself (they read
+  // far more data), so every one of them may still be missing.
+  last_sign_in_at?: string | null;
+  members?: number;
+  meta_numbers?: number;
+  web_numbers?: number;
+  web_connected?: number;
+  web_pending?: number;
+  contacts?: number;
+  conversations?: number;
+  messages_total?: number;
+  messages_7d?: number;
+  messages_30d?: number;
+  last_message_at?: string | null;
+  flows?: number;
+  automations?: number;
+  broadcasts?: number;
+  data_tables?: number;
+  ai_enabled?: boolean;
+}
+
+/** A count that may not have arrived yet. */
+function num(v: number | undefined): string {
+  return v === undefined ? '…' : String(v);
 }
 
 interface NumberRequest {
@@ -91,8 +100,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap';
 const td = 'px-3 py-2 text-sm text-foreground align-top';
 
-export function AdminConsole({ email }: { email: string }) {
-  const [overview, setOverview] = useState<Overview | null>(null);
+export function AdminConsole({ email, initial }: { email: string; initial: AdminHome | null }) {
+  // The page arrives with the list and the requests already in it; the
+  // usage counts are fetched below and replace this once they are in.
+  const [overview, setOverview] = useState<Overview | null>(
+    initial ? { accounts: initial.accounts, requests: initial.requests, bridge: initial.bridge } : null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openAccount, setOpenAccount] = useState<string | null>(null);
@@ -124,25 +137,25 @@ export function AdminConsole({ email }: { email: string }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <ShieldCheck className="size-5 text-primary" />
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+          <ShieldCheck className="size-5 shrink-0 text-primary" />
           <div className="min-w-0">
             <h1 className="text-base font-semibold leading-tight">Atlas · Platform admin</h1>
             <p className="truncate text-xs text-muted-foreground">Signed in as {email}</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} aria-label="Refresh">
               {loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <a href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
+            <a href="/dashboard" className="whitespace-nowrap text-sm text-muted-foreground hover:text-foreground">
               Back to app
             </a>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-8 px-4 py-6">
+      <main className="mx-auto max-w-7xl space-y-6 px-3 py-4 sm:space-y-8 sm:px-4 sm:py-6">
         {error && (
           <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
             {error}
@@ -169,7 +182,7 @@ export function AdminConsole({ email }: { email: string }) {
               onOpenAccount={setOpenAccount}
             />
             <BridgeSection bridge={overview.bridge} onChanged={load} />
-            <GoogleSection />
+            <GoogleSection initial={initial?.google ?? null} />
             <AccountsSection accounts={overview.accounts} onOpen={setOpenAccount} />
           </>
         ) : null}
@@ -419,8 +432,10 @@ function BridgeSection({
 // Google Drive (the OAuth client every account connects through)
 // ------------------------------------------------------------
 
-function GoogleSection() {
-  const [info, setInfo] = useState<{ configured: boolean; client_id: string | null; redirect_uri: string } | null>(null);
+function GoogleSection({ initial }: { initial: { configured: boolean; client_id: string | null } | null }) {
+  const [info, setInfo] = useState<{ configured: boolean; client_id: string | null; redirect_uri?: string } | null>(
+    initial,
+  );
   const [editing, setEditing] = useState(false);
   const [clientId, setClientId] = useState('');
   const [secret, setSecret] = useState('');
@@ -430,12 +445,15 @@ function GoogleSection() {
     try {
       setInfo(await api('/api/admin8085/google'));
     } catch {
-      /* card stays in its loading text */
+      /* card keeps what it had */
     }
   }, []);
+  // The summary line comes with the page. The redirect address is only
+  // needed by the set-up steps, so it is fetched when they are opened.
+  const needsLoad = !info || (editing && !info.redirect_uri);
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (needsLoad) void load();
+  }, [needsLoad, load]);
 
   async function save() {
     setSaving(true);
@@ -485,7 +503,7 @@ function GoogleSection() {
             </li>
             <li>
               Create an OAuth client ID of type Web application with this authorised redirect URI:{' '}
-              <span className="break-all font-mono text-foreground">{info.redirect_uri}</span>
+              <span className="break-all font-mono text-foreground">{info.redirect_uri ?? 'loading…'}</span>
             </li>
             <li>Paste its client ID and client secret below.</li>
           </ol>
@@ -530,7 +548,47 @@ function AccountsSection({
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold">Accounts ({accounts.length})</h2>
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <ul className="space-y-2 md:hidden">
+        {accounts.map((a) => (
+          <li key={a.account_id}>
+            <button
+              type="button"
+              onClick={() => onOpen(a.account_id)}
+              className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-left active:bg-muted/50"
+            >
+              <span className="flex items-start gap-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{a.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{a.owner_email ?? '—'}</span>
+                </span>
+                <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              </span>
+              <span className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <span>
+                  <span className="block text-muted-foreground">Contacts</span>
+                  {num(a.contacts)}
+                </span>
+                <span>
+                  <span className="block text-muted-foreground">Chats</span>
+                  {num(a.conversations)}
+                </span>
+                <span>
+                  <span className="block text-muted-foreground">Msgs 7d</span>
+                  {num(a.messages_7d)}
+                </span>
+              </span>
+              <span className="mt-2 block text-xs text-muted-foreground">
+                Numbers: API {num(a.meta_numbers)} · Web {num(a.web_numbers)}/{a.web_number_limit}
+                {(a.web_pending ?? 0) > 0 && <span className="text-amber-300"> · {a.web_pending} waiting</span>}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Joined {when(a.created_at)} · last sign-in {when(a.last_sign_in_at)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
         <table className="w-full border-collapse">
           <thead className="bg-muted/50">
             <tr>
@@ -559,29 +617,29 @@ function AccountsSection({
                 </td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>{when(a.created_at)}</td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>{when(a.last_sign_in_at)}</td>
-                <td className={td}>{a.members}</td>
+                <td className={td}>{num(a.members)}</td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>
-                  <p>API: {a.meta_numbers}</p>
+                  <p>API: {num(a.meta_numbers)}</p>
                   <p>
-                    Web: {a.web_numbers}/{a.web_number_limit}
-                    {a.web_numbers > 0 ? ` (${a.web_connected} connected)` : ''}
+                    Web: {num(a.web_numbers)}/{a.web_number_limit}
+                    {(a.web_numbers ?? 0) > 0 ? ` (${a.web_connected} connected)` : ''}
                   </p>
-                  {a.web_pending > 0 && <p className="text-amber-300">{a.web_pending} waiting</p>}
+                  {(a.web_pending ?? 0) > 0 && <p className="text-amber-300">{a.web_pending} waiting</p>}
                 </td>
-                <td className={td}>{a.contacts}</td>
-                <td className={td}>{a.conversations}</td>
+                <td className={td}>{num(a.contacts)}</td>
+                <td className={td}>{num(a.conversations)}</td>
                 <td className={cn(td, 'whitespace-nowrap')}>
-                  {a.messages_7d} / {a.messages_30d} / {a.messages_total}
+                  {num(a.messages_7d)} / {num(a.messages_30d)} / {num(a.messages_total)}
                 </td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>{when(a.last_message_at)}</td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>
                   <p>
-                    {a.flows} flows · {a.automations} automations
+                    {num(a.flows)} flows · {num(a.automations)} automations
                   </p>
                   <p>
-                    {a.broadcasts} broadcasts · {a.data_tables} tables
+                    {num(a.broadcasts)} broadcasts · {num(a.data_tables)} tables
                   </p>
-                  <p>AI agent: {a.ai_enabled ? 'on' : 'off'}</p>
+                  <p>AI agent: {a.ai_enabled === undefined ? '…' : a.ai_enabled ? 'on' : 'off'}</p>
                 </td>
               </tr>
             ))}
@@ -643,7 +701,11 @@ function AccountDetail({
   onChanged: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<DetailTab>('overview');
-  const [detail, setDetail] = useState<AccountDetailData | null>(null);
+  // Shown at once from the last visit, then refreshed.
+  const detailKey = `admin:detail:${stats.account_id}`;
+  const [detail, setDetail] = useState<AccountDetailData | null>(
+    () => readCache<AccountDetailData>(detailKey) ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(String(stats.web_number_limit));
   const [savingLimit, setSavingLimit] = useState(false);
@@ -652,6 +714,7 @@ function AccountDetail({
     let cancelled = false;
     api<AccountDetailData>(`/api/admin8085/accounts/${stats.account_id}`)
       .then((d) => {
+        writeCache(`admin:detail:${stats.account_id}`, d);
         if (!cancelled) setDetail(d);
       })
       .catch((err) => {
@@ -699,13 +762,13 @@ function AccountDetail({
           <ArrowLeft className="size-4" />
           All accounts
         </Button>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold leading-tight">{stats.name}</h2>
-          <p className="text-xs text-muted-foreground">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-base font-semibold leading-tight">{stats.name}</h2>
+          <p className="truncate text-xs text-muted-foreground">
             {stats.owner_email ?? '—'} · joined {when(stats.created_at)}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:ml-auto sm:w-auto">
           WhatsApp Web number limit
           <Input
             value={limit}
@@ -720,12 +783,12 @@ function AccountDetail({
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
         {(
           [
             ['overview', 'Overview'],
-            ['chats', `Chats (${stats.conversations})`],
-            ['contacts', `Contacts (${stats.contacts})`],
+            ['chats', stats.conversations === undefined ? 'Chats' : `Chats (${stats.conversations})`],
+            ['contacts', stats.contacts === undefined ? 'Contacts' : `Contacts (${stats.contacts})`],
           ] as [DetailTab, string][]
         ).map(([id, label]) => (
           <button
@@ -733,7 +796,7 @@ function AccountDetail({
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              '-mb-px border-b-2 px-3 py-2 text-sm',
+              '-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm',
               tab === id
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -785,7 +848,7 @@ function AccountOverview({ detail }: { detail: AccountDetailData }) {
                 </Badge>
               </p>
               <p className="text-xs text-muted-foreground">
-                {m.email ?? '—'} · last sign-in {when(m.last_sign_in_at)}
+                <span className="break-all">{m.email ?? '—'}</span> · last sign-in {when(m.last_sign_in_at)}
               </p>
             </li>
           ))}
@@ -929,7 +992,8 @@ function usePaged<T>(accountId: string, section: 'conversations' | 'contacts') {
   const [q, setQ] = useState('');
   const [applied, setApplied] = useState('');
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<Paged<T> | null>(null);
+  const cacheKey = `admin:${section}:${accountId}:${offset}:${applied}`;
+  const [data, setData] = useState<Paged<T> | null>(() => readCache<Paged<T>>(cacheKey) ?? null);
   const [error, setError] = useState<string | null>(null);
 
   // Debounce typing; a new search starts from the first page.
@@ -945,8 +1009,10 @@ function usePaged<T>(accountId: string, section: 'conversations' | 'contacts') {
     let cancelled = false;
     const params = new URLSearchParams({ section, offset: String(offset) });
     if (applied) params.set('q', applied);
+    const key = `admin:${section}:${accountId}:${offset}:${applied}`;
     api<Paged<T>>(`/api/admin8085/accounts/${accountId}?${params.toString()}`)
       .then((d) => {
+        writeCache(key, d);
         if (!cancelled) {
           setData(d);
           setError(null);
@@ -960,7 +1026,9 @@ function usePaged<T>(accountId: string, section: 'conversations' | 'contacts') {
     };
   }, [accountId, section, offset, applied]);
 
-  return { q, setQ, offset, setOffset, data, error };
+  // A page seen before shows at once; otherwise the previous page stays
+  // on screen until the new one arrives.
+  return { q, setQ, offset, setOffset, data: readCache<Paged<T>>(cacheKey) ?? data, error };
 }
 
 function Pager({
@@ -1053,14 +1121,14 @@ function ChatsBrowser({
       <div>
         <SearchBox value={q} onChange={setQ} placeholder="Search name or phone" />
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-        <ul className="mt-2 max-h-[65vh] space-y-1 overflow-y-auto">
+        <ul className="mt-2 space-y-1 lg:max-h-[65vh] lg:overflow-y-auto">
           {(data?.rows ?? []).map((c) => (
             <li key={c.id}>
               <button
                 type="button"
                 onClick={() => setSelected(c)}
                 className={cn(
-                  'w-full rounded-md border px-3 py-2 text-left hover:bg-muted/50',
+                  'w-full rounded-md border px-3 py-2.5 text-left hover:bg-muted/50 active:bg-muted/50',
                   selected?.id === c.id ? 'border-primary bg-muted/40' : 'border-border',
                 )}
               >
@@ -1079,9 +1147,16 @@ function ChatsBrowser({
         </ul>
         {data && <Pager offset={offset} total={data.total} pageSize={data.pageSize} onChange={setOffset} />}
       </div>
-      <div className="min-h-[300px] rounded-lg border border-border">
+      {/* On a phone the open chat takes the whole screen (with a way
+          back); from lg up it sits beside the list. */}
+      <div
+        className={cn(
+          'lg:static lg:block lg:min-h-[300px] lg:rounded-lg lg:border lg:border-border',
+          selected ? 'fixed inset-0 z-30 bg-background' : 'hidden',
+        )}
+      >
         {selected ? (
-          <ChatMessages key={selected.id} chat={selected} />
+          <ChatMessages key={selected.id} chat={selected} onBack={() => setSelected(null)} />
         ) : (
           <p className="p-6 text-center text-sm text-muted-foreground">Pick a chat to read it.</p>
         )}
@@ -1090,11 +1165,20 @@ function ChatsBrowser({
   );
 }
 
-function ChatMessages({ chat }: { chat: ChatRow }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [hasMore, setHasMore] = useState(false);
+function ChatMessages({ chat, onBack }: { chat: ChatRow; onBack: () => void }) {
+  const cacheKey = `admin:messages:${chat.id}`;
+  const cached = readCache<{ messages: ChatMessage[]; hasMore: boolean }>(cacheKey);
+  const [messages, setMessages] = useState<ChatMessage[]>(cached?.messages ?? []);
+  const [hasMore, setHasMore] = useState(cached?.hasMore ?? false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  // What the next paint should do with the scroll position: jump to the
+  // newest message, or stay on the message that was at the top before
+  // older ones were added above it.
+  const pendingScroll = useRef<{ kind: 'bottom' } | { kind: 'keep'; height: number } | null>(
+    cached ? { kind: 'bottom' } : null,
+  );
 
   const loadPage = useCallback(
     async (before?: string) => {
@@ -1104,6 +1188,10 @@ function ChatMessages({ chat }: { chat: ChatRow }) {
         const d = await api<{ messages: ChatMessage[]; hasMore: boolean }>(
           `/api/admin8085/conversations/${chat.id}${qs}`,
         );
+        pendingScroll.current = before
+          ? { kind: 'keep', height: scroller.current?.scrollHeight ?? 0 }
+          : { kind: 'bottom' };
+        if (!before) writeCache(`admin:messages:${chat.id}`, d);
         setMessages((prev) => (before ? [...d.messages, ...prev] : d.messages));
         setHasMore(d.hasMore);
         setError(null);
@@ -1120,13 +1208,26 @@ function ChatMessages({ chat }: { chat: ChatRow }) {
     void loadPage();
   }, [loadPage]);
 
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const want = pendingScroll.current;
+    if (!el || !want) return;
+    pendingScroll.current = null;
+    el.scrollTop = want.kind === 'bottom' ? el.scrollHeight : el.scrollHeight - want.height;
+  }, [messages]);
+
   return (
-    <div className="flex max-h-[72vh] flex-col">
-      <div className="border-b border-border px-4 py-2">
-        <p className="text-sm font-medium">{chat.contact?.name || chat.contact?.phone || 'Unknown'}</p>
-        <p className="text-xs text-muted-foreground">{chat.contact?.phone ?? ''}</p>
+    <div className="flex h-full flex-col lg:h-auto lg:max-h-[72vh]">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2 lg:px-4">
+        <Button variant="ghost" size="sm" className="-ml-1 shrink-0 lg:hidden" onClick={onBack} aria-label="Back to chats">
+          <ArrowLeft className="size-5" />
+        </Button>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{chat.contact?.name || chat.contact?.phone || 'Unknown'}</p>
+          <p className="truncate text-xs text-muted-foreground">{chat.contact?.phone ?? ''}</p>
+        </div>
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto p-4">
+      <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-3 lg:p-4">
         {hasMore && (
           <div className="text-center">
             <Button
@@ -1147,11 +1248,11 @@ function ChatMessages({ chat }: { chat: ChatRow }) {
             <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
               <div
                 className={cn(
-                  'max-w-[78%] rounded-lg px-3 py-2 text-sm',
+                  'max-w-[88%] rounded-2xl px-3 py-2 text-[15px] leading-relaxed sm:max-w-[78%] lg:rounded-lg lg:text-sm',
                   mine ? 'bg-primary/15' : 'bg-muted',
                 )}
               >
-                <p className="whitespace-pre-wrap break-words">
+                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                   {m.content_text || `[${m.template_name ? `template: ${m.template_name}` : m.content_type}]`}
                 </p>
                 {m.media_url && (
@@ -1164,7 +1265,7 @@ function ChatMessages({ chat }: { chat: ChatRow }) {
                     {m.content_type} attachment
                   </a>
                 )}
-                <p className="mt-1 text-[10px] text-muted-foreground">
+                <p className="mt-1 text-[11px] text-muted-foreground lg:text-[10px]">
                   {m.sender_type === 'bot' || m.ai_generated ? 'AI' : m.sender_type} · {when(m.created_at)}
                   {mine && m.status ? ` · ${m.status}` : ''}
                   {m.error_title ? ` · ${m.error_title}` : ''}
@@ -1196,7 +1297,21 @@ function ContactsBrowser({ accountId }: { accountId: string }) {
         <SearchBox value={q} onChange={setQ} placeholder="Search name, phone or email" />
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-      <div className="mt-2 overflow-x-auto rounded-lg border border-border">
+      <ul className="mt-2 space-y-1.5 md:hidden">
+        {(data?.rows ?? []).map((c) => (
+          <li key={c.id} className="rounded-md border border-border px-3 py-2">
+            <p className="truncate text-sm font-medium">{c.name || c.phone || '—'}</p>
+            <p className="text-xs text-muted-foreground">
+              {c.phone ?? '—'}
+              {c.company ? ` · ${c.company}` : ''}
+            </p>
+            {c.email && <p className="break-all text-xs text-muted-foreground">{c.email}</p>}
+            <p className="text-[11px] text-muted-foreground">Added {when(c.created_at)}</p>
+          </li>
+        ))}
+        {data && data.rows.length === 0 && <li className="p-2 text-sm text-muted-foreground">No contacts.</li>}
+      </ul>
+      <div className="mt-2 hidden overflow-x-auto rounded-lg border border-border md:block">
         <table className="w-full border-collapse">
           <thead className="bg-muted/50">
             <tr>

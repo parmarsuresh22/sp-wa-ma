@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSuperAdmin, loadPlatformBridge } from '@/lib/admin/super-admin'
+import { bridgeInfo, emailsByUserId, loadNumberRequests } from '@/lib/admin/overview'
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -10,50 +11,36 @@ const NOT_FOUND = () => NextResponse.json({ error: 'Not found' }, { status: 404 
  * waiting for a decision (plus the latest decided ones), and whether a
  * platform bridge is configured. Anyone else gets a plain 404 — the
  * route does not admit to existing.
+ *
+ * The page itself is drawn from `loadAdminHome` (names and requests
+ * only); this fills in the counts afterwards and serves "Refresh".
  */
 export async function GET() {
   const admin = await getSuperAdmin()
   if (!admin) return NOT_FOUND()
   const { db } = admin
 
-  const [{ data: accounts, error: statsErr }, { data: requests, error: reqErr }, bridge] =
-    await Promise.all([
+  try {
+    const [{ data: accounts, error: statsErr }, requests, bridge] = await Promise.all([
       db.rpc('platform_account_stats'),
-      db
-        .from('web_number_requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100),
+      loadNumberRequests(db),
       loadPlatformBridge(db).catch(() => null),
     ])
-  if (statsErr || reqErr) {
+    if (statsErr) return NextResponse.json({ error: statsErr.message }, { status: 500 })
+
+    const emailById = await emailsByUserId(db, requests.requesterIds)
+    return NextResponse.json({
+      accounts: accounts ?? [],
+      requests: requests.rows.map((r) => ({
+        ...r,
+        requested_by_email: emailById.get(r.requested_by as string) ?? null,
+      })),
+      bridge: bridgeInfo(bridge),
+    })
+  } catch (err) {
     return NextResponse.json(
-      { error: statsErr?.message ?? reqErr?.message ?? 'Failed to load' },
+      { error: err instanceof Error ? err.message : 'Failed to load' },
       { status: 500 },
     )
   }
-
-  // Who asked: requester emails for the request list.
-  const requesterIds = [
-    ...new Set(((requests ?? []) as { requested_by: string }[]).map((r) => r.requested_by)),
-  ]
-  const emailById = new Map<string, string>()
-  if (requesterIds.length > 0) {
-    const { data: profiles } = await db
-      .from('profiles')
-      .select('user_id, email, full_name')
-      .in('user_id', requesterIds)
-    for (const p of (profiles ?? []) as { user_id: string; email: string | null }[]) {
-      if (p.email) emailById.set(p.user_id, p.email)
-    }
-  }
-
-  return NextResponse.json({
-    accounts: accounts ?? [],
-    requests: ((requests ?? []) as Record<string, unknown>[]).map((r) => ({
-      ...r,
-      requested_by_email: emailById.get(r.requested_by as string) ?? null,
-    })),
-    bridge: bridge ? { configured: true, url: bridge.baseUrl, source: bridge.source } : { configured: false },
-  })
 }
