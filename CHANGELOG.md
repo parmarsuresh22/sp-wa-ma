@@ -50,8 +50,10 @@ and polish.
   the usage counts load afterwards and fill in. Account details, chat
   lists and messages are fetched only when opened and are shown at once
   on a second visit. On a phone, accounts and contacts are cards instead
-  of wide tables, and an opened chat takes the whole screen, starts at
-  the newest message and has larger text.
+  of wide tables, and an opened chat is a pop-up over the page with a
+  Close button, starting at the newest message with larger text. A long
+  message preview no longer stretches the page wider than the screen
+  (which made phones show it zoomed out like a desktop page).
 
 - **Posts: one sending number per post.** The Posts page now starts by
   asking which WhatsApp number the post goes out from. The "chat with

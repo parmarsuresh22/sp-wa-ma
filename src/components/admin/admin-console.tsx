@@ -135,7 +135,7 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
   const opened = overview?.accounts.find((a) => a.account_id === openAccount) ?? null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen overflow-x-clip bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
           <ShieldCheck className="size-5 shrink-0 text-primary" />
@@ -823,7 +823,7 @@ function AccountDetail({
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0 break-words">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
       {children}
     </div>
@@ -836,7 +836,7 @@ function Empty({ text }: { text: string }) {
 
 function AccountOverview({ detail }: { detail: AccountDetailData }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Block title={`Team (${detail.members.length})`}>
         <ul className="space-y-1.5 text-sm">
           {detail.members.map((m) => (
@@ -1115,10 +1115,11 @@ function ChatsBrowser({
 }) {
   const { q, setQ, offset, setOffset, data, error } = usePaged<ChatRow>(accountId, 'conversations');
   const [selected, setSelected] = useState<ChatRow | null>(null);
+  const closeChat = useCallback(() => setSelected(null), []);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-      <div>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="min-w-0">
         <SearchBox value={q} onChange={setQ} placeholder="Search name or phone" />
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
         <ul className="mt-2 space-y-1 lg:max-h-[65vh] lg:overflow-y-auto">
@@ -1147,16 +1148,20 @@ function ChatsBrowser({
         </ul>
         {data && <Pager offset={offset} total={data.total} pageSize={data.pageSize} onChange={setOffset} />}
       </div>
-      {/* On a phone the open chat takes the whole screen (with a way
-          back); from lg up it sits beside the list. */}
+      {/* On a phone the open chat is a pop-up over the page, closed with
+          its Close button or by tapping outside it; from lg up it sits
+          beside the list. */}
       <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setSelected(null);
+        }}
         className={cn(
-          'lg:static lg:block lg:min-h-[300px] lg:rounded-lg lg:border lg:border-border',
-          selected ? 'fixed inset-0 z-30 bg-background' : 'hidden',
+          'min-w-0 lg:static lg:block lg:h-auto lg:w-auto lg:min-h-[300px] lg:rounded-lg lg:border lg:border-border',
+          selected ? 'fixed left-0 top-0 z-30 h-dvh w-screen bg-black/70 p-2 lg:bg-transparent lg:p-0' : 'hidden',
         )}
       >
         {selected ? (
-          <ChatMessages key={selected.id} chat={selected} onBack={() => setSelected(null)} />
+          <ChatMessages key={selected.id} chat={selected} onBack={closeChat} />
         ) : (
           <p className="p-6 text-center text-sm text-muted-foreground">Pick a chat to read it.</p>
         )}
@@ -1208,6 +1213,22 @@ function ChatMessages({ chat, onBack }: { chat: ChatRow; onBack: () => void }) {
     void loadPage();
   }, [loadPage]);
 
+  // While the pop-up is open on a phone the page behind stays still,
+  // and Escape closes it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onBack();
+    };
+    window.addEventListener('keydown', onKey);
+    const phone = window.matchMedia('(max-width: 1023px)').matches;
+    const before = document.body.style.overflow;
+    if (phone) document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (phone) document.body.style.overflow = before;
+    };
+  }, [onBack]);
+
   useLayoutEffect(() => {
     const el = scroller.current;
     const want = pendingScroll.current;
@@ -1217,15 +1238,20 @@ function ChatMessages({ chat, onBack }: { chat: ChatRow; onBack: () => void }) {
   }, [messages]);
 
   return (
-    <div className="flex h-full flex-col lg:h-auto lg:max-h-[72vh]">
+    <div
+      role="dialog"
+      aria-label="Chat"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl lg:h-auto lg:max-h-[72vh] lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none"
+    >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2 lg:px-4">
-        <Button variant="ghost" size="sm" className="-ml-1 shrink-0 lg:hidden" onClick={onBack} aria-label="Back to chats">
-          <ArrowLeft className="size-5" />
-        </Button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{chat.contact?.name || chat.contact?.phone || 'Unknown'}</p>
           <p className="truncate text-xs text-muted-foreground">{chat.contact?.phone ?? ''}</p>
         </div>
+        <Button variant="outline" size="sm" className="shrink-0 lg:hidden" onClick={onBack}>
+          <X className="size-4" />
+          Close
+        </Button>
       </div>
       <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-3 lg:p-4">
         {hasMore && (
@@ -1245,10 +1271,10 @@ function ChatMessages({ chat, onBack }: { chat: ChatRow; onBack: () => void }) {
         {messages.map((m) => {
           const mine = m.sender_type !== 'customer';
           return (
-            <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
+            <div key={m.id} className={cn('flex min-w-0', mine ? 'justify-end' : 'justify-start')}>
               <div
                 className={cn(
-                  'max-w-[88%] rounded-2xl px-3 py-2 text-[15px] leading-relaxed sm:max-w-[78%] lg:rounded-lg lg:text-sm',
+                  'min-w-0 max-w-[88%] rounded-2xl px-3 py-2 text-[15px] leading-relaxed sm:max-w-[78%] lg:rounded-lg lg:text-sm',
                   mine ? 'bg-primary/15' : 'bg-muted',
                 )}
               >
