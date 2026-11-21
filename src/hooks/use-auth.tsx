@@ -46,6 +46,10 @@ interface AccountSummary {
   /** Default deal currency (ISO-4217). NOT NULL DEFAULT 'USD' in the
    *  DB (migration 021); narrowed to DEFAULT_CURRENCY when absent. */
   default_currency: string;
+  /** Business branding (migration 079); off unless the business set it up. */
+  brand_enabled?: boolean;
+  brand_name?: string | null;
+  brand_logo_url?: string | null;
 }
 
 /**
@@ -244,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from("accounts")
             // default_currency added in migration 021; narrowed to the
             // USD fallback below for older schemas where it reads null.
-            .select("id, name, default_currency")
+            .select("id, name, default_currency, brand_enabled, brand_name, brand_logo_url")
             .eq("id", data.account_id)
             .maybeSingle();
           if (accountErr) {

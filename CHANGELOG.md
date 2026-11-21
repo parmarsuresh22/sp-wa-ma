@@ -162,6 +162,14 @@ and polish.
 
 ### Added
 
+- **Business branding.** Settings has a "Business branding" section: a
+  business name and one logo, with a switch. When on, they show at the
+  top of the menu with the product name small underneath; when off, the
+  portal looks as before. Appointment settings gain "Send the business
+  logo with the confirmation": the logo goes out as the picture of the
+  confirmation message only (not reminders or other messages). Requires
+  `supabase/migrations/079_business_branding.sql`.
+
 - **Groups only in the inbox, profile photos, safer bulk posts, AI
   footer and AI reply language.** Requires
   `supabase/migrations/077_groups_hidden_avatars_recipient_lists.sql`

@@ -125,6 +125,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, allowedSections, signOut } = useAuth();
+  // Business branding (migration 079): shown only when switched on and
+  // there is a name or a logo to show.
+  const branded =
+    !!account?.brand_enabled && (!!account.brand_name?.trim() || !!account.brand_logo_url);
   // Only the sections this member may open (migration 076).
   const visibleNav = navItems.filter((item) => {
     const section = sectionForPath(item.href);
@@ -200,14 +204,41 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <BrandMark className="h-8 w-8 shrink-0" />
-            <span className="flex items-baseline gap-1.5 text-foreground">
-              <span className="text-base font-semibold">{t("title")}</span>
-              <span className="text-[10px] font-normal text-muted-foreground">
-                {t("titleBy")}
-              </span>
-            </span>
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+            {branded ? (
+              <>
+                {account?.brand_logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={account.brand_logo_url}
+                    alt=""
+                    className="h-8 w-8 shrink-0 rounded-md object-contain"
+                  />
+                ) : (
+                  <BrandMark className="h-8 w-8 shrink-0" />
+                )}
+                {/* The business's own name, with the product name small
+                    beneath it so the row stays one line high. */}
+                <span className="min-w-0 leading-tight text-foreground">
+                  <span className="block truncate text-sm font-semibold">
+                    {account?.brand_name?.trim() || t("title")}
+                  </span>
+                  <span className="block truncate text-[9px] font-normal text-muted-foreground">
+                    {t("title")} {t("titleBy")}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <>
+                <BrandMark className="h-8 w-8 shrink-0" />
+                <span className="flex items-baseline gap-1.5 text-foreground">
+                  <span className="text-base font-semibold">{t("title")}</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    {t("titleBy")}
+                  </span>
+                </span>
+              </>
+            )}
           </Link>
           <button
             type="button"

@@ -35,7 +35,7 @@ import { logAiUsage } from '@/lib/ai/usage'
 import { GEMINI_OPENAI_COMPAT_URL, normalizeForGemini } from '@/lib/ai/providers/gemini'
 import { mergeConsecutive, normalizeUsage } from '@/lib/ai/providers/shared'
 import type { AiConfig, AiUsage, ChatMessage } from '@/lib/ai/types'
-import { engineSendText } from '@/lib/flows/meta-send'
+import { engineSendMedia, engineSendText } from '@/lib/flows/meta-send'
 import { phoneKey } from '@/lib/data-tables/lookup'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import {
@@ -43,6 +43,7 @@ import {
   bookAppointment,
   cancelAppointment,
   cleanDetails,
+  confirmationLogo,
   checkSlot,
   liveAppointment,
   loadAppointmentSettings,
@@ -577,6 +578,9 @@ export async function dispatchInboundToAppointments(
     if (!limit.success) return { consumed: false }
 
     const now = new Date()
+    // Set when this very message ends in a confirmed booking, so the
+    // reply that confirms it can carry the business logo.
+    let confirmedNow = false
     const customerName = (contact as { name?: string | null } | null)?.name?.trim() || null
     const agentAnswers = aiAgentWillAnswer(
       config,
@@ -587,8 +591,8 @@ export async function dispatchInboundToAppointments(
       config,
       systemPrompt: appointmentSystemPrompt(settings, now, customerName, agentAnswers),
       messages,
-      runTool: (name, toolArgs) =>
-        runAppointmentTool(name, toolArgs, {
+      runTool: async (name, toolArgs) => {
+        const result = await runAppointmentTool(name, toolArgs, {
           db,
           settings,
           contactId,
@@ -596,7 +600,16 @@ export async function dispatchInboundToAppointments(
           phoneKey: key,
           customerName,
           now,
-        }),
+        })
+        if (
+          (name === 'book_appointment' || name === 'reschedule_appointment') &&
+          result.ok === true &&
+          result.needs_business_confirmation === false
+        ) {
+          confirmedNow = true
+        }
+        return result
+      },
       onUsage: (usage) =>
         void logAiUsage(db, {
           accountId,
@@ -633,13 +646,31 @@ export async function dispatchInboundToAppointments(
       if (latest?.[0] && latest[0].message_id !== inboundMessageId) return { consumed: true }
     }
 
+    // Says who is speaking: "AI Assistant - <business name>".
+    const replyText = withAiFooter(outcome.text, aiFooter(settings.business_name))
+    const logo = confirmedNow ? await confirmationLogo(db, accountId, settings) : null
+    if (logo) {
+      try {
+        await engineSendMedia({
+          accountId,
+          userId: configOwnerUserId,
+          conversationId,
+          contactId,
+          kind: 'image',
+          link: logo,
+          caption: replyText,
+        })
+        return { consumed: true }
+      } catch (err) {
+        console.warn('[appointments] logo could not be sent with the confirmation:', err instanceof Error ? err.message : err)
+      }
+    }
     await engineSendText({
       accountId,
       userId: configOwnerUserId,
       conversationId,
       contactId,
-      // Says who is speaking: "AI Assistant - <business name>".
-      text: withAiFooter(outcome.text, aiFooter(settings.business_name)),
+      text: replyText,
       aiGenerated: true,
     })
     return { consumed: true }

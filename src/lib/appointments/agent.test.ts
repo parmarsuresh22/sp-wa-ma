@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/flows/admin-client', () => ({ supabaseAdmin: vi.fn() }))
-vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: vi.fn() }))
+vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: vi.fn(), engineSendMedia: vi.fn() }))
 
 import {
   APPOINTMENT_TOOLS,

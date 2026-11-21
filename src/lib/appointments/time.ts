@@ -40,6 +40,8 @@ export interface AppointmentSettings {
   ask_address: boolean
   /** More things to ask before booking, one question each. */
   custom_questions: string[]
+  /** Send the business logo as the picture of a confirmation (079). */
+  send_brand_logo: boolean
   confirm_template: string | null
   confirm_template_language: string | null
   reminder_template: string | null
@@ -301,6 +303,7 @@ export function parseSettingsInput(
       confirm_required: raw.confirm_required === true,
       ask_requirements: raw.ask_requirements === true,
       ask_address: raw.ask_address === true,
+      send_brand_logo: raw.send_brand_logo === true,
       custom_questions: Array.isArray(raw.custom_questions)
         ? [
             ...new Set(

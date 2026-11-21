@@ -46,6 +46,10 @@ const AppearancePanel = dynamic(
   () => import('@/components/settings/appearance-panel').then((m) => m.AppearancePanel),
   { loading: () => <PanelSkeleton /> },
 );
+const BrandingPanel = dynamic(
+  () => import('@/components/settings/branding-panel').then((m) => m.BrandingPanel),
+  { loading: () => <PanelSkeleton /> },
+);
 const WhatsAppChannels = dynamic(
   () => import('@/components/settings/whatsapp-channels').then((m) => m.WhatsAppChannels),
   { loading: () => <PanelSkeleton /> },
@@ -135,6 +139,7 @@ function SettingsPageInner() {
     profile: () => <ProfileForm />,
     security: () => <SecurityPanel />,
     appearance: () => <AppearancePanel />,
+    branding: () => <BrandingPanel />,
     whatsapp: () => <WhatsAppChannels />,
     templates: () => <TemplateManager />,
     'quick-replies': () => <QuickRepliesManager />,

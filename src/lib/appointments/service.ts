@@ -144,6 +144,7 @@ export function settingsFromRow(
     confirm_required: r.confirm_required === true,
     ask_requirements: r.ask_requirements === true,
     ask_address: r.ask_address === true,
+    send_brand_logo: r.send_brand_logo === true,
     custom_questions: Array.isArray(r.custom_questions) ? (r.custom_questions as string[]) : [],
     confirm_template: (r.confirm_template as string) ?? null,
     confirm_template_language: (r.confirm_template_language as string) ?? null,
@@ -631,6 +632,30 @@ export async function saveClosedDates(
   return loadAppointmentSettings(db, accountId, channelId)
 }
 
+/**
+ * The logo to send with a confirmation, or null: only when the
+ * appointment setting is on AND business branding is switched on with a
+ * logo uploaded (migration 079).
+ */
+export async function confirmationLogo(
+  db: SupabaseClient,
+  accountId: string,
+  settings: Pick<AppointmentSettings, 'send_brand_logo'>,
+): Promise<string | null> {
+  if (!settings.send_brand_logo) return null
+  try {
+    const { data } = await db
+      .from('accounts')
+      .select('brand_enabled, brand_logo_url')
+      .eq('id', accountId)
+      .maybeSingle()
+    const row = data as { brand_enabled?: boolean; brand_logo_url?: string | null } | null
+    return row?.brand_enabled && row.brand_logo_url ? row.brand_logo_url : null
+  } catch {
+    return null
+  }
+}
+
 /** Example wording a business can submit to Meta as a template. */
 export const TEMPLATE_EXAMPLES = {
   confirm:
@@ -687,17 +712,41 @@ export async function sendAppointmentMessage(
     return
   }
 
+  const text = await localizeAppointmentText(
+    db,
+    appt.account_id,
+    conversation.id,
+    settings,
+    appointmentMessageText(kind, appt, settings),
+  )
+
+  // A confirmation can carry the business logo as its picture (only a
+  // confirmation, and only when that is switched on). If the picture
+  // cannot be sent, the words still go out on their own.
+  if (kind === 'confirmed' || kind === 'confirmed_new_time') {
+    const logo = await confirmationLogo(db, appt.account_id, settings)
+    if (logo) {
+      try {
+        await sendMessageToConversation(db, appt.account_id, {
+          conversationId: conversation.id,
+          channelId: appt.channel_id,
+          messageType: 'image',
+          mediaUrl: logo,
+          contentText: text,
+          senderId,
+        })
+        return
+      } catch (err) {
+        console.warn('[appointments] logo could not be sent with the confirmation:', err instanceof Error ? err.message : err)
+      }
+    }
+  }
+
   await sendMessageToConversation(db, appt.account_id, {
     conversationId: conversation.id,
     channelId: appt.channel_id,
     messageType: 'text',
-    contentText: await localizeAppointmentText(
-      db,
-      appt.account_id,
-      conversation.id,
-      settings,
-      appointmentMessageText(kind, appt, settings),
-    ),
+    contentText: text,
     senderId,
   })
 }
