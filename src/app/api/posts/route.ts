@@ -119,6 +119,18 @@ export async function POST(request: Request) {
     if (body.audience && !audience) {
       return NextResponse.json({ error: 'Choose who the broadcast goes to' }, { status: 400 })
     }
+    if (audience?.mode === 'list') {
+      const { data: list } = await db
+        .from('post_recipient_lists')
+        .select('id')
+        .eq('id', audience.list_id ?? '')
+        .eq('account_id', accountId)
+        .eq('channel_id', audience.channel_id)
+        .maybeSingle()
+      if (!list) {
+        return NextResponse.json({ error: 'That list of numbers was not found for this WhatsApp number' }, { status: 400 })
+      }
+    }
     if (audience && !webChannels.some((c) => c.id === audience.channel_id)) {
       return NextResponse.json(
         { error: 'The broadcast must leave from a WhatsApp Web number of this account' },

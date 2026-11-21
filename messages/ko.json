@@ -2368,6 +2368,9 @@
       "autoReplyDesc": "봇이 새 수신 메시지에 자동으로 응답합니다(플로우가 처리하지 않고 담당 상담원이 없는 경우에만). 도움을 줄 수 없으면 사람에게 인계합니다.",
       "maxAutoReplies": "대화당 최대 자동 응답 횟수",
       "maxAutoRepliesDesc": "한 대화에서 이 횟수만큼 봇이 응답하면 더 이상 응답하지 않습니다. 1~500.",
+      "replyLanguage": "Reply language",
+      "replyLanguageDesc": "The language the AI agent answers and drafts in. It understands every language whichever you choose.",
+      "replyLanguageAuto": "Auto (the customer's own language)",
       "handoffTo": "인계 대상",
       "handoffToDesc": "봇이 도움을 줄 수 없거나 응답 한도에 도달하면 일시 중지하고 무슨 일이 있었는지 짧은 메모와 함께 이 대상에게 대화를 넘깁니다.",
       "handoffQueue": "미배정 대기열 (모든 상담원이 처리 가능)",
@@ -3343,6 +3346,7 @@
     "broadcastFrom": "Send from",
     "audience": {
       "contacts": "Specific contacts",
+      "list": "From a file",
       "tags": "By tag",
       "all": "All contacts"
     },
@@ -3396,7 +3400,22 @@
     "removedNumber": "removed number",
     "badgeStatus": "Status · {name}",
     "badgeBroadcast": "Sent {sent}/{total} · {failed} failed",
-    "badgeDrive": "Google Drive"
+    "badgeDrive": "Google Drive",
+    "sendingFrom": "These messages will be sent from",
+    "listHint": "Upload a CSV or Excel file. Only 10-digit mobile numbers are kept (a leading +91 or 0 is removed, duplicates are dropped); everything else in the file is ignored. The list is saved so you can use it again for the next post.",
+    "listUpload": "Upload CSV or Excel",
+    "listNone": "No saved lists for this number yet.",
+    "listSaved": "{count, plural, one {# number saved} other {# numbers saved}}. Left out: {rejected} not a 10-digit mobile, {duplicates} repeated.",
+    "listFailed": "Could not use that file",
+    "listMeta": "{count, plural, one {# number} other {# numbers}} · {rejected} left out · {date}",
+    "listDelete": "Delete this list",
+    "listDeleteConfirm": "Delete this saved list? Posts already sent are not affected.",
+    "listOverLimit": "This list has {count} numbers. One post sends to the first {max}; send the rest in another post.",
+    "safetyTitle": "Sent slowly, to keep your number safe",
+    "safetyRule": "{batch} messages at a time with uneven gaps, then a {pause}-second rest. At most {max} people per post (about {maxMinutes} minutes).",
+    "safetyEstimate": "{count, plural, one {# person} other {# people}}: about {minutes, plural, one {# minute} other {# minutes}}. Keep this page open until it finishes.",
+    "safetyEstimateTags": "The time is shown once the post starts, when the tagged contacts of this number are counted.",
+    "broadcastTimeLeft": "About {minutes, plural, one {# minute} other {# minutes}} left."
   },
   "Appointments": {
     "title": "Appointments",

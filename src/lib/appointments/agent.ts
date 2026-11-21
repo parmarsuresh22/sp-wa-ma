@@ -29,6 +29,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { loadAiConfig } from '@/lib/ai/config'
 import { buildConversationContext } from '@/lib/ai/context'
 import { AI_CONDUCT_RULES } from '@/lib/ai/defaults'
+import { aiFooter, withAiFooter } from '@/lib/ai/footer'
 import { buildHandoffSummary } from '@/lib/ai/handoff'
 import { logAiUsage } from '@/lib/ai/usage'
 import { GEMINI_OPENAI_COMPAT_URL, normalizeForGemini } from '@/lib/ai/providers/gemini'
@@ -341,6 +342,7 @@ export function appointmentSystemPrompt(
     ...beforeBooking(settings),
     '- If a time is not free, offer the alternatives the action returned.',
     '- You only ever act for the person you are chatting with. If they give another phone number or ask about someone else, say you can only help with the number they are writing from.',
+    '- Do not sign your messages or add an "AI Assistant" line; one is added for you.',
     '- Decide from the LATEST customer message; earlier messages are only background.',
     '- A greeting (hi, hello, namaste…) or an unclear message always gets a reply from you, even when earlier messages were about something else: introduce yourself in one or two lines and say what you can help with.',
     othersWillAnswer
@@ -636,7 +638,8 @@ export async function dispatchInboundToAppointments(
       userId: configOwnerUserId,
       conversationId,
       contactId,
-      text: outcome.text,
+      // Says who is speaking: "AI Assistant - <business name>".
+      text: withAiFooter(outcome.text, aiFooter(settings.business_name)),
       aiGenerated: true,
     })
     return { consumed: true }

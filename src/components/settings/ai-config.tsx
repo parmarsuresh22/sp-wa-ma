@@ -27,6 +27,7 @@ import {
 import { SettingsPanelHead } from './settings-panel-head';
 import { AiKnowledgeCard } from './ai-knowledge';
 import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults';
+import { REPLY_LANGUAGES } from '@/lib/ai/languages';
 import type { AiProvider } from '@/lib/ai/types';
 import type { AccountMember } from '@/types';
 import { fetchAccountMembers, memberLabel } from '@/lib/account/members';
@@ -84,6 +85,7 @@ export function AiConfig() {
   // Only auto-reply on one number; null = every number (062).
   const [channelId, setChannelId] = useState<string | null>(null);
   const [dataTableId, setDataTableId] = useState<string | null>(null);
+  const [replyLanguage, setReplyLanguage] = useState('auto');
   // Hand off to a human (and pause) when the bot cannot help (063).
   const [handoffEnabled, setHandoffEnabled] = useState(true);
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -115,6 +117,7 @@ export function AiConfig() {
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setChannelId((data.channel_id as string | null | undefined) ?? null);
         setDataTableId((data.data_table_id as string | null | undefined) ?? null);
+        setReplyLanguage((data.reply_language as string | null | undefined) || 'auto');
         setHandoffEnabled(data.handoff_enabled !== false);
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -178,6 +181,7 @@ export function AiConfig() {
     handoff_agent_id: handoffAgentId || null,
     channel_id: channelId,
     data_table_id: dataTableId,
+    reply_language: replyLanguage,
     handoff_enabled: handoffEnabled,
   });
 
@@ -524,6 +528,25 @@ export function AiConfig() {
                 onChange={setChannelId}
                 disabled={disabled || !autoReplyEnabled}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="ai-language">{t('replyLanguage')}</Label>
+              <p className="text-xs text-muted-foreground">{t('replyLanguageDesc')}</p>
+              <select
+                id="ai-language"
+                className="h-9 w-full rounded-md border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary disabled:opacity-50 sm:w-80"
+                value={replyLanguage}
+                onChange={(e) => setReplyLanguage(e.target.value)}
+                disabled={disabled}
+              >
+                <option value="auto">{t('replyLanguageAuto')}</option>
+                {Object.entries(REPLY_LANGUAGES).map(([key, name]) => (
+                  <option key={key} value={key}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <DataTableField

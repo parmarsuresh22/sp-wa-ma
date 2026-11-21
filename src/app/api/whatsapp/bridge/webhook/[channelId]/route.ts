@@ -25,6 +25,7 @@ import {
   type InboundMediaResolver,
 } from '@/lib/whatsapp/inbound'
 import { createWahaClient } from '@/lib/whatsapp/providers/waha'
+import { refreshContactAvatar } from '@/lib/whatsapp/avatar'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
 import { findExistingContact } from '@/lib/contacts/dedupe'
 import type { ChannelRow } from '@/lib/whatsapp/channels'
@@ -143,6 +144,13 @@ async function processBridgeEvent(channel: ChannelRow, env: BridgeEnvelope) {
         // (flows, automations, appointments, AI agent) ever answers it.
         isGroup: translated.isGroup === true,
       })
+      // The contact's WhatsApp photo, looked up at most once a week and
+      // only here, in the background — never when a page loads.
+      await refreshContactAvatar(
+        supabaseAdmin(),
+        channel,
+        translated.isGroup ? { waUserId: groupId } : { phone: translated.phone },
+      )
       return
     }
     case 'message.ack': {

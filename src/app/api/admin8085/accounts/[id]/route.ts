@@ -58,6 +58,7 @@ export async function GET(request: Request, { params }: Params) {
       .from('contacts')
       .select('id, name, phone, email, company, created_at', { count: 'exact' })
       .eq('account_id', id)
+      .eq('is_group', false)
     if (q) query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
     const { data, error, count } = await query
       .order('created_at', { ascending: false })

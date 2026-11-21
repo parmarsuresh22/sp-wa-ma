@@ -360,6 +360,25 @@ export function createWahaClient(cfg: WahaClientConfig) {
       }
     },
     /**
+     * The address of a chat's WhatsApp profile photo, or null when there
+     * is none (or it is hidden by the person's privacy settings).
+     */
+    async profilePictureUrl(session: string, chatId: string): Promise<string | null> {
+      try {
+        const r = await call<Record<string, unknown>>(
+          'GET',
+          `/api/contacts/profile-picture?contactId=${encodeURIComponent(chatId)}&session=${encodeURIComponent(session)}`,
+        )
+        for (const key of ['profilePictureURL', 'profilePictureUrl', 'url']) {
+          const v = r?.[key]
+          if (typeof v === 'string' && /^https:\/\//.test(v)) return v
+        }
+        return null
+      } catch {
+        return null
+      }
+    },
+    /**
      * A group's name (its "subject"), or null when the bridge will not
      * say. Engines differ in the field they use, so try the known ones.
      */

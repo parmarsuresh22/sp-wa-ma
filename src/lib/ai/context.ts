@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChatMessage } from './types'
 import { aiContextMessageLimit } from './defaults'
+import { stripAiFooter } from './footer'
 
 interface DbMessage {
   sender_type: 'customer' | 'agent' | 'bot'
@@ -36,7 +37,8 @@ export async function buildConversationContext(
     .filter((m) => m.content_text && m.content_text.trim())
     .map((m) => ({
       role: m.sender_type === 'customer' ? 'user' : 'assistant',
-      content: m.content_text!.trim(),
+      // Without the "AI Assistant" footer: the model must not copy it.
+      content: m.sender_type === 'customer' ? m.content_text!.trim() : stripAiFooter(m.content_text!.trim()),
     }))
 }
 

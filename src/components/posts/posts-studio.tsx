@@ -25,8 +25,11 @@ import { contactSearchFilter } from '@/lib/contacts/search-filter';
 import { useAuth } from '@/hooks/use-auth';
 import { useChannels, channelLabel } from '@/hooks/use-channels';
 import {
+  BATCH_PAUSE_MS,
+  BROADCAST_CHUNK,
   MAX_BROADCAST_RECIPIENTS,
   MAX_CAPTION_LENGTH,
+  estimateBroadcastSeconds,
   withWhatsAppLink,
   type AudienceMode,
   type PostBroadcastResult,
@@ -74,6 +77,17 @@ interface PickedContact {
   id: string;
   name: string | null;
   phone: string | null;
+}
+
+interface RecipientList {
+  id: string;
+  name: string;
+  count: number;
+  rows_read: number;
+  rejected: number;
+  source_filename: string | null;
+  created_at: string;
+  sample: string[];
 }
 
 interface TagOption {
@@ -151,6 +165,11 @@ export function PostsStudio() {
   const [statusOn, setStatusOn] = useState(false);
   const [broadcastOn, setBroadcastOn] = useState(false);
   const [audienceMode, setAudienceMode] = useState<AudienceMode>('contacts');
+  // Numbers from an uploaded CSV / Excel file, saved per sending number.
+  const [lists, setLists] = useState<RecipientList[]>([]);
+  const [listId, setListId] = useState<string | null>(null);
+  const [listBusy, setListBusy] = useState(false);
+  const listFileRef = useRef<HTMLInputElement>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [picked, setPicked] = useState<PickedContact[]>([]);
   const [saveToDrive, setSaveToDrive] = useState(false);
@@ -383,7 +402,9 @@ export function PostsStudio() {
           .from('contacts')
           .select('id, name, phone, conversations!inner(channel_id)')
           .eq('conversations.channel_id', channelId)
-          .not('phone', 'is', null);
+          .eq('is_group', false)
+          .not('phone', 'is', null)
+          .neq('phone', '');
         const filter = term.length >= 2 ? contactSearchFilter(term) : null;
         if (filter) query = query.or(filter);
         const { data } = await query.order('name').limit(50);
@@ -407,7 +428,9 @@ export function PostsStudio() {
       .from('contacts')
       .select('id, conversations!inner(channel_id)', { count: 'exact', head: true })
       .eq('conversations.channel_id', effectiveBroadcastChannelId)
+      .eq('is_group', false)
       .not('phone', 'is', null)
+      .neq('phone', '')
       .then(({ count }) => {
         if (!cancelled) setNumberContactCount(count ?? 0);
       });
@@ -416,6 +439,70 @@ export function PostsStudio() {
     };
   }, [supabase, pickerOpen, effectiveBroadcastChannelId]);
   const broadcastChannelName = fromName;
+
+  // ---- recipient lists (file upload) ------------------------
+  const loadLists = useCallback(async () => {
+    if (!effectiveBroadcastChannelId) return;
+    try {
+      const res = await fetch(`/api/posts/lists?channel_id=${effectiveBroadcastChannelId}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setLists((data.lists as RecipientList[] | undefined) ?? []);
+    } catch {
+      /* the picker simply stays empty */
+    }
+  }, [effectiveBroadcastChannelId]);
+  const listsWanted = broadcastOn && audienceMode === 'list';
+  useEffect(() => {
+    if (!listsWanted) return;
+    const timer = setTimeout(() => void loadLists(), 0);
+    return () => clearTimeout(timer);
+  }, [listsWanted, loadLists]);
+
+  const uploadList = useCallback(
+    async (file: File | undefined) => {
+      if (!file || !effectiveBroadcastChannelId) return;
+      setListBusy(true);
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('channel_id', effectiveBroadcastChannelId);
+        const res = await fetch('/api/posts/lists', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.list) {
+          toast.error(data.error || t('listFailed'), { duration: 9000 });
+          return;
+        }
+        const list = data.list as RecipientList;
+        setLists((prev) => [list, ...prev.filter((l) => l.id !== list.id)]);
+        setListId(list.id);
+        toast.success(
+          t('listSaved', { count: list.count, rejected: list.rejected, duplicates: Number(data.duplicates ?? 0) }),
+          { duration: 8000 },
+        );
+      } catch {
+        toast.error(t('listFailed'));
+      } finally {
+        setListBusy(false);
+        if (listFileRef.current) listFileRef.current.value = '';
+      }
+    },
+    [effectiveBroadcastChannelId, t],
+  );
+
+  const removeList = useCallback(
+    async (id: string) => {
+      if (!confirm(t('listDeleteConfirm'))) return;
+      setLists((prev) => prev.filter((l) => l.id !== id));
+      setListId((cur) => (cur === id ? null : cur));
+      const res = await fetch(`/api/posts/lists/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        toast.error(t('listFailed'));
+        void loadLists();
+      }
+    },
+    [loadLists, t],
+  );
+  const pickedList = lists.find((l) => l.id === listId) ?? null;
 
   // ---- broadcast loop ---------------------------------------
   const patchHistory = useCallback((postId: string, tally: PostBroadcastResult) => {
@@ -441,6 +528,11 @@ export function PostsStudio() {
         tally = data.broadcast as PostBroadcastResult;
         setProgress({ postId, tally });
         patchHistory(postId, tally);
+        // Rest between batches (in short steps, so Pause acts at once).
+        // Sending steadily is what keeps WhatsApp from blocking the number.
+        for (let waited = 0; waited < BATCH_PAUSE_MS && !tally.done && !stopRef.current; waited += 500) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
       }
       if (tally.done) {
         toast.success(t('broadcastDone', { sent: tally.sent, failed: tally.failed }));
@@ -457,7 +549,20 @@ export function PostsStudio() {
     (!!effectiveBroadcastChannelId &&
       (audienceMode === 'all' ||
         (audienceMode === 'tags' && tagIds.length > 0) ||
+        (audienceMode === 'list' && !!pickedList) ||
         (audienceMode === 'contacts' && picked.length > 0)));
+  // How many people this broadcast goes to, when the page can know it
+  // (a tag's size is only counted on the server).
+  const recipientCount =
+    audienceMode === 'contacts'
+      ? picked.length
+      : audienceMode === 'list'
+        ? Math.min(pickedList?.count ?? 0, MAX_BROADCAST_RECIPIENTS)
+        : audienceMode === 'all'
+          ? Math.min(numberContactCount ?? 0, MAX_BROADCAST_RECIPIENTS)
+          : null;
+  const minutesFor = (count: number) => Math.max(1, Math.ceil(estimateBroadcastSeconds(count) / 60));
+  const broadcastPhone = webChannels.find((c) => c.id === effectiveBroadcastChannelId)?.display_phone ?? '';
   const statusReady = statusOn && !!fromId && fromConnected;
   const hasDestination = statusReady || broadcastOn || (saveToDrive && !!mediaUrl);
   const canPost = hasContent && hasDestination && audienceReady && !posting && !uploading && !aiBusy;
@@ -483,6 +588,7 @@ export function PostsStudio() {
                 tag_ids: tagIds,
                 contact_ids: picked.map((p) => p.id),
                 channel_id: effectiveBroadcastChannelId,
+                list_id: audienceMode === 'list' ? listId : null,
               }
             : null,
           save_to_drive: saveToDrive,
@@ -528,6 +634,7 @@ export function PostsStudio() {
     }
   }, [
     HISTORY_PAGE,
+    listId,
     audienceMode,
     broadcastOn,
     canPost,
@@ -751,13 +858,20 @@ export function PostsStudio() {
             </Check>
             {broadcastOn && effectiveBroadcastChannelId && (
               <div className="ml-6 space-y-3 rounded-lg border border-border p-3">
+                <div className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t('sendingFrom')}</p>
+                  <p className="break-words text-sm font-semibold text-foreground">
+                    {broadcastChannelName}
+                    {broadcastPhone && broadcastPhone !== broadcastChannelName ? ` · ${broadcastPhone}` : ''}
+                  </p>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {numberContactCount === null
                     ? t('numberContactsLoading')
                     : t('numberContacts', { count: numberContactCount, name: broadcastChannelName })}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {(['contacts', 'tags', 'all'] as AudienceMode[]).map((mode) => (
+                  {(['contacts', 'tags', 'all', 'list'] as AudienceMode[]).map((mode) => (
                     <button
                       key={mode}
                       type="button"
@@ -858,9 +972,96 @@ export function PostsStudio() {
 
                 {audienceMode === 'all' && (
                   <p className="text-xs text-amber-300">
-                    {t('audienceAllWarning', { max: MAX_BROADCAST_RECIPIENTS, name: broadcastChannelName })}
+                    {t('audienceAllWarning', {
+                      max: MAX_BROADCAST_RECIPIENTS,
+                      name: broadcastPhone ? `${broadcastChannelName} (${broadcastPhone})` : broadcastChannelName,
+                    })}
                   </p>
                 )}
+
+                {audienceMode === 'list' && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">{t('listHint')}</p>
+                    <input
+                      ref={listFileRef}
+                      type="file"
+                      accept=".csv,.tsv,.xlsx,.xls,.ods"
+                      className="hidden"
+                      onChange={(e) => void uploadList(e.target.files?.[0])}
+                    />
+                    <Button variant="outline" size="sm" disabled={listBusy} onClick={() => listFileRef.current?.click()}>
+                      {listBusy ? <Loader2 className="size-4 animate-spin" /> : <FolderOpen className="size-4" />}
+                      {t('listUpload')}
+                    </Button>
+                    {lists.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">{t('listNone')}</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {lists.map((l) => (
+                          <li
+                            key={l.id}
+                            className={cn(
+                              'flex items-start gap-2 rounded-lg border px-2.5 py-2',
+                              listId === l.id ? 'border-primary bg-primary/10' : 'border-border',
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name="recipient-list"
+                              className="mt-1 size-4 accent-[var(--primary)]"
+                              checked={listId === l.id}
+                              onChange={() => setListId(l.id)}
+                              aria-label={l.name}
+                            />
+                            <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setListId(l.id)}>
+                              <span className="block break-words text-sm text-foreground">{l.name}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                {t('listMeta', { count: l.count, rejected: l.rejected, date: new Date(l.created_at).toLocaleDateString() })}
+                              </span>
+                              <span className="block break-all text-[11px] text-muted-foreground">
+                                {l.sample.join(', ')}
+                                {l.count > l.sample.length ? ' …' : ''}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={t('listDelete')}
+                              title={t('listDelete')}
+                              onClick={() => void removeList(l.id)}
+                              className="flex size-6 shrink-0 items-center justify-center rounded-full border border-red-500/50 text-red-400 hover:bg-red-500/15"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {pickedList && pickedList.count > MAX_BROADCAST_RECIPIENTS && (
+                      <p className="text-xs text-amber-300">
+                        {t('listOverLimit', { count: pickedList.count, max: MAX_BROADCAST_RECIPIENTS })}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">{t('safetyTitle')}</p>
+                  <p>
+                    {t('safetyRule', {
+                      batch: BROADCAST_CHUNK,
+                      pause: Math.round(BATCH_PAUSE_MS / 1000),
+                      max: MAX_BROADCAST_RECIPIENTS,
+                      maxMinutes: minutesFor(MAX_BROADCAST_RECIPIENTS),
+                    })}
+                  </p>
+                  {recipientCount !== null && recipientCount > 0 ? (
+                    <p className="mt-1 text-foreground">
+                      {t('safetyEstimate', { count: recipientCount, minutes: minutesFor(recipientCount) })}
+                    </p>
+                  ) : audienceMode === 'tags' && tagIds.length > 0 ? (
+                    <p className="mt-1">{t('safetyEstimateTags')}</p>
+                  ) : null}
+                </div>
                 <p className="text-xs text-muted-foreground">{t('broadcastNote', { token: '{{name}}' })}</p>
               </div>
             )}
@@ -933,7 +1134,12 @@ export function PostsStudio() {
                   {t('broadcastPause')}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{t('broadcastKeepOpen')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('broadcastTimeLeft', {
+                  minutes: minutesFor(Math.max(0, progress.tally.total - progress.tally.sent - progress.tally.failed)),
+                })}{' '}
+                {t('broadcastKeepOpen')}
+              </p>
             </div>
           )}
         </div>

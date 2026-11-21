@@ -1358,7 +1358,9 @@ function NewTab({
           .from('contacts')
           .select('id, name, phone, conversations!inner(channel_id)')
           .eq('conversations.channel_id', channelId)
-          .not('phone', 'is', null);
+          .eq('is_group', false)
+          .not('phone', 'is', null)
+          .neq('phone', '');
         const filter = term.length >= 2 ? contactSearchFilter(term) : null;
         if (filter) q = q.or(filter);
         const { data } = await q.order('name').limit(50);

@@ -121,6 +121,7 @@ export async function POST(request: Request) {
       userPrompt: config.systemPrompt,
       mode: 'draft',
       knowledge,
+      language: config.replyLanguage,
     })
 
     // The business usually spoke last (the bot already answered); give

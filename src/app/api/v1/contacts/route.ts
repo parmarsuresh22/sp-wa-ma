@@ -52,7 +52,9 @@ export async function GET(request: Request) {
     let query = ctx.supabase
       .from('contacts')
       .select(selectClause)
-      .eq('account_id', ctx.accountId);
+      .eq('account_id', ctx.accountId)
+      // A WhatsApp group is a chat, not a contact (migration 077).
+      .eq('is_group', false);
 
     if (searchFilter) {
       query = query.or(searchFilter);

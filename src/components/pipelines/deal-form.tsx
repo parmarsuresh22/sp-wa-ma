@@ -139,6 +139,7 @@ export function DealForm({
         .from("contacts")
         .select("*")
         .eq("account_id", accountId)
+        .eq("is_group", false)
         .order("name")
         .limit(CONTACT_PICKER_LIMIT);
       const filter = contactSearchFilter(contactSearch);

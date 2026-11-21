@@ -98,3 +98,51 @@ describe('parseAudience', () => {
     expect(parseAudience(null)).toBeNull()
   })
 })
+
+describe('mobile numbers from an uploaded file', () => {
+  it('keeps only 10-digit mobiles, without country code or leading zero', async () => {
+    const { toTenDigitMobile } = await import('./post')
+    expect(toTenDigitMobile('9782048273')).toBe('9782048273')
+    expect(toTenDigitMobile('+91 97820 48273')).toBe('9782048273')
+    expect(toTenDigitMobile('919782048273')).toBe('9782048273')
+    expect(toTenDigitMobile('09782048273')).toBe('9782048273')
+    expect(toTenDigitMobile('(97820) 48-273')).toBe('9782048273')
+    // Not a mobile: too short, too long, landline-style, text, empty.
+    for (const bad of ['978204827', '97820482731', '0141-2345678', '1234567890', 'Ravi', '', 'abc9782048273', null]) {
+      expect(toTenDigitMobile(bad)).toBeNull()
+    }
+  })
+  it('drops duplicates and reports what was left out', async () => {
+    const { extractMobileNumbers } = await import('./post')
+    const out = extractMobileNumbers(['9782048273', '+919782048273', 'Name', '8433701949', '', '12345', '8433701949'])
+    expect(out.numbers).toEqual(['9782048273', '8433701949'])
+    expect(out.read).toBe(6)
+    expect(out.rejected).toBe(2)
+    expect(out.duplicates).toBe(2)
+  })
+})
+
+describe('how long a broadcast takes', () => {
+  it('grows with the number of people and stays under an hour at the cap', async () => {
+    const { estimateBroadcastSeconds, MAX_BROADCAST_RECIPIENTS } = await import('./post')
+    expect(estimateBroadcastSeconds(0)).toBe(0)
+    expect(estimateBroadcastSeconds(5)).toBe(15)
+    expect(estimateBroadcastSeconds(6)).toBe(38)
+    const full = estimateBroadcastSeconds(MAX_BROADCAST_RECIPIENTS)
+    expect(full).toBe(3480)
+    expect(estimateBroadcastSeconds(100000)).toBe(full)
+  })
+  it('accepts an audience that is a saved list', async () => {
+    const { parseAudience } = await import('./post')
+    const channel = '11111111-1111-4111-8111-111111111111'
+    const list = '22222222-2222-4222-8222-222222222222'
+    expect(parseAudience({ mode: 'list', channel_id: channel, list_id: list })).toEqual({
+      mode: 'list',
+      tag_ids: [],
+      contact_ids: [],
+      channel_id: channel,
+      list_id: list,
+    })
+    expect(parseAudience({ mode: 'list', channel_id: channel })).toBeNull()
+  })
+})

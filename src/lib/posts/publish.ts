@@ -14,10 +14,11 @@ import { createWahaClient } from '@/lib/whatsapp/providers/waha'
 import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
 import { findOrCreateConversationRow } from '@/lib/whatsapp/resolve-conversation'
 import { renderBroadcastText } from '@/lib/whatsapp/broadcast-core'
-import { resolveAuditUserId } from '@/lib/api/v1/contacts'
+import { findOrCreateContact, resolveAuditUserId } from '@/lib/api/v1/contacts'
 import {
   BROADCAST_CHUNK,
   MAX_BROADCAST_RECIPIENTS,
+  MESSAGE_GAP_MS,
   type PostAudience,
   type PostBroadcastResult,
   type PostRow,
@@ -128,9 +129,60 @@ function audienceQuery(db: SupabaseClient, accountId: string, audience: PostAudi
     .select(select, head ? { count: 'exact', head: true } : undefined)
     .eq('account_id', accountId)
     .eq('conversations.channel_id', audience.channel_id)
+    // A WhatsApp group is a chat, not a contact: never part of an audience.
+    .eq('is_group', false)
     .not('phone', 'is', null)
+    .neq('phone', '')
   if (audience.mode === 'tags') query = query.in('contact_tags.tag_id', audience.tag_ids)
   return query
+}
+
+/** The numbers of the saved list this audience points at (migration 077). */
+async function listNumbers(db: SupabaseClient, accountId: string, audience: PostAudience): Promise<string[]> {
+  if (!audience.list_id) return []
+  const { data, error } = await db
+    .from('post_recipient_lists')
+    .select('numbers')
+    .eq('id', audience.list_id)
+    .eq('account_id', accountId)
+    .eq('channel_id', audience.channel_id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return ((data as { numbers?: string[] } | null)?.numbers ?? []).slice(0, MAX_BROADCAST_RECIPIENTS)
+}
+
+/**
+ * The next few people of a file-based audience. The cursor is the
+ * position in the list. Each 10-digit number gets the country code of
+ * the sending number and is saved as a contact of that number (or
+ * matched to the contact that already has it), so replies land in the
+ * inbox like anyone else's.
+ */
+async function nextListContacts(
+  db: SupabaseClient,
+  accountId: string,
+  audience: PostAudience,
+  channel: ChannelRow,
+  cursor: string | null,
+  limit: number,
+  auditUserId: string,
+): Promise<{ contacts: AudienceContact[]; cursor: string }> {
+  const numbers = await listNumbers(db, accountId, audience)
+  const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) + 1 : 0
+  const slice = numbers.slice(start, start + limit)
+  const ownDigits = (channel.display_phone ?? '').replace(/\D/g, '')
+  const countryCode = ownDigits.length > 10 ? ownDigits.slice(0, ownDigits.length - 10) : '91'
+  const contacts: AudienceContact[] = []
+  for (const n of slice) {
+    try {
+      const made = await findOrCreateContact(db, accountId, auditUserId, { phone: `+${countryCode}${n}` })
+      const { data } = await db.from('contacts').select('id, name, phone').eq('id', made.id).maybeSingle()
+      if (data) contacts.push(data as AudienceContact)
+    } catch {
+      // A number WhatsApp's own rules reject is skipped, not fatal.
+    }
+  }
+  return { contacts, cursor: String(start + slice.length - 1) }
 }
 
 /** Hand-picked ids are filtered a slice at a time to keep requests short. */
@@ -142,6 +194,10 @@ export async function countAudience(
   accountId: string,
   audience: PostAudience,
 ): Promise<number> {
+  if (audience.mode === 'list') {
+    const numbers = await listNumbers(db, accountId, audience)
+    return Math.min(numbers.length, MAX_BROADCAST_RECIPIENTS)
+  }
   if (audience.mode === 'tags' && audience.tag_ids.length === 0) return 0
   let total = 0
   if (audience.mode === 'contacts') {
@@ -220,23 +276,39 @@ export async function broadcastNextChunk(
   const tally: PostBroadcastResult = { ...prev }
   const handled = tally.sent + tally.failed
   const room = Math.max(0, Math.min(tally.total, MAX_BROADCAST_RECIPIENTS) - handled)
-  const contacts =
-    room > 0
-      ? await nextAudienceContacts(db, post.account_id, audience, tally.cursor, Math.min(BROADCAST_CHUNK, room))
-      : []
+  const auditUserId = await resolveAuditUserId(db, post.account_id)
+  const want = Math.min(BROADCAST_CHUNK, room)
+  let contacts: AudienceContact[] = []
+  // A file-based audience walks the list by position, so its cursor
+  // moves even when a number could not be used.
+  let listCursor: string | null = null
+  if (room > 0) {
+    if (audience.mode === 'list') {
+      const next = await nextListContacts(db, post.account_id, audience, channel, tally.cursor, want, auditUserId)
+      contacts = next.contacts
+      listCursor = next.cursor
+      // Numbers that could not be turned into a contact count as failed.
+      const skipped = Math.max(0, Math.min(want, tally.total - handled) - contacts.length)
+      if (skipped > 0) {
+        tally.failed += skipped
+        tally.last_error = 'Some numbers in the file are not valid WhatsApp numbers'
+      }
+    } else {
+      contacts = await nextAudienceContacts(db, post.account_id, audience, tally.cursor, want)
+    }
+  }
 
-  if (contacts.length === 0) {
+  if (contacts.length === 0 && audience.mode !== 'list') {
     tally.done = true
     return tally
   }
-
-  const auditUserId = await resolveAuditUserId(db, post.account_id)
+  if (audience.mode === 'list' && listCursor !== null) tally.cursor = listCursor
   const ownNumber = (channel.display_phone ?? '').replace(/\D/g, '').slice(-10)
   const text = post.final_text ?? post.caption ?? ''
 
   for (let i = 0; i < contacts.length; i++) {
     const contact = contacts[i]
-    tally.cursor = contact.id
+    if (audience.mode !== 'list') tally.cursor = contact.id
     // Never message the number the broadcast is leaving from.
     const digits = (contact.phone ?? '').replace(/\D/g, '')
     if (ownNumber && digits.slice(-10) === ownNumber) continue
@@ -262,8 +334,9 @@ export async function broadcastNextChunk(
       tally.failed++
       tally.last_error = (err instanceof Error ? err.message : String(err)).slice(0, 300)
     }
-    // A human-ish gap between sends; bulk bursts get Web numbers banned.
-    if (i < contacts.length - 1) await sleep(900)
+    // An uneven, human-ish gap between sends; even bursts get Web numbers
+    // banned. Averages MESSAGE_GAP_MS.
+    if (i < contacts.length - 1) await sleep(MESSAGE_GAP_MS * (0.7 + Math.random() * 0.6))
   }
 
   if (tally.sent + tally.failed >= Math.min(tally.total, MAX_BROADCAST_RECIPIENTS)) tally.done = true

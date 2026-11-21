@@ -35,6 +35,8 @@ export interface AiConfig {
   channelId?: string | null
   /** The data table the auto-reply may answer from (070); null = none. */
   dataTableId?: string | null
+  /** 'auto' (the customer's own language) or a key of REPLY_LANGUAGES (078). */
+  replyLanguage?: string
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */

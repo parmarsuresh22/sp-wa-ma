@@ -18,6 +18,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
     db
       .from('contacts')
       .select('id, name, phone, created_at')
+      .eq('is_group', false)
       .order('created_at', { ascending: false })
       .limit(10),
     db

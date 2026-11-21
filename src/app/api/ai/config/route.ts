@@ -1,3 +1,4 @@
+import { cleanReplyLanguage } from '@/lib/ai/languages'
 import { NextResponse } from 'next/server'
 import { isUuid } from '@/lib/api/v1/pagination'
 import {
@@ -36,7 +37,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, data_table_id, api_key, embeddings_api_key',
+        'provider, model, base_url, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, data_table_id, reply_language, api_key, embeddings_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -261,6 +262,8 @@ export async function POST(request: Request) {
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId
     if (channelProvided) shared.channel_id = channelId
     if (tableProvided) shared.data_table_id = dataTableId
+    // Reply language (078): 'auto' or one of the offered languages.
+    if ('reply_language' in body) shared.reply_language = cleanReplyLanguage(body.reply_language)
     if (handoffEnabledProvided) shared.handoff_enabled = handoffEnabled
     if (rawEmbeddingsKey) {
       shared.embeddings_api_key = encrypt(rawEmbeddingsKey)

@@ -176,6 +176,8 @@ export default function ContactsPage() {
       let query = supabase
         .from('contacts')
         .select('*', { count: 'exact' })
+        // A WhatsApp group is a chat, not a contact (migration 077).
+        .eq('is_group', false)
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -645,7 +647,25 @@ export default function ContactsPage() {
                     />
                   </TableCell>
                   <TableCell className="text-foreground font-medium">
-                    {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                    <span className="flex items-center gap-2.5">
+                      <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-medium text-foreground">
+                        {contact.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={contact.avatar_url}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="size-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          (contact.name || contact.phone || '?').replace(/^\+/, '').charAt(0).toUpperCase()
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                      </span>
+                    </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-xs">
                     {contact.phone}

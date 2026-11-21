@@ -7,6 +7,8 @@
 // between the two with `Intl`, so daylight-saving zones work too.
 // ============================================================
 
+import { REPLY_LANGUAGES } from '@/lib/ai/languages'
+
 export type ReminderMode = 'none' | 'same_day' | 'day_before'
 
 /** [open, close] in "HH:MM", in the business's timezone. */
@@ -44,31 +46,7 @@ export interface AppointmentSettings {
   reminder_template_language: string | null
 }
 
-/**
- * Languages the assistant can be told to answer in. The value is what
- * the model is told; the key is what is stored.
- */
-export const REPLY_LANGUAGES: Record<string, string> = {
-  english: 'English',
-  hindi: 'Hindi (Devanagari script)',
-  hinglish: 'Hinglish (Hindi written in English letters)',
-  gujarati: 'Gujarati',
-  marathi: 'Marathi',
-  punjabi: 'Punjabi',
-  bengali: 'Bengali',
-  tamil: 'Tamil',
-  telugu: 'Telugu',
-  kannada: 'Kannada',
-  malayalam: 'Malayalam',
-  odia: 'Odia',
-  assamese: 'Assamese',
-  urdu: 'Urdu',
-  nepali: 'Nepali',
-  arabic: 'Arabic',
-  spanish: 'Spanish',
-  portuguese: 'Portuguese',
-  french: 'French',
-}
+export { REPLY_LANGUAGES }
 
 export const DEFAULT_HOURS: Record<string, HoursRange[]> = {
   '1': [['10:00', '18:00']],

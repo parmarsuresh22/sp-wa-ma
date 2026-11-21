@@ -2368,6 +2368,9 @@
       "autoReplyDesc": "El bot responde automáticamente a los nuevos mensajes entrantes (solo cuando ningún flujo los atiende y no hay agente asignado). Deriva a una persona cuando no puede ayudar.",
       "maxAutoReplies": "Máximo de respuestas automáticas por conversación",
       "maxAutoRepliesDesc": "Después de esta cantidad de respuestas del bot en un mismo hilo, el bot guarda silencio. De 1 a 500.",
+      "replyLanguage": "Reply language",
+      "replyLanguageDesc": "The language the AI agent answers and drafts in. It understands every language whichever you choose.",
+      "replyLanguageAuto": "Auto (the customer's own language)",
       "handoffTo": "Derivar a",
       "handoffToDesc": "Cuando el bot no puede ayudar, o alcanza el límite de respuestas, se pausa y dirige el chat aquí, con una breve nota de lo que pasó.",
       "handoffQueue": "Cola sin asignar (cualquier agente puede tomarlo)",
@@ -3343,6 +3346,7 @@
     "broadcastFrom": "Send from",
     "audience": {
       "contacts": "Specific contacts",
+      "list": "From a file",
       "tags": "By tag",
       "all": "All contacts"
     },
@@ -3396,7 +3400,22 @@
     "removedNumber": "removed number",
     "badgeStatus": "Status · {name}",
     "badgeBroadcast": "Sent {sent}/{total} · {failed} failed",
-    "badgeDrive": "Google Drive"
+    "badgeDrive": "Google Drive",
+    "sendingFrom": "These messages will be sent from",
+    "listHint": "Upload a CSV or Excel file. Only 10-digit mobile numbers are kept (a leading +91 or 0 is removed, duplicates are dropped); everything else in the file is ignored. The list is saved so you can use it again for the next post.",
+    "listUpload": "Upload CSV or Excel",
+    "listNone": "No saved lists for this number yet.",
+    "listSaved": "{count, plural, one {# number saved} other {# numbers saved}}. Left out: {rejected} not a 10-digit mobile, {duplicates} repeated.",
+    "listFailed": "Could not use that file",
+    "listMeta": "{count, plural, one {# number} other {# numbers}} · {rejected} left out · {date}",
+    "listDelete": "Delete this list",
+    "listDeleteConfirm": "Delete this saved list? Posts already sent are not affected.",
+    "listOverLimit": "This list has {count} numbers. One post sends to the first {max}; send the rest in another post.",
+    "safetyTitle": "Sent slowly, to keep your number safe",
+    "safetyRule": "{batch} messages at a time with uneven gaps, then a {pause}-second rest. At most {max} people per post (about {maxMinutes} minutes).",
+    "safetyEstimate": "{count, plural, one {# person} other {# people}}: about {minutes, plural, one {# minute} other {# minutes}}. Keep this page open until it finishes.",
+    "safetyEstimateTags": "The time is shown once the post starts, when the tagged contacts of this number are counted.",
+    "broadcastTimeLeft": "About {minutes, plural, one {# minute} other {# minutes}} left."
   },
   "Appointments": {
     "title": "Appointments",

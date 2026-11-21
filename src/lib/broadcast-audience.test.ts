@@ -39,7 +39,9 @@ function cappedPostgrest(tables: Record<string, Row[]>) {
           return builder;
         },
         eq(col: string, value: unknown) {
-          filters.push((row) => row[col] === value);
+          // `is_group` is a generated column (migration 077): false for
+          // every ordinary contact, which is all these fixtures hold.
+          filters.push((row) => (col === 'is_group' ? (row[col] ?? false) : row[col]) === value);
           return builder;
         },
         neq(col: string, value: unknown) {

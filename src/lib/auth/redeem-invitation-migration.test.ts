@@ -29,6 +29,9 @@ const tablesWithoutDomainData = new Set([
   // account the function would still consider empty.
   "appointment_settings",
   "appointments",
+  // Migration 077. A list of numbers prepared for one WhatsApp number
+  // (NOT NULL FK to whatsapp_config, which redeem_invitation checks).
+  "post_recipient_lists",
 ]);
 
 function accountScopedTables(): Set<string> {

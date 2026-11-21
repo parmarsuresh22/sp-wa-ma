@@ -1,3 +1,4 @@
+import { cleanReplyLanguage } from './languages'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import type { AiConfig } from './types'
@@ -15,11 +16,12 @@ interface AiConfigRow {
   handoff_enabled?: boolean | null
   channel_id?: string | null
   data_table_id?: string | null
+  reply_language?: string | null
   embeddings_api_key: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, base_url, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, data_table_id, embeddings_api_key'
+  'provider, model, base_url, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, handoff_enabled, channel_id, data_table_id, reply_language, embeddings_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -86,6 +88,7 @@ export async function loadAiConfig(
     handoffEnabled: row.handoff_enabled !== false,
     channelId: row.channel_id ?? null,
     dataTableId: row.data_table_id ?? null,
+    replyLanguage: cleanReplyLanguage(row.reply_language),
     embeddingsApiKey,
   }
 }

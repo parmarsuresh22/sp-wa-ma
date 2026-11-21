@@ -162,6 +162,28 @@ and polish.
 
 ### Added
 
+- **Groups only in the inbox, profile photos, safer bulk posts, AI
+  footer and AI reply language.** Requires
+  `supabase/migrations/077_groups_hidden_avatars_recipient_lists.sql`
+  and `078_ai_reply_language.sql`.
+  - A WhatsApp group shows as a chat in the inbox and nowhere else: not
+    in Contacts, not in any contact picker, and never in a broadcast or
+    post audience.
+  - WhatsApp profile photos (Web numbers) appear in the inbox and the
+    contact list. They are fetched in the background when a contact
+    writes, at most once a week, and stored, so no page loads slower.
+  - Posts: the sending number is shown above the audience and named in
+    the "all contacts" warning. Broadcasts go out 5 at a time with
+    uneven gaps and a 20-second rest between batches, with the expected
+    time shown before sending and the time left while it runs. A CSV
+    or Excel file can be uploaded as the audience: only 10-digit mobile
+    numbers are kept (+91 / leading 0 removed, duplicates dropped) and
+    the list is saved for later posts.
+  - Every automatic AI reply ends with "AI Assistant", or "AI Assistant
+    - <business name>" on a number with appointments switched on.
+  - The AI Agent settings have a reply-language list, the same one the
+    appointment settings use.
+
 - **Booking confirmation, pre-booking questions, WhatsApp groups and
   per-member access.** Requires
   `supabase/migrations/076_confirmation_groups_sections.sql`.
