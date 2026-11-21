@@ -143,6 +143,17 @@ and polish.
 
 ### Fixed
 
+- **Business branding now shows and stays.** The saved name and logo
+  were read from the database but dropped before reaching the menu and
+  the settings panel, so the menu kept the default and the panel looked
+  empty after a refresh. Both now show what is saved. The logo also
+  goes with a moved appointment's message, not only a first
+  confirmation.
+- **Bold date, time and business name; new AI footer.** Appointment
+  messages and AI replies put the date, the time and the business name
+  in WhatsApp bold. The footer under automatic AI replies is now
+  "AI Powered" or "AI Powered - <business name>", in italics.
+
 - **"Draft with AI" failed when the business had spoken last** — which is
   every thread once the auto-reply bot is on. The transcript ended on an
   assistant turn and the model returned nothing. The draft now closes such

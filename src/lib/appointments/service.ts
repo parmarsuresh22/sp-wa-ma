@@ -497,10 +497,14 @@ export function appointmentMessageText(
   appt: Pick<AppointmentRow, 'starts_at' | 'customer_name'>,
   settings: AppointmentSettings,
 ): string {
-  const { day, time } = appointmentWhen(appt, settings)
+  const when = appointmentWhen(appt, settings)
+  // The date, the time and the business name stand out: WhatsApp shows
+  // text between single asterisks in bold.
+  const day = bold(when.day)
+  const time = bold(when.time)
   const name = appt.customer_name?.trim()
   const hello = name ? `Hello ${name},` : 'Hello,'
-  const at = settings.business_name ? ` at ${settings.business_name}` : ''
+  const at = settings.business_name?.trim() ? ` at ${bold(settings.business_name)}` : ''
   const address = settings.address ? `\nAddress: ${settings.address}` : ''
   switch (kind) {
     case 'confirmed':
@@ -520,6 +524,12 @@ export function appointmentMessageText(
   }
 }
 
+/** WhatsApp bold. Asterisks inside the text would end the bold early. */
+export function bold(text: string): string {
+  const clean = text.replace(/[*]/g, '').trim()
+  return clean ? `*${clean}*` : ''
+}
+
 /** Every run of digits in a text: "23", "2026", "10", "00", "302001"… */
 export function numbersIn(text: string): string[] {
   return text.match(/\d+/g) ?? []
@@ -533,7 +543,8 @@ export function translationPrompt(target: string | null, customerSample: string)
       ? `Translate it into ${target}.`
       : 'Write it in the same language and script as the customer\'s own messages shown at the end. If those are in English, return the message unchanged.',
     'Keep every fact exactly as it is: the customer name, the business name, the date, the time, the address and all numbers. Write numbers with the digits 0-9. Translate weekday and month names.',
-    'Keep the line breaks. Do not add or remove information. No markdown. Return only the translated message.',
+    'Some pieces are wrapped in single asterisks (*like this*) so they show in bold: keep exactly those pieces wrapped in asterisks in your translation — the date, the time and the business name — with no space just inside the asterisks. Add no other formatting.',
+    'Keep the line breaks. Do not add or remove information. Return only the translated message.',
     target ? '' : `\nThe customer's own messages:\n${customerSample}`,
   ]
     .filter(Boolean)
@@ -589,6 +600,8 @@ export async function localizeAppointmentText(
     if (!translated || translated.length > text.length * 4 + 200) return text
     // Every number of the original (day, year, hour, minutes, PIN code)
     // must still be there; otherwise do not risk it.
+    // ...and the bold markers must survive: same number of asterisks.
+    if ((translated.match(/[*]/g) ?? []).length !== (text.match(/[*]/g) ?? []).length) return text
     const kept = numbersIn(translated)
     for (const n of numbersIn(text)) {
       const at = kept.indexOf(n)
@@ -723,7 +736,7 @@ export async function sendAppointmentMessage(
   // A confirmation can carry the business logo as its picture (only a
   // confirmation, and only when that is switched on). If the picture
   // cannot be sent, the words still go out on their own.
-  if (kind === 'confirmed' || kind === 'confirmed_new_time') {
+  if (kind === 'confirmed' || kind === 'confirmed_new_time' || kind === 'rescheduled') {
     const logo = await confirmationLogo(db, appt.account_id, settings)
     if (logo) {
       try {

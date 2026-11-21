@@ -149,8 +149,8 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
       },
     ])
     expect(h.engineSendText).toHaveBeenCalledWith(
-      // The reply goes out with the "AI Assistant" footer under it.
-      expect.objectContaining({ conversationId: 'conv-1', text: 'Hello!\n\nAI Assistant' }),
+      // The reply goes out with the "AI Powered" footer under it.
+      expect.objectContaining({ conversationId: 'conv-1', text: 'Hello!\n\n_AI Powered_' }),
     )
   })
 
@@ -279,8 +279,8 @@ describe('dispatchInboundToAiReply — typing indicator (#527)', () => {
     await dispatchInboundToAiReply(ARGS)
     expect(h.generateReply).toHaveBeenCalledTimes(1)
     expect(h.engineSendText).toHaveBeenCalledWith(
-      // The reply goes out with the "AI Assistant" footer under it.
-      expect.objectContaining({ conversationId: 'conv-1', text: 'Hello!\n\nAI Assistant' }),
+      // The reply goes out with the "AI Powered" footer under it.
+      expect.objectContaining({ conversationId: 'conv-1', text: 'Hello!\n\n_AI Powered_' }),
     )
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('typing indicator failed'),

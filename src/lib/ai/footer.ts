@@ -1,10 +1,13 @@
 // ============================================================
 // The line at the bottom of every message the AI sends on its own, so
-// the customer always knows they are talking to an assistant:
+// the customer always knows an assistant wrote it:
 //
-//   AI Assistant                    appointments not in use on the number
-//   AI Assistant - Parmar Clinic    appointments in use (the business
+//   _AI Powered_                    appointments not in use on the number
+//   _AI Powered - Parmar Clinic_    appointments in use (the business
 //                                   name from the appointment settings)
+//
+// The underscores are WhatsApp's italics, so the customer sees the line
+// in italic type.
 //
 // Added to automatic replies only — the AI agent and the appointment
 // assistant. A draft an agent reviews and sends, and the portal's own
@@ -16,16 +19,18 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export const AI_FOOTER_LABEL = 'AI Assistant'
+export const AI_FOOTER_LABEL = 'AI Powered'
 
 /** The footer text for a number, given the business name (if any). */
 export function aiFooter(businessName?: string | null): string {
-  const name = businessName?.replace(/\s+/g, ' ').trim()
-  return name ? `${AI_FOOTER_LABEL} - ${name.slice(0, 80)}` : AI_FOOTER_LABEL
+  // Underscores inside the name would end the italics early.
+  const name = businessName?.replace(/[_*~`]/g, ' ').replace(/\s+/g, ' ').trim()
+  return name ? `_${AI_FOOTER_LABEL} - ${name.slice(0, 80)}_` : `_${AI_FOOTER_LABEL}_`
 }
 
-// A footer line at the very end of a message, with or without a name.
-const FOOTER_AT_END = /(?:\r?\n)+[ \t]*AI Assistant(?: - [^\r\n]*)?[ \t]*$/
+// A footer line at the very end of a message: today's italic
+// "AI Powered" form, and the "AI Assistant" form sent before it.
+const FOOTER_AT_END = /(?:\r?\n)+[ \t]*_?(?:AI Powered|AI Assistant)(?: ?- ?[^\r\n]*?)?_?[ \t]*$/
 
 /** A message without its footer (unchanged when it has none). */
 export function stripAiFooter(text: string): string {

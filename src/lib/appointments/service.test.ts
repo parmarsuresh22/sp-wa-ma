@@ -44,7 +44,7 @@ beforeEach(() => {
 
 describe('localizeAppointmentText', () => {
   it('sends the message in the language chosen in the settings', async () => {
-    const hindi = 'नमस्ते Suresh, Parmar Clinic में Monday, 23 November 2026 को 10:00 am का आपका अपॉइंटमेंट रद्द कर दिया गया है।'
+    const hindi = 'नमस्ते Suresh, *Parmar Clinic* में *Monday, 23 November 2026* को *10:00 am* का आपका अपॉइंटमेंट रद्द कर दिया गया है।'
     h.generateReply.mockResolvedValue({ text: hindi })
     const out = await localizeAppointmentText(dbWithCustomerMessages([]), 'acct', 'conv', settings('hindi'), english)
     expect(out).toBe(hindi)
@@ -58,7 +58,7 @@ describe('localizeAppointmentText', () => {
   })
 
   it('on Auto, follows the language the customer has been writing in', async () => {
-    h.generateReply.mockResolvedValue({ text: 'Namaste Suresh, aapka 23 November 2026 ko 10:00 am ka appointment cancel ho gaya hai.' })
+    h.generateReply.mockResolvedValue({ text: 'Namaste Suresh, *Parmar Clinic* mein aapka *23 November 2026* ko *10:00 am* ka appointment cancel ho gaya hai.' })
     const out = await localizeAppointmentText(
       dbWithCustomerMessages(['Muje 23 tarik ka krna h']),
       'a',
@@ -77,7 +77,7 @@ describe('localizeAppointmentText', () => {
 
   it('falls back to English when the translation lost or changed a number', async () => {
     // The time became 11:00: never send that.
-    h.generateReply.mockResolvedValue({ text: 'नमस्ते Suresh, 23 November 2026 को 11:00 am का अपॉइंटमेंट रद्द।' })
+    h.generateReply.mockResolvedValue({ text: 'नमस्ते Suresh, *Parmar Clinic* *23 November 2026* को *11:00 am* का अपॉइंटमेंट रद्द।' })
     expect(await localizeAppointmentText(dbWithCustomerMessages([]), 'a', 'c', settings('hindi'), english)).toBe(english)
   })
 
@@ -88,6 +88,27 @@ describe('localizeAppointmentText', () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(await localizeAppointmentText(dbWithCustomerMessages([]), 'a', 'c', settings('tamil'), english)).toBe(english)
     quiet.mockRestore()
+  })
+})
+
+describe('bold date, time and business name', () => {
+  it('wraps them in WhatsApp bold in every kind of message', () => {
+    for (const kind of ['confirmed', 'confirmed_new_time', 'declined', 'rescheduled', 'cancelled', 'reminder', 'no_show'] as const) {
+      const text = appointmentMessageText(kind, appt, settings('english'))
+      expect(text).toContain('*Parmar Clinic*')
+      expect(text).toContain('*Monday, 23 November 2026*')
+      expect(text).toMatch(/[*]10:00 am[*]/i)
+    }
+  })
+  it('leaves the business name out cleanly when there is none', () => {
+    const noName = settingsFromRow({ id: 's', reply_language: 'english' }, 'acct', 'chan')
+    const text = appointmentMessageText('confirmed', appt, noName)
+    expect(text).toContain('your appointment is confirmed')
+    expect(text).not.toContain('**')
+  })
+  it('refuses a translation that lost the bold markers', async () => {
+    h.generateReply.mockResolvedValue({ text: 'नमस्ते Suresh, Parmar Clinic में Monday, 23 November 2026 को 10:00 am का अपॉइंटमेंट रद्द।' })
+    expect(await localizeAppointmentText(dbWithCustomerMessages([]), 'a', 'c', settings('hindi'), english)).toBe(english)
   })
 })
 

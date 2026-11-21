@@ -263,6 +263,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: account.id,
               name: account.name,
               default_currency: account.default_currency ?? DEFAULT_CURRENCY,
+              // Business branding (migration 079). These were selected
+              // but not copied here, so the menu and the settings panel
+              // never saw them.
+              brand_enabled: account.brand_enabled === true,
+              brand_name: account.brand_name ?? null,
+              brand_logo_url: account.brand_logo_url ?? null,
             };
           }
         }

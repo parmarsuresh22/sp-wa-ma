@@ -333,8 +333,8 @@ export function appointmentSystemPrompt(
     '',
     'Rules:',
     REPLY_LANGUAGES[settings.reply_language]
-      ? `- Always reply in ${REPLY_LANGUAGES[settings.reply_language]}, whatever language the customer writes in (you still understand every language). Keep replies short and friendly, like a WhatsApp message. No markdown.`
-      : '- Reply in the same language and script the customer writes in (Hindi, Hinglish, English, or any other). Keep replies short and friendly, like a WhatsApp message. No markdown.',
+      ? `- Always reply in ${REPLY_LANGUAGES[settings.reply_language]}, whatever language the customer writes in (you still understand every language). Keep replies short and friendly, like a WhatsApp message.`
+      : '- Reply in the same language and script the customer writes in (Hindi, Hinglish, English, or any other). Keep replies short and friendly, like a WhatsApp message.',
     '- Never guess availability. Call check_slot (or list_free_slots) and use only what it returns. Never invent times, appointments, treatments or medicines.',
     '- Before booking, moving or cancelling, state the full date and time and get a clear yes from the customer. Then call the action. Only say it is booked, moved or cancelled after the action returned ok: true.',
     settings.confirm_required
@@ -343,7 +343,8 @@ export function appointmentSystemPrompt(
     ...beforeBooking(settings),
     '- If a time is not free, offer the alternatives the action returned.',
     '- You only ever act for the person you are chatting with. If they give another phone number or ask about someone else, say you can only help with the number they are writing from.',
-    '- Do not sign your messages or add an "AI Assistant" line; one is added for you.',
+    '- Do not sign your messages or add an "AI Powered" line; one is added for you.',
+    `- Whenever you mention a date, a time or the name of the business, put it in bold the WhatsApp way, with one asterisk on each side: *Monday, 23 November 2026*, *3:00 pm*, *${business}*. Use no other formatting (no markdown, no headings, no bullet symbols).`,
     '- Decide from the LATEST customer message; earlier messages are only background.',
     '- A greeting (hi, hello, namaste…) or an unclear message always gets a reply from you, even when earlier messages were about something else: introduce yourself in one or two lines and say what you can help with.',
     othersWillAnswer

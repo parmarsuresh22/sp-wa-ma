@@ -22,6 +22,22 @@ export const MAX_BRAND_NAME = 40;
  * Off by default; only owners and admins can change it.
  */
 export function BrandingPanel() {
+  const { account, profileLoading } = useAuth();
+  // The form copies the saved values once, when it is created. On a page
+  // refresh the account arrives a moment after the page, so the form is
+  // only created once it is there (and re-created if the account changes)
+  // — otherwise it would start empty and look as if the branding was lost.
+  if (profileLoading || !account) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="size-5 animate-spin text-primary" />
+      </div>
+    );
+  }
+  return <BrandingForm key={account.id} />;
+}
+
+function BrandingForm() {
   const t = useTranslations('Settings.branding');
   const tBrand = useTranslations('Sidebar');
   const { account, canEditSettings, refreshProfile } = useAuth();
