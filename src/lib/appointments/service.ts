@@ -52,12 +52,22 @@ export interface AppointmentRow {
   reminder_at: string | null
   reminder_sent_at: string | null
   reminder_error: string | null
+  attachments: AppointmentAttachment[]
   created_by: string | null
   cancelled_at: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
 }
+
+export interface AppointmentAttachment {
+  url: string
+  name: string
+  mime: string
+}
+
+export const MAX_ATTACHMENTS = 5
+export const ATTACHMENT_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 
 export class AppointmentError extends Error {
   readonly code: string
@@ -96,6 +106,7 @@ export function settingsFromRow(
     holidays: Array.isArray(r.holidays) ? (r.holidays as string[]) : [],
     reminder_mode: (r.reminder_mode as AppointmentSettings['reminder_mode']) ?? 'same_day',
     reminder_time: (r.reminder_time as string) ?? '09:00',
+    reply_language: (r.reply_language as string) || 'auto',
     confirm_template: (r.confirm_template as string) ?? null,
     confirm_template_language: (r.confirm_template_language as string) ?? null,
     reminder_template: (r.reminder_template as string) ?? null,
@@ -171,6 +182,67 @@ export async function slotsForDate(
     const left = Math.max(0, settings.slot_capacity - used)
     const free = left > 0 && s > now.getTime() && !tooFar
     return { ...slot, left, free }
+  })
+}
+
+export interface DayAvailability {
+  date: string
+  /** The business works that day (not a closed weekday or closed date). */
+  open: boolean
+  /** Slots that can still be booked. */
+  free: number
+}
+
+/**
+ * Which days of a month (`YYYY-MM`) can still take a booking. One query
+ * for the whole month, so a date picker can grey out closed and full
+ * days before anyone clicks them.
+ */
+export async function monthAvailability(
+  db: SupabaseClient,
+  settings: AppointmentSettings,
+  month: string,
+  now: Date,
+  ignoreId?: string | null,
+): Promise<DayAvailability[]> {
+  if (!/^\d{4}-\d{2}$/.test(month)) return []
+  const [y, m] = month.split('-').map(Number)
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const horizon = lastBookableDate(settings, now)
+  const perDay = Array.from({ length: days }, (_, i) => {
+    const date = `${month}-${String(i + 1).padStart(2, '0')}`
+    return { date, slots: daySlots(settings, date) }
+  })
+  const all = perDay.flatMap((d) => d.slots)
+  let taken: { start: number; end: number }[] = []
+  if (all.length > 0) {
+    const from = all[0].startsAt
+    const to = all[all.length - 1].endsAt
+    const { data, error } = await db
+      .from('appointments')
+      .select('id, starts_at, ends_at')
+      .eq('channel_id', settings.channel_id)
+      .eq('status', 'booked')
+      .lt('starts_at', to.toISOString())
+      .gt('ends_at', from.toISOString())
+      .limit(10000)
+    if (error) throw new Error(error.message)
+    taken = ((data ?? []) as { id: string; starts_at: string; ends_at: string }[])
+      .filter((a) => a.id !== ignoreId)
+      .map((a) => ({ start: Date.parse(a.starts_at), end: Date.parse(a.ends_at) }))
+  }
+  return perDay.map(({ date, slots }) => {
+    if (slots.length === 0) return { date, open: false, free: 0 }
+    if (date > horizon) return { date, open: true, free: 0 }
+    let free = 0
+    for (const slot of slots) {
+      const s = slot.startsAt.getTime()
+      if (s <= now.getTime()) continue
+      const e = slot.endsAt.getTime()
+      const used = taken.filter((a) => a.start < e && a.end > s).length
+      if (used < settings.slot_capacity) free++
+    }
+    return { date, open: true, free }
   })
 }
 

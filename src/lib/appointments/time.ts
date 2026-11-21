@@ -28,10 +28,38 @@ export interface AppointmentSettings {
   holidays: string[]
   reminder_mode: ReminderMode
   reminder_time: string
+  /** 'auto' (the customer's own language) or a key of REPLY_LANGUAGES. */
+  reply_language: string
   confirm_template: string | null
   confirm_template_language: string | null
   reminder_template: string | null
   reminder_template_language: string | null
+}
+
+/**
+ * Languages the assistant can be told to answer in. The value is what
+ * the model is told; the key is what is stored.
+ */
+export const REPLY_LANGUAGES: Record<string, string> = {
+  english: 'English',
+  hindi: 'Hindi (Devanagari script)',
+  hinglish: 'Hinglish (Hindi written in English letters)',
+  gujarati: 'Gujarati',
+  marathi: 'Marathi',
+  punjabi: 'Punjabi',
+  bengali: 'Bengali',
+  tamil: 'Tamil',
+  telugu: 'Telugu',
+  kannada: 'Kannada',
+  malayalam: 'Malayalam',
+  odia: 'Odia',
+  assamese: 'Assamese',
+  urdu: 'Urdu',
+  nepali: 'Nepali',
+  arabic: 'Arabic',
+  spanish: 'Spanish',
+  portuguese: 'Portuguese',
+  french: 'French',
 }
 
 export const DEFAULT_HOURS: Record<string, HoursRange[]> = {
@@ -257,7 +285,7 @@ export function parseSettingsInput(
   }
 
   const holidays = Array.isArray(raw.holidays)
-    ? [...new Set(raw.holidays.filter((d): d is string => typeof d === 'string' && DATE_RE.test(d)))].sort().slice(0, 366)
+    ? [...new Set(raw.holidays.filter((d): d is string => typeof d === 'string' && DATE_RE.test(d)))].sort().slice(0, 1500)
     : []
 
   const mode = raw.reminder_mode
@@ -266,6 +294,8 @@ export function parseSettingsInput(
   }
   const reminderTime = typeof raw.reminder_time === 'string' ? raw.reminder_time : ''
   if (!TIME_RE.test(reminderTime)) return { ok: false, error: 'The reminder time must be like 09:00' }
+  const language =
+    typeof raw.reply_language === 'string' && raw.reply_language in REPLY_LANGUAGES ? raw.reply_language : 'auto'
 
   return {
     ok: true,
@@ -281,6 +311,7 @@ export function parseSettingsInput(
       holidays,
       reminder_mode: mode,
       reminder_time: reminderTime,
+      reply_language: language,
       confirm_template: text(raw.confirm_template, 200),
       confirm_template_language: text(raw.confirm_template_language, 20),
       reminder_template: text(raw.reminder_template, 200),

@@ -1,12 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
   CalendarCheck,
   CalendarPlus,
+  Camera,
   CheckCircle2,
+  FileText,
+  Paperclip,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -20,7 +23,8 @@ import { createClient } from '@/lib/supabase/client';
 import { contactSearchFilter } from '@/lib/contacts/search-filter';
 import { useAuth } from '@/hooks/use-auth';
 import { useChannels, channelLabel } from '@/hooks/use-channels';
-import type { AppointmentSettings, HoursRange, ReminderMode } from '@/lib/appointments/time';
+import { REPLY_LANGUAGES, type AppointmentSettings, type HoursRange, type ReminderMode } from '@/lib/appointments/time';
+import { MEDIA_MAX_BYTES, uploadAccountMedia } from '@/lib/storage/upload-media';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,7 +53,23 @@ interface Appointment {
   reminder_at: string | null;
   reminder_sent_at: string | null;
   reminder_error: string | null;
+  attachments?: Attachment[] | null;
   contact?: { name: string | null; phone: string | null } | null;
+}
+
+interface Attachment {
+  url: string;
+  name: string;
+  mime: string;
+}
+
+const MAX_FILES = 5;
+const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+interface DayInfo {
+  date: string;
+  open: boolean;
+  free: number;
 }
 
 interface SettingsBundle {
@@ -169,20 +189,18 @@ export function AppointmentsStudio() {
 
   const loadRows = useCallback(async () => {
     if (!fromId) return;
-    const since = new Date(Date.now() - 400 * 86_400_000).toISOString();
     const { data, error } = await supabase
       .from('appointments')
       .select('*, contact:contacts(name, phone)')
       .eq('channel_id', fromId)
-      .gte('starts_at', since)
-      .order('starts_at', { ascending: true })
-      .limit(5000);
+      .order('starts_at', { ascending: false })
+      .limit(10000);
     if (error) {
       toast.error(t('loadFailed'));
       setRows((prev) => prev ?? []);
       return;
     }
-    setRows((data as Appointment[] | null) ?? []);
+    setRows(((data as Appointment[] | null) ?? []).reverse());
   }, [fromId, supabase, t]);
 
   useEffect(() => {
@@ -285,7 +303,7 @@ export function AppointmentsStudio() {
                 <Loader2 className="size-5 animate-spin text-primary" />
               </div>
             ) : tab === 'list' ? (
-              <ListTab rows={rows} tz={tz} channelId={fromId} onChanged={patchRow} horizon={bundle.settings.days_ahead} />
+              <ListTab rows={rows} tz={tz} channelId={fromId} onChanged={patchRow} onReload={loadRows} />
             ) : tab === 'new' ? (
               <NewTab
                 channelId={fromId}
@@ -349,27 +367,124 @@ function SlotPicker({
   if (!date) return null;
   if (!state || state.key !== key) return <Loader2 className="size-4 animate-spin text-primary" />;
   if (state.slots.length === 0) return <p className="text-xs text-muted-foreground">{t('closedThatDay')}</p>;
-  if (!state.slots.some((s) => s.free)) return <p className="text-xs text-amber-300">{t('noFreeSlots')}</p>;
+  // Only times that can really be booked: taken and past ones are left out.
+  const free = state.slots.filter((s) => s.free);
+  if (free.length === 0) return <p className="text-xs text-amber-300">{t('noFreeSlots')}</p>;
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {state.slots.map((s) => (
+    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+      {free.map((s) => (
         <button
           key={s.time}
           type="button"
-          disabled={!s.free}
           onClick={() => onChange(value === s.time ? null : s.time)}
           className={cn(
-            'rounded-md border px-2.5 py-1.5 text-xs',
+            'rounded-md border px-1 py-2 text-xs',
             value === s.time
               ? 'border-primary bg-primary/20 text-foreground'
-              : s.free
-                ? 'border-border text-foreground hover:border-primary'
-                : 'cursor-not-allowed border-border text-muted-foreground line-through opacity-50',
+              : 'border-border text-foreground hover:border-primary',
           )}
         >
           {s.time}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Date picker: only days that still have a free slot can be chosen.
+// Closed weekdays, closed dates, full days and past days are greyed out.
+// ------------------------------------------------------------
+
+function DayPicker({
+  channelId,
+  ignoreId,
+  value,
+  onChange,
+}: {
+  channelId: string;
+  ignoreId?: string;
+  value: string;
+  onChange: (date: string) => void;
+}) {
+  const t = useTranslations('Appointments');
+  const [month, setMonth] = useState(() => (value || new Date().toISOString().slice(0, 10)).slice(0, 7));
+  const [state, setState] = useState<{ key: string; days: DayInfo[]; today: string } | null>(null);
+  const key = `${channelId}:${month}:${ignoreId ?? ''}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const k = `${channelId}:${month}:${ignoreId ?? ''}`;
+    const qs = new URLSearchParams({ channel_id: channelId, month });
+    if (ignoreId) qs.set('ignore', ignoreId);
+    api<{ days: DayInfo[]; today: string }>(`/api/appointments/days?${qs.toString()}`)
+      .then((d) => {
+        if (!cancelled) setState({ key: k, days: d.days, today: d.today });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ key: k, days: [], today: '' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId, month, ignoreId]);
+
+  const loaded = state && state.key === key ? state : null;
+  const byDate = useMemo(() => new Map((loaded?.days ?? []).map((d) => [d.date, d])), [loaded]);
+  const [y, mo] = month.split('-').map(Number);
+  const lead = (new Date(Date.UTC(y, mo - 1, 1)).getUTCDay() + 6) % 7;
+  const count = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const cells: (string | null)[] = Array.from({ length: lead }, () => null);
+  for (let d = 1; d <= count; d++) cells.push(`${month}-${String(d).padStart(2, '0')}`);
+  const title = new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(
+    new Date(Date.UTC(y, mo - 1, 1)),
+  );
+  const move = (delta: number) => setMonth(new Date(Date.UTC(y, mo - 1 + delta, 1)).toISOString().slice(0, 7));
+  const atFirstMonth = !!state?.today && month <= state.today.slice(0, 7);
+
+  return (
+    <div className="w-full max-w-xs rounded-lg border border-border p-2">
+      <div className="flex items-center justify-between">
+        <Button variant="outline" size="sm" disabled={atFirstMonth} onClick={() => move(-1)} aria-label={t('prevMonth')}>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <span className="text-sm font-medium">{title}</span>
+        <Button variant="outline" size="sm" onClick={() => move(1)} aria-label={t('nextMonth')}>
+          <ChevronRight className="size-4" />
+        </Button>
+      </div>
+      <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[11px] text-muted-foreground">
+        {Array.from({ length: 7 }, (_, i) => (
+          <span key={i}>
+            {new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', weekday: 'narrow' }).format(new Date(Date.UTC(2024, 0, 1 + i)))}
+          </span>
+        ))}
+        {cells.map((c, i) => {
+          if (!c) return <span key={`e${i}`} />;
+          const info = byDate.get(c);
+          const can = !!info && info.free > 0;
+          return (
+            <button
+              key={c}
+              type="button"
+              disabled={!can}
+              title={!info ? '' : !info.open ? t('dayClosed') : info.free === 0 ? t('dayFull') : t('dayFree', { count: info.free })}
+              onClick={() => onChange(c)}
+              className={cn(
+                'flex aspect-square items-center justify-center rounded-md border text-xs',
+                value === c
+                  ? 'border-primary bg-primary/25 font-semibold text-foreground'
+                  : can
+                    ? 'border-border text-foreground hover:border-primary'
+                    : 'cursor-not-allowed border-transparent text-muted-foreground/50 line-through',
+              )}
+            >
+              {Number(c.slice(8))}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">{loaded ? t('dayPickerHint') : t('loadingDays')}</p>
     </div>
   );
 }
@@ -383,13 +498,13 @@ function ListTab({
   tz,
   channelId,
   onChanged,
-  horizon,
+  onReload,
 }: {
   rows: Appointment[] | null;
   tz: string;
   channelId: string;
   onChanged: (a: Appointment) => void;
-  horizon: number;
+  onReload: () => void | Promise<void>;
 }) {
   const t = useTranslations('Appointments');
   const [filter, setFilter] = useState<Filter>('live');
@@ -437,12 +552,21 @@ function ListTab({
     const [y, mo] = month.split('-').map(Number);
     setMonth(new Date(Date.UTC(y, mo - 1 + delta, 1)).toISOString().slice(0, 7));
   };
-  const monthTitle = useMemo(() => {
-    const [y, mo] = month.split('-').map(Number);
-    return new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(
-      new Date(Date.UTC(y, mo - 1, 1)),
-    );
-  }, [month]);
+  const monthNames = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) =>
+        new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', month: 'short' }).format(new Date(Date.UTC(2024, i, 1))),
+      ),
+    [],
+  );
+  // From the first appointment on record (at least five years back) to
+  // three years ahead, and always the year being looked at.
+  const years = useMemo(() => {
+    const thisYear = Number(today.slice(0, 4));
+    const firstYear = Math.min(thisYear - 5, ...keyed.map((r) => Number(r.day.slice(0, 4))), Number(month.slice(0, 4)));
+    const lastYear = Math.max(thisYear + 3, Number(month.slice(0, 4)));
+    return Array.from({ length: lastYear - firstYear + 1 }, (_, i) => String(firstYear + i));
+  }, [today, keyed, month]);
   const weekdayNames = useMemo(
     () =>
       Array.from({ length: 7 }, (_, i) =>
@@ -545,9 +669,8 @@ function ListTab({
                 tz={tz}
                 isPast={at <= now}
                 channelId={channelId}
-                today={today}
-                horizon={horizon}
                 onChanged={onChanged}
+                onReload={onReload}
               />
             ))}
           </ul>
@@ -560,7 +683,32 @@ function ListTab({
             <Button variant="outline" size="sm" onClick={() => moveMonth(-1)} aria-label={t('prevMonth')}>
               <ChevronLeft className="size-4" />
             </Button>
-            <span className="text-sm font-medium">{monthTitle}</span>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <select
+                aria-label={t('month')}
+                className={cn(field, 'h-8 px-1')}
+                value={month.slice(5)}
+                onChange={(e) => setMonth(`${month.slice(0, 4)}-${e.target.value}`)}
+              >
+                {monthNames.map((name, i) => (
+                  <option key={name} value={String(i + 1).padStart(2, '0')}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label={t('year')}
+                className={cn(field, 'h-8 px-1')}
+                value={month.slice(0, 4)}
+                onChange={(e) => setMonth(`${e.target.value}-${month.slice(5)}`)}
+              >
+                {years.map((yr) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button variant="outline" size="sm" onClick={() => moveMonth(1)} aria-label={t('nextMonth')}>
               <ChevronRight className="size-4" />
             </Button>
@@ -638,18 +786,16 @@ function AppointmentCard({
   tz,
   isPast,
   channelId,
-  today,
-  horizon,
   onChanged,
+  onReload,
 }: {
   a: Appointment;
   dayLabel: string;
   tz: string;
   isPast: boolean;
   channelId: string;
-  today: string;
-  horizon: number;
   onChanged: (a: Appointment) => void;
+  onReload: () => void | Promise<void>;
 }) {
   const t = useTranslations('Appointments');
   const [mode, setMode] = useState<'complete' | 'move' | 'notes' | null>(null);
@@ -659,11 +805,56 @@ function AppointmentCard({
   const [notes, setNotes] = useState(a.notes ?? '');
   const [moveDate, setMoveDate] = useState('');
   const [moveTime, setMoveTime] = useState<string | null>(null);
+  const [files, setFiles] = useState<Attachment[]>(a.attachments ?? []);
+  const [uploading, setUploading] = useState(false);
+  const [nextOn, setNextOn] = useState(false);
+  const [nextDate, setNextDate] = useState('');
+  const [nextTime, setNextTime] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = async (picked: FileList | null) => {
+    if (!picked || picked.length === 0) return;
+    const room = MAX_FILES - files.length;
+    if (picked.length > room) toast.error(t('tooManyFiles', { max: MAX_FILES }));
+    const batch = Array.from(picked).slice(0, Math.max(0, room));
+    if (batch.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of batch) {
+        if (!FILE_TYPES.includes(file.type)) {
+          toast.error(t('fileType', { name: file.name }));
+          continue;
+        }
+        if (file.size > MEDIA_MAX_BYTES) {
+          toast.error(t('fileTooLarge', { name: file.name }));
+          continue;
+        }
+        try {
+          const up = await uploadAccountMedia('chat-media', file);
+          setFiles((prev) =>
+            prev.length >= MAX_FILES ? prev : [...prev, { url: up.publicUrl, name: file.name, mime: file.type }],
+          );
+        } catch (err) {
+          toast.error(t('uploadFailed', { error: err instanceof Error ? err.message : String(err) }));
+        }
+      }
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+      if (cameraRef.current) cameraRef.current.value = '';
+    }
+  };
 
   const act = async (body: Record<string, unknown>, done: string) => {
     setBusy(true);
     try {
-      const res = await api<{ appointment: Appointment; message_error: string | null }>(`/api/appointments/${a.id}`, {
+      const res = await api<{
+        appointment: Appointment;
+        message_error: string | null;
+        next_appointment?: Appointment | null;
+        next_error?: string | null;
+      }>(`/api/appointments/${a.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -671,6 +862,11 @@ function AppointmentCard({
       onChanged(res.appointment);
       setMode(null);
       toast.success(done);
+      if (res.next_appointment) {
+        toast.success(t('nextVisitBooked'));
+        void onReload();
+      }
+      if (res.next_error) toast.error(t('nextVisitFailed', { error: res.next_error }), { duration: 10000 });
       if (res.message_error) toast.error(t('messageNotSent', { error: res.message_error }), { duration: 9000 });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err), { duration: 8000 });
@@ -706,6 +902,9 @@ function AppointmentCard({
           {a.medicine && <p>{t('medicine')}: <span className="text-foreground">{a.medicine}</span></p>}
           {a.notes && <p>{t('notes')}: <span className="text-foreground">{a.notes}</span></p>}
         </div>
+      )}
+      {(a.attachments?.length ?? 0) > 0 && mode !== 'complete' && mode !== 'notes' && (
+        <FileList files={a.attachments ?? []} />
       )}
       {a.status === 'booked' && !isPast && (
         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -774,13 +973,92 @@ function AppointmentCard({
           <Label text={t('notes')}>
             <Textarea rows={2} className="bg-muted" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Label>
+
+          <div className="space-y-2 rounded-lg border border-border p-2.5">
+            <p className="text-xs font-medium text-foreground">
+              {t('documents')} ({files.length}/{MAX_FILES})
+            </p>
+            <p className="text-[11px] text-muted-foreground">{t('documentsHint', { max: MAX_FILES })}</p>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept={FILE_TYPES.join(',')}
+              className="hidden"
+              onChange={(e) => void addFiles(e.target.files)}
+            />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => void addFiles(e.target.files)}
+            />
+            <FileList files={files} onRemove={(url) => setFiles((prev) => prev.filter((f) => f.url !== url))} />
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={uploading || files.length >= MAX_FILES} onClick={() => fileRef.current?.click()}>
+                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+                {t('upload')}
+              </Button>
+              <Button size="sm" variant="outline" disabled={uploading || files.length >= MAX_FILES} onClick={() => cameraRef.current?.click()}>
+                <Camera className="size-4" />
+                {t('camera')}
+              </Button>
+            </div>
+          </div>
+
+          {mode === 'complete' && (
+            <div className="space-y-2 rounded-lg border border-border p-2.5">
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 accent-[var(--primary)]"
+                  checked={nextOn}
+                  onChange={(e) => {
+                    setNextOn(e.target.checked);
+                    if (!e.target.checked) {
+                      setNextDate('');
+                      setNextTime(null);
+                    }
+                  }}
+                />
+                <span>
+                  {t('nextVisit')}
+                  <span className="block text-xs text-muted-foreground">{t('nextVisitHint')}</span>
+                </span>
+              </label>
+              {nextOn && (
+                <>
+                  <DayPicker
+                    channelId={channelId}
+                    ignoreId={a.id}
+                    value={nextDate}
+                    onChange={(d) => {
+                      setNextDate(d);
+                      setNextTime(null);
+                    }}
+                  />
+                  <SlotPicker channelId={channelId} date={nextDate} ignoreId={a.id} value={nextTime} onChange={setNextTime} />
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Button
               size="sm"
-              disabled={busy}
+              disabled={busy || uploading || (mode === 'complete' && nextOn && (!nextDate || !nextTime))}
               onClick={() =>
                 void act(
-                  { action: mode === 'complete' ? 'complete' : 'notes', treatment, medicine, notes },
+                  {
+                    action: mode === 'complete' ? 'complete' : 'notes',
+                    treatment,
+                    medicine,
+                    notes,
+                    attachments: files,
+                    ...(mode === 'complete' && nextOn && nextDate && nextTime ? { next_date: nextDate, next_time: nextTime } : {}),
+                  },
                   mode === 'complete' ? t('completed') : t('saved'),
                 )
               }
@@ -797,19 +1075,16 @@ function AppointmentCard({
 
       {mode === 'move' && (
         <div className="mt-3 space-y-2">
-          <Label text={t('newDate')}>
-            <input
-              type="date"
-              className={field}
-              min={today}
-              max={shiftDay(today, horizon)}
-              value={moveDate}
-              onChange={(e) => {
-                setMoveDate(e.target.value);
-                setMoveTime(null);
-              }}
-            />
-          </Label>
+          <p className="text-xs text-muted-foreground">{t('newDate')}</p>
+          <DayPicker
+            channelId={channelId}
+            ignoreId={a.id}
+            value={moveDate}
+            onChange={(d) => {
+              setMoveDate(d);
+              setMoveTime(null);
+            }}
+          />
           <SlotPicker channelId={channelId} date={moveDate} ignoreId={a.id} value={moveTime} onChange={setMoveTime} />
           <p className="text-xs text-muted-foreground">{t('moveHint')}</p>
           <div className="flex gap-2">
@@ -828,6 +1103,46 @@ function AppointmentCard({
         </div>
       )}
     </li>
+  );
+}
+
+function FileList({ files, onRemove }: { files: Attachment[]; onRemove?: (url: string) => void }) {
+  const t = useTranslations('Appointments');
+  if (files.length === 0) return null;
+  return (
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {files.map((f) => (
+        <li key={f.url} className="relative">
+          <a
+            href={f.url}
+            target="_blank"
+            rel="noreferrer"
+            title={f.name}
+            className="flex size-16 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted"
+          >
+            {f.mime === 'application/pdf' ? (
+              <span className="flex flex-col items-center gap-0.5 text-[10px] text-muted-foreground">
+                <FileText className="size-5" />
+                PDF
+              </span>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={f.url} alt={f.name} loading="lazy" className="size-full object-cover" />
+            )}
+          </a>
+          {onRemove && (
+            <button
+              type="button"
+              aria-label={t('removeFile')}
+              onClick={() => onRemove(f.url)}
+              className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+            >
+              <X className="size-3" />
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -854,12 +1169,17 @@ function NewTab({
 }) {
   const t = useTranslations('Appointments');
   const supabase = useMemo(() => createClient(), []);
-  const today = dayKey(new Date(), tz);
+  void tz;
+  const [who, setWho] = useState<'existing' | 'new'>('existing');
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<ContactHit[]>([]);
   const [contact, setContact] = useState<ContactHit | null>(null);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState('');
   const [time, setTime] = useState<string | null>(null);
+  const newPhoneOk = newPhone.replace(/\D/g, '').length >= 10;
+  const customerReady = who === 'existing' ? !!contact : newPhoneOk;
   const [busy, setBusy] = useState(false);
 
   // Only this number's own contacts: people who have a chat on it.
@@ -888,13 +1208,17 @@ function NewTab({
   }, [query, supabase, channelId]);
 
   const book = async () => {
-    if (!contact || !date || !time) return;
+    if (!customerReady || !date || !time) return;
     setBusy(true);
     try {
       const res = await api<{ appointment: Appointment; message_error: string | null }>('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: channelId, contact_id: contact.id, date, time }),
+        body: JSON.stringify(
+          who === 'existing'
+            ? { channel_id: channelId, contact_id: contact?.id, date, time }
+            : { channel_id: channelId, new_contact: { name: newName, phone: newPhone }, date, time },
+        ),
       });
       if (res.message_error) toast.error(t('bookedNotSent', { error: res.message_error }), { duration: 10000 });
       else toast.success(t('bookedSent'));
@@ -916,8 +1240,42 @@ function NewTab({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-      <Section title={t('pickContact')} hint={t('pickContactHint')}>
-        {contact ? (
+      <Section title={t('pickContact')} hint={who === 'existing' ? t('pickContactHint') : t('newNumberHint')}>
+        <div className="flex gap-1.5">
+          {(['existing', 'new'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setWho(k)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs',
+                who === k
+                  ? 'border-primary bg-primary/15 text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t(k === 'existing' ? 'fromContacts' : 'newNumber')}
+            </button>
+          ))}
+        </div>
+        {who === 'new' ? (
+          <>
+            <Label text={t('newName')}>
+              <Input className="bg-muted" value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={120} />
+            </Label>
+            <Label text={t('newPhone')}>
+              <Input
+                className="bg-muted"
+                inputMode="tel"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="98765 43210"
+                maxLength={20}
+              />
+            </Label>
+            <p className="text-xs text-muted-foreground">{t('newPhoneHint')}</p>
+          </>
+        ) : contact ? (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-primary bg-primary/10 px-3 py-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{contact.name || contact.phone}</p>
@@ -953,21 +1311,17 @@ function NewTab({
       </Section>
 
       <Section title={t('pickSlot')} hint={t('pickSlotHint')}>
-        <Label text={t('date')}>
-          <input
-            type="date"
-            className={field}
-            min={today}
-            max={shiftDay(today, bundle.settings.days_ahead)}
-            value={date}
-            onChange={(e) => {
-              setDate(e.target.value);
-              setTime(null);
-            }}
-          />
-        </Label>
+        <DayPicker
+          channelId={channelId}
+          value={date}
+          onChange={(d) => {
+            setDate(d);
+            setTime(null);
+          }}
+        />
+        {date && <p className="text-xs text-muted-foreground">{longDay(date)}</p>}
         <SlotPicker channelId={channelId} date={date} value={time} onChange={setTime} />
-        <Button disabled={busy || !contact || !date || !time} onClick={() => void book()}>
+        <Button disabled={busy || !customerReady || !date || !time} onClick={() => void book()}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <CalendarPlus className="size-4" />}
           {t('bookAndSend')}
         </Button>
@@ -994,6 +1348,7 @@ function SettingsTab({
   const [s, setS] = useState<AppointmentSettings>(bundle.settings);
   const [saving, setSaving] = useState(false);
   const [holiday, setHoliday] = useState('');
+  const [holidayTo, setHolidayTo] = useState('');
   const set = <K extends keyof AppointmentSettings>(key: K, value: AppointmentSettings[K]) =>
     setS((prev) => ({ ...prev, [key]: value }));
 
@@ -1041,6 +1396,7 @@ function SettingsTab({
     }
   };
 
+  const todayKey = dayKey(new Date(), s.timezone);
   const templateValue = (name: string | null, lang: string | null) => (name ? `${name}|${lang ?? 'en_US'}` : '');
   const off = !canEdit;
 
@@ -1079,6 +1435,17 @@ function SettingsTab({
           <Label text={t('address')}>
             <Textarea rows={2} className="bg-muted" disabled={off} value={s.address ?? ''} onChange={(e) => set('address', e.target.value)} />
           </Label>
+          <Label text={t('language')}>
+            <select className={cn(field, 'w-full')} disabled={off} value={s.reply_language ?? 'auto'} onChange={(e) => set('reply_language', e.target.value)}>
+              <option value="auto">{t('languageAuto')}</option>
+              {Object.entries(REPLY_LANGUAGES).map(([key, name]) => (
+                <option key={key} value={key}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Label>
+          <p className="-mt-1 text-[11px] text-muted-foreground">{t('languageHint')}</p>
           <Label text={t('timezone')}>
             <select className={cn(field, 'w-full')} disabled={off} value={s.timezone} onChange={(e) => set('timezone', e.target.value)}>
               {zones.map((z) => (
@@ -1171,15 +1538,26 @@ function SettingsTab({
         </Section>
 
         <Section title={t('holidays')} hint={t('holidaysHint')}>
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="date" className={field} disabled={off} value={holiday} onChange={(e) => setHoliday(e.target.value)} />
+          <div className="flex flex-wrap items-end gap-2">
+            <Label text={t('holidayFrom')}>
+              <input type="date" className={field} disabled={off} value={holiday} onChange={(e) => setHoliday(e.target.value)} />
+            </Label>
+            <Label text={t('holidayTo')}>
+              <input type="date" className={field} disabled={off} min={holiday || undefined} value={holidayTo} onChange={(e) => setHolidayTo(e.target.value)} />
+            </Label>
             <Button
               size="sm"
               variant="outline"
-              disabled={off || !holiday || s.holidays.includes(holiday)}
+              className="h-9"
+              disabled={off || !holiday || (!!holidayTo && holidayTo < holiday)}
               onClick={() => {
-                set('holidays', [...s.holidays, holiday].sort());
+                // One date, or every date from the first to the last.
+                const last = holidayTo && holidayTo >= holiday ? holidayTo : holiday;
+                const add: string[] = [];
+                for (let d = holiday, i = 0; d <= last && i < 366; d = shiftDay(d, 1), i++) add.push(d);
+                set('holidays', [...new Set([...s.holidays, ...add])].sort());
                 setHoliday('');
+                setHolidayTo('');
               }}
             >
               {t('addHoliday')}
@@ -1188,7 +1566,7 @@ function SettingsTab({
           {s.holidays.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {s.holidays.map((d) => (
-                <Badge key={d} variant="outline" className="gap-1 font-normal">
+                <Badge key={d} variant="outline" className={cn('gap-1 font-normal', d < todayKey && 'opacity-50')}>
                   {longDay(d)}
                   <button type="button" disabled={off} aria-label={t('removeHoliday')} onClick={() => set('holidays', s.holidays.filter((x) => x !== d))}>
                     <X className="size-3" />

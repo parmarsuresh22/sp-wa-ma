@@ -107,6 +107,19 @@ and polish.
 
 ### Added
 
+- **Appointments: more control.** A reply language for the assistant
+  (Auto, English, Hindi, Hinglish, Gujarati, Tamil, Telugu and more).
+  Closed dates can be added for any year, one at a time or as a From /
+  To range. The date picker for a new booking, a move and a next visit
+  only offers days and times that can really be booked: closed
+  weekdays, closed dates, full days and taken times are not offered. A
+  new appointment can be made for a number that is not a contact yet;
+  it is saved to that WhatsApp number's contacts. Completing a visit
+  can attach up to 5 images or PDFs (upload or phone camera) and book
+  the next visit, with its confirmation sent at once. The calendar has
+  month and year pickers. Requires
+  `supabase/migrations/074_appointment_extras.sql`.
+
 - **Appointments.** A new "Appointments" page, with a diary per WhatsApp
   number. Customers book, move and cancel in chat in their own words
   ("aaj dophar 3 bje"): the AI key turns the words into a date and time,

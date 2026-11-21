@@ -7,8 +7,12 @@ import {
   cancelAppointment,
   loadAppointmentSettings,
   sendAppointmentMessage,
+  ATTACHMENT_MIMES,
+  MAX_ATTACHMENTS,
+  type AppointmentAttachment,
   type AppointmentRow,
 } from '@/lib/appointments/service'
+import { isAccountMediaUrl } from '@/lib/posts/post'
 import { DATE_RE, TIME_RE } from '@/lib/appointments/time'
 
 type Params = { params: Promise<{ id: string }> }
@@ -27,7 +31,10 @@ const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().sli
  *   { action: 'reopen' }                   back to booked (undo)
  *   { action: 'notes', treatment, medicine, notes }
  *
- * `complete` also accepts treatment / medicine / notes.
+ * `complete` and `notes` also accept treatment / medicine / notes and
+ * `attachments` (up to five images or PDFs this account uploaded).
+ * `complete` also accepts `next_date` + `next_time`: the next visit is
+ * booked for the same customer and they are told at once.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
@@ -51,7 +58,9 @@ export async function PATCH(request: Request, { params }: Params) {
     const now = new Date().toISOString()
     let appointment: AppointmentRow | null = null
     let messageError: string | null = null
-    const tell = async (kind: 'rescheduled' | 'cancelled', appt: AppointmentRow) => {
+    let nextAppointment: AppointmentRow | null = null
+    let nextError: string | null = null
+    const tell = async (kind: 'rescheduled' | 'cancelled' | 'confirmed', appt: AppointmentRow) => {
       try {
         await sendAppointmentMessage(db, kind, appt, settings, userId)
       } catch (err) {
@@ -70,6 +79,23 @@ export async function PATCH(request: Request, { params }: Params) {
       if (body && 'treatment' in body) patch.treatment = clean(body.treatment, 2000)
       if (body && 'medicine' in body) patch.medicine = clean(body.medicine, 2000)
       if (body && 'notes' in body) patch.notes = clean(body.notes, 2000)
+      if (body && Array.isArray(body.attachments)) {
+        const files: AppointmentAttachment[] = []
+        for (const raw of body.attachments as unknown[]) {
+          const f = raw as { url?: unknown; name?: unknown; mime?: unknown } | null
+          if (!f || typeof f.url !== 'string' || typeof f.mime !== 'string') continue
+          // Only files this account uploaded to its own folder.
+          if (!isAccountMediaUrl(f.url, process.env.NEXT_PUBLIC_SUPABASE_URL, accountId)) continue
+          if (!ATTACHMENT_MIMES.includes(f.mime)) continue
+          files.push({
+            url: f.url,
+            mime: f.mime,
+            name: (typeof f.name === 'string' ? f.name : 'file').slice(0, 120),
+          })
+        }
+        if (files.length > MAX_ATTACHMENTS) throw new TooManyFiles()
+        patch.attachments = files
+      }
       return patch
     }
 
@@ -108,7 +134,33 @@ export async function PATCH(request: Request, { params }: Params) {
       // Nobody needs telling that a visit already in the past was cancelled.
       if (Date.parse(appointment.starts_at) > Date.now()) await tell('cancelled', appointment)
     } else if (action === 'complete') {
+      const nextDate = typeof body?.next_date === 'string' ? body.next_date : ''
+      const nextTime = typeof body?.next_time === 'string' ? body.next_time : ''
+      const wantsNext = !!nextDate || !!nextTime
+      if (wantsNext && (!DATE_RE.test(nextDate) || !TIME_RE.test(nextTime))) {
+        return NextResponse.json({ error: 'Choose a date and a time for the next visit' }, { status: 400 })
+      }
       appointment = await update({ status: 'completed', completed_at: now, ...noteFields() }, ['booked', 'no_show'])
+      // The visit is closed first, so it no longer counts as this
+      // customer's upcoming appointment; then the next one is booked.
+      if (appointment && wantsNext) {
+        try {
+          nextAppointment = await bookAppointment(db, {
+            settings,
+            contactId: current.contact_id,
+            conversationId: current.conversation_id,
+            phoneKey: current.phone_key,
+            customerName: current.customer_name,
+            date: nextDate,
+            time: nextTime,
+            source: 'portal',
+            createdBy: userId,
+          })
+          await tell('confirmed', nextAppointment)
+        } catch (err) {
+          nextError = err instanceof AppointmentError ? err.message : 'Could not book the next visit'
+        }
+      }
     } else if (action === 'no_show') {
       appointment = await update({ status: 'no_show' }, ['booked', 'completed'])
     } else if (action === 'reopen') {
@@ -122,8 +174,18 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!appointment) {
       return NextResponse.json({ error: 'That change is not possible for this appointment' }, { status: 400 })
     }
-    return NextResponse.json({ appointment, message_error: messageError })
+    return NextResponse.json({
+      appointment,
+      message_error: messageError,
+      next_appointment: nextAppointment,
+      next_error: nextError,
+    })
   } catch (err) {
+    if (err instanceof TooManyFiles) {
+      return NextResponse.json({ error: `An appointment can hold at most ${MAX_ATTACHMENTS} files` }, { status: 400 })
+    }
     return toErrorResponse(err)
   }
 }
+
+class TooManyFiles extends Error {}

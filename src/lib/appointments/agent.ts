@@ -50,6 +50,7 @@ import {
 } from './service'
 import {
   DATE_RE,
+  REPLY_LANGUAGES,
   TIME_RE,
   describeHours,
   formatDay,
@@ -298,7 +299,9 @@ export function appointmentSystemPrompt(settings: AppointmentSettings, now: Date
     'What you can do: show the customer their own upcoming appointment and their latest 3 visits (treatment, medicine), book a new appointment, move it, or cancel it. One phone number may hold only one upcoming appointment.',
     '',
     'Rules:',
-    '- Reply in the same language and script the customer writes in (Hindi, Hinglish, English, or any other). Keep replies short and friendly, like a WhatsApp message. No markdown.',
+    REPLY_LANGUAGES[settings.reply_language]
+      ? `- Always reply in ${REPLY_LANGUAGES[settings.reply_language]}, whatever language the customer writes in (you still understand every language). Keep replies short and friendly, like a WhatsApp message. No markdown.`
+      : '- Reply in the same language and script the customer writes in (Hindi, Hinglish, English, or any other). Keep replies short and friendly, like a WhatsApp message. No markdown.',
     '- Never guess availability. Call check_slot (or list_free_slots) and use only what it returns. Never invent times, appointments, treatments or medicines.',
     '- Before booking, moving or cancelling, state the full date and time and get a clear yes from the customer. Then call the action. Only say it is booked, moved or cancelled after the action returned ok: true.',
     '- After booking or moving, confirm with the day, date, time and the address.',
