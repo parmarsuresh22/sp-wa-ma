@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import {
   ArrowLeft,
   Check,
-  ChevronLeft,
   ChevronRight,
   Loader2,
   RefreshCw,
@@ -23,6 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { readCache, writeCache } from '@/lib/client-cache';
 import { useStickToBottom } from '@/hooks/use-stick-to-bottom';
+import { usePageSize } from '@/hooks/use-page-size';
+import { ListPager } from '@/components/ui/list-pager';
 import type { AdminHome } from '@/lib/admin/overview';
 
 // ------------------------------------------------------------
@@ -993,7 +994,8 @@ function usePaged<T>(accountId: string, section: 'conversations' | 'contacts') {
   const [q, setQ] = useState('');
   const [applied, setApplied] = useState('');
   const [offset, setOffset] = useState(0);
-  const cacheKey = `admin:${section}:${accountId}:${offset}:${applied}`;
+  const limit = usePageSize();
+  const cacheKey = `admin:${section}:${accountId}:${offset}:${limit}:${applied}`;
   const [data, setData] = useState<Paged<T> | null>(() => readCache<Paged<T>>(cacheKey) ?? null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1008,9 +1010,9 @@ function usePaged<T>(accountId: string, section: 'conversations' | 'contacts') {
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ section, offset: String(offset) });
+    const params = new URLSearchParams({ section, offset: String(offset), limit: String(limit) });
     if (applied) params.set('q', applied);
-    const key = `admin:${section}:${accountId}:${offset}:${applied}`;
+    const key = `admin:${section}:${accountId}:${offset}:${limit}:${applied}`;
     api<Paged<T>>(`/api/admin8085/accounts/${accountId}?${params.toString()}`)
       .then((d) => {
         writeCache(key, d);
@@ -1025,7 +1027,7 @@ function usePaged<T>(accountId: string, section: 'conversations' | 'contacts') {
     return () => {
       cancelled = true;
     };
-  }, [accountId, section, offset, applied]);
+  }, [accountId, section, offset, limit, applied]);
 
   // A page seen before shows at once; otherwise the previous page stays
   // on screen until the new one arrives.
@@ -1043,31 +1045,15 @@ function Pager({
   pageSize: number;
   onChange: (offset: number) => void;
 }) {
-  if (total <= pageSize) return null;
+  // The server answers in offsets; the shared pager thinks in pages.
   return (
-    <div className="flex items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
-      <span>
-        {offset + 1}–{Math.min(offset + pageSize, total)} of {total}
-      </span>
-      <span className="flex gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={offset === 0}
-          onClick={() => onChange(Math.max(0, offset - pageSize))}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={offset + pageSize >= total}
-          onClick={() => onChange(offset + pageSize)}
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      </span>
-    </div>
+    <ListPager
+      page={Math.floor(offset / Math.max(1, pageSize))}
+      pageSize={pageSize}
+      total={total}
+      onChange={(p) => onChange(p * pageSize)}
+      className="pt-2"
+    />
   );
 }
 
@@ -1123,6 +1109,7 @@ function ChatsBrowser({
       <div className="min-w-0">
         <SearchBox value={q} onChange={setQ} placeholder="Search name or phone" />
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        {data && <Pager offset={offset} total={data.total} pageSize={data.pageSize} onChange={setOffset} />}
         <ul className="mt-2 space-y-1 lg:max-h-[65vh] lg:overflow-y-auto">
           {(data?.rows ?? []).map((c) => (
             <li key={c.id}>
@@ -1327,6 +1314,7 @@ function ContactsBrowser({ accountId }: { accountId: string }) {
         <SearchBox value={q} onChange={setQ} placeholder="Search name, phone or email" />
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {data && <Pager offset={offset} total={data.total} pageSize={data.pageSize} onChange={setOffset} />}
       <ul className="mt-2 space-y-1.5 md:hidden">
         {(data?.rows ?? []).map((c) => (
           <li key={c.id} className="rounded-md border border-border px-3 py-2">

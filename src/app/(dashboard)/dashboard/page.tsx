@@ -25,7 +25,7 @@ import { derivePresence } from '@/lib/presence'
 
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { AttentionRow } from '@/components/dashboard/attention-row'
-import { AppointmentsTrendCard } from '@/components/dashboard/appointments-trend-card'
+import { AppointmentsCalendarCard, AppointmentsTrendCard } from '@/components/dashboard/appointments-trend-card'
 import { CampaignsCard } from '@/components/dashboard/campaigns-card'
 import { KpiRow } from '@/components/dashboard/kpi-row'
 import { MessageVolumeCard } from '@/components/dashboard/message-volume-card'
@@ -179,6 +179,9 @@ function DashboardPageInner() {
         <SetupChecklist setup={data.setup} />
       ) : (
         <>
+          {/* First thing on the page when appointments are in use;
+              renders nothing otherwise. */}
+          <AppointmentsCalendarCard channelId={channelId} />
           <AttentionRow data={data} now={now} onlineCount={onlineCount} />
           <KpiRow data={data} currency={defaultCurrency} />
 

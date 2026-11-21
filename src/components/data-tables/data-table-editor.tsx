@@ -1,12 +1,12 @@
 'use client';
 
+import { usePageSize } from '@/hooks/use-page-size';
+import { ListPager } from '@/components/ui/list-pager';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   Plus,
   RefreshCw,
@@ -47,7 +47,6 @@ interface RowRecord {
 }
 
 /** Rows loaded per page — the table never loads more than this at once. */
-const PAGE_SIZE = 50;
 const NO_PHONE = '__none__';
 
 /**
@@ -74,6 +73,7 @@ export function DataTableEditor({
   const [rows, setRows] = useState<RowRecord[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
+  const pageSize = usePageSize();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [reload, setReload] = useState(0);
@@ -101,7 +101,7 @@ export function DataTableEditor({
       if (search) query = query.ilike('search_text', `%${search.replace(/[%_\\]/g, ' ')}%`);
       const { data, count, error } = await query
         .order('seq', { ascending: true })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .range(page * pageSize, page * pageSize + pageSize - 1);
       if (ticket !== latest.current) return;
       if (error) {
         toast.error(t('loadFailed'));
@@ -111,9 +111,8 @@ export function DataTableEditor({
       setRows((data as RowRecord[] | null) ?? []);
       setTotal(count ?? 0);
     })();
-  }, [supabase, table.id, page, search, reload, t]);
+  }, [supabase, table.id, page, pageSize, search, reload, t]);
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const saveMeta = useCallback(
     async (patch: Partial<DataTableRecord>) => {
@@ -152,7 +151,7 @@ export function DataTableEditor({
     // New rows go to the end: clear the search and open the last page.
     setSearchInput('');
     setSearch('');
-    setPage(Math.floor(total / PAGE_SIZE));
+    setPage(Math.floor(total / pageSize));
     setReload((n) => n + 1);
   }
 
@@ -347,27 +346,10 @@ export function DataTableEditor({
         ) : null}
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           <span>{t('rowCount', { count: total })}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            aria-label={t('previousPage')}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="tabular-nums">{t('pageOf', { page: page + 1, pages: pageCount })}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={page >= pageCount - 1}
-            aria-label={t('nextPage')}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
         </div>
       </div>
+
+      <ListPager page={page} pageSize={pageSize} total={total} onChange={setPage} />
 
       <div className="overflow-auto rounded-xl border border-border bg-card">
         {table.columns.length === 0 ? (
@@ -426,7 +408,7 @@ export function DataTableEditor({
                 rows.map((row, i) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-b-0">
                     <td className="px-2 py-1 text-xs text-muted-foreground tabular-nums">
-                      {page * PAGE_SIZE + i + 1}
+                      {page * pageSize + i + 1}
                     </td>
                     {table.columns.map((c) => (
                       <td key={c.key} className="px-1 py-0.5">
@@ -462,6 +444,7 @@ export function DataTableEditor({
       </div>
 
       <p className="text-xs text-muted-foreground">{t('placeholderHint', { example: '{{table.column}}' })}</p>
+      <ListPager page={page} pageSize={pageSize} total={total} onChange={setPage} />
     </div>
   );
 }

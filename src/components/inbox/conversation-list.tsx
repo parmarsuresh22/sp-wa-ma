@@ -24,6 +24,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChannels, channelLabel, type ChannelSummary } from "@/hooks/use-channels";
 import { useActiveChannel } from "@/hooks/use-active-channel";
+import { useKeyedPage, usePageSize } from "@/hooks/use-page-size";
+import { ListPager } from "@/components/ui/list-pager";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -258,6 +260,19 @@ export function ConversationList({
     return [...result].sort((a, b) => stamp(b) - stamp(a));
   }, [conversations, filter, now, search, selectedTagIds, selectedCompany, multiChannel, channelFilter]);
 
+  // Paged: 10 chats on a phone, 20 on a bigger screen. Any change to
+  // the search or the filters starts again from the first page.
+  const pageSize = usePageSize();
+  const [page, setPage] = useKeyedPage(
+    `${filter}|${search}|${channelFilter}|${selectedTagIds.join(",")}|${selectedCompany ?? ""}`,
+  );
+  const lastPageIndex = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
+  const currentPage = Math.min(page, lastPageIndex);
+  const paged = useMemo(
+    () => filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
+    [filtered, currentPage, pageSize],
+  );
+
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
@@ -474,6 +489,13 @@ export function ConversationList({
           every conversation instead of shrinking to the remaining
           space — the list then overflows and gets clipped by the
           parent's overflow-hidden with no scrollbar (issue #229). */}
+      <ListPager
+        page={currentPage}
+        pageSize={pageSize}
+        total={filtered.length}
+        onChange={setPage}
+        className="border-b border-border px-3 py-1.5"
+      />
       <ScrollArea className="min-h-0 flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -485,7 +507,7 @@ export function ConversationList({
           </div>
         ) : (
           <div className="flex flex-col">
-            {filtered.map((conv) => (
+            {paged.map((conv) => (
               <ConversationItem
                 key={conv.id}
                 conversation={conv}
@@ -497,6 +519,13 @@ export function ConversationList({
                 }
               />
             ))}
+            <ListPager
+              page={currentPage}
+              pageSize={pageSize}
+              total={filtered.length}
+              onChange={setPage}
+              className="border-t border-border px-3 py-2"
+            />
           </div>
         )}
       </ScrollArea>

@@ -45,6 +45,17 @@ and polish.
 
 ### Changed
 
+- **Pages everywhere, and appointments closer to hand.** Lists are now
+  paged the same way across the portal: 10 rows on a phone, 20 on a
+  bigger screen, with first / previous / next / last buttons above and
+  below the list. This covers the inbox chat list, contacts,
+  appointments, post history, data table rows, broadcast recipients
+  and the platform admin lists. Each appointment card has a Message
+  button that opens that customer's chat in the inbox. On a phone the
+  appointment calendar is always above the list and the list is latest
+  first. The dashboard opens with an appointment calendar when booking
+  in chat is on; a day opens the Appointments page on that day.
+
 - **Conduct rules for every AI reply.** The AI agent, inbox drafts, the
   appointment assistant and AI post text now all end their instructions
   with the same rules: always polite, never abusive, vulgar or hateful;

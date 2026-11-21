@@ -47,8 +47,6 @@ import {
   Trash2,
   Loader2,
   Users,
-  ChevronLeft,
-  ChevronRight,
   SlidersHorizontal,
   Filter,
   X,
@@ -65,8 +63,9 @@ import {
   contactSearchPattern,
 } from '@/lib/contacts/search-filter';
 import { pageAfterRangeError, pageAfterShrink } from '@/lib/contacts/page-bounds';
+import { usePageSize } from '@/hooks/use-page-size';
+import { ListPager } from '@/components/ui/list-pager';
 
-const PAGE_SIZE = 25;
 
 interface ContactWithTags extends Contact {
   tags?: Tag[];
@@ -83,6 +82,8 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  // 10 rows on a phone, 20 on a bigger screen.
+  const pageSize = usePageSize();
   const [totalCount, setTotalCount] = useState(0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -141,8 +142,8 @@ export default function ContactsPage() {
     // act on rows the user can no longer see.
     setSelected(new Set());
 
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
     const term = search.trim();
 
     let contactRows: Contact[];
@@ -158,7 +159,7 @@ export default function ContactsPage() {
         p_tag_ids: selectedTagIds.length > 0 ? selectedTagIds : null,
         p_channel: channelId,
         p_search: contactSearchPattern(term),
-        p_limit: PAGE_SIZE,
+        p_limit: pageSize,
         p_offset: from,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
@@ -184,7 +185,7 @@ export default function ContactsPage() {
       const { data, count: exactCount, error } = await query;
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       const pageInRange = error
-        ? pageAfterRangeError(page, PAGE_SIZE, error)
+        ? pageAfterRangeError(page, pageSize, error)
         : null;
       if (pageInRange !== null && pageInRange !== page) {
         setPage(pageInRange);
@@ -201,7 +202,7 @@ export default function ContactsPage() {
 
     setTotalCount(count);
 
-    const boundedPage = pageAfterShrink(page, count, PAGE_SIZE, countIsExact);
+    const boundedPage = pageAfterShrink(page, count, pageSize, countIsExact);
     if (contactRows.length === 0 && boundedPage !== page) {
       setPage(boundedPage);
       return;
@@ -236,7 +237,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, channelId, tagsMap, t]);
+  }, [supabase, page, pageSize, search, selectedTagIds, channelId, tagsMap, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -349,9 +350,6 @@ export default function ContactsPage() {
     setBulkDeleteOpen(false);
   }
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-  const hasNext = page < totalPages - 1;
-  const hasPrev = page > 0;
 
   // Tag filter helpers. Every change resets to page 0 — the result set
   // shrinks/grows so page N may no longer be valid (mirrors the search box).
@@ -571,6 +569,8 @@ export default function ContactsPage() {
         </div>
       )}
 
+      <ListPager page={page} pageSize={pageSize} total={totalCount} onChange={setPage} />
+
       {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
@@ -737,41 +737,7 @@ export default function ContactsPage() {
         </Table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            {t('showingPagination', {
-              start: page * PAGE_SIZE + 1,
-              end: Math.min((page + 1) * PAGE_SIZE, totalCount),
-              total: totalCount
-            })}
-          </p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={!hasPrev}
-              onClick={() => setPage((p) => p - 1)}
-              className="border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground px-2">
-              {t('pageCount', { page: page + 1, total: totalPages })}
-            </span>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={!hasNext}
-              onClick={() => setPage((p) => p + 1)}
-              className="border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <ListPager page={page} pageSize={pageSize} total={totalCount} onChange={setPage} />
 
       {/* Contact Form Dialog */}
       <ContactForm

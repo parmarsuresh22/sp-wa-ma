@@ -6,8 +6,6 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   CloudUpload,
   FolderOpen,
   ImagePlus,
@@ -53,10 +51,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { usePageSize } from '@/hooks/use-page-size';
+import { ListPager } from '@/components/ui/list-pager';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const HISTORY_PAGE = 8;
 
 interface DriveStatus {
   configured: boolean;
@@ -217,6 +216,7 @@ export function PostsStudio() {
   const [history, setHistory] = useState<PostRow[] | null>(null);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPage, setHistoryPage] = useState(0);
+  const HISTORY_PAGE = usePageSize();
 
   const loadHistory = useCallback(
     async (page: number) => {
@@ -239,7 +239,7 @@ export function PostsStudio() {
       setHistory((data as PostRow[] | null) ?? []);
       setHistoryTotal(count ?? 0);
     },
-    [supabase, t, fromId],
+    [supabase, t, fromId, HISTORY_PAGE],
   );
   useEffect(() => {
     if (!channelsLoaded) return;
@@ -527,6 +527,7 @@ export function PostsStudio() {
       setPosting(false);
     }
   }, [
+    HISTORY_PAGE,
     audienceMode,
     broadcastOn,
     canPost,
@@ -942,6 +943,7 @@ export function PostsStudio() {
           <h2 className="mb-3 text-sm font-semibold text-foreground">
             {fromId ? t('historyTitleFrom', { name: fromName }) : t('historyTitle')}
           </h2>
+          <ListPager page={historyPage} pageSize={HISTORY_PAGE} total={historyTotal} onChange={setHistoryPage} className="mb-3" />
           {history === null ? (
             <div className="flex justify-center py-10">
               <Loader2 className="size-5 animate-spin text-primary" />
@@ -1051,31 +1053,7 @@ export function PostsStudio() {
               })}
             </ul>
           )}
-          {historyTotal > HISTORY_PAGE && (
-            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {historyPage * HISTORY_PAGE + 1}–{Math.min((historyPage + 1) * HISTORY_PAGE, historyTotal)} / {historyTotal}
-              </span>
-              <span className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={historyPage === 0}
-                  onClick={() => setHistoryPage((p) => Math.max(0, p - 1))}
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={(historyPage + 1) * HISTORY_PAGE >= historyTotal}
-                  onClick={() => setHistoryPage((p) => p + 1)}
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-              </span>
-            </div>
-          )}
+          <ListPager page={historyPage} pageSize={HISTORY_PAGE} total={historyTotal} onChange={setHistoryPage} className="mt-3" />
         </div>
       </div>
 

@@ -16,7 +16,7 @@ function cleanSearch(raw: string | null): string {
  *
  *   (no section)            members, numbers, AI agent, flows,
  *                           automations, broadcasts, data tables
- *   ?section=conversations  chats, newest first   (&offset=&q=)
+ *   ?section=conversations  chats, newest first   (&offset=&limit=&q=)
  *   ?section=contacts       contacts, newest first (&offset=&q=)
  *
  * Secrets (tokens, API keys) are never selected.
@@ -33,6 +33,9 @@ export async function GET(request: Request, { params }: Params) {
   const section = url.searchParams.get('section')
   const offset = Math.max(0, Number.parseInt(url.searchParams.get('offset') ?? '0', 10) || 0)
   const q = cleanSearch(url.searchParams.get('q'))
+  // Rows per page: the screen asks for 10 on a phone and 20 otherwise.
+  const requested = Number.parseInt(url.searchParams.get('limit') ?? '', 10)
+  const pageSize = Number.isInteger(requested) && requested >= 1 && requested <= PAGE ? requested : PAGE
 
   if (section === 'conversations') {
     let query = db
@@ -45,9 +48,9 @@ export async function GET(request: Request, { params }: Params) {
     if (q) query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%`, { referencedTable: 'contacts' })
     const { data, error, count } = await query
       .order('last_message_at', { ascending: false, nullsFirst: false })
-      .range(offset, offset + PAGE - 1)
+      .range(offset, offset + pageSize - 1)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ rows: data ?? [], total: count ?? 0, pageSize: PAGE })
+    return NextResponse.json({ rows: data ?? [], total: count ?? 0, pageSize })
   }
 
   if (section === 'contacts') {
@@ -58,9 +61,9 @@ export async function GET(request: Request, { params }: Params) {
     if (q) query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`)
     const { data, error, count } = await query
       .order('created_at', { ascending: false })
-      .range(offset, offset + PAGE - 1)
+      .range(offset, offset + pageSize - 1)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ rows: data ?? [], total: count ?? 0, pageSize: PAGE })
+    return NextResponse.json({ rows: data ?? [], total: count ?? 0, pageSize })
   }
 
   const [account, members, channels, ai, flows, automations, broadcasts, tables] = await Promise.all([

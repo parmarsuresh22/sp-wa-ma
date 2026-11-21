@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
@@ -15,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  MessageCircle,
   Plus,
   Settings2,
   Trash2,
@@ -33,6 +35,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useIsMobile, useKeyedPage, usePageSize } from '@/hooks/use-page-size';
+import { ListPager } from '@/components/ui/list-pager';
 
 // ------------------------------------------------------------
 // Shapes
@@ -44,6 +48,7 @@ interface Appointment {
   id: string;
   channel_id: string;
   contact_id: string;
+  conversation_id?: string | null;
   customer_name: string | null;
   phone_key: string;
   starts_at: string;
@@ -180,7 +185,10 @@ export function AppointmentsStudio() {
 
   const channelsLoaded = !!channels;
   const list = useMemo(() => channels ?? [], [channels]);
-  const [channelId, setChannelId] = useState<string | null>(null);
+  // A link from the dashboard calendar can name the number (?channel=).
+  const [channelId, setChannelId] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('channel'),
+  );
   const channel = list.find((c) => c.id === channelId) ?? list[0] ?? null;
   const fromId = channel?.id ?? null;
 
@@ -524,7 +532,12 @@ function ListTab({
 }) {
   const t = useTranslations('Appointments');
   const [filter, setFilter] = useState<Filter>('live');
-  const [day, setDay] = useState<string | null>(null);
+  // ...and the day to show (?day=YYYY-MM-DD).
+  const [day, setDay] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const asked = new URLSearchParams(window.location.search).get('day') ?? '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : null;
+  });
   const [trend, setTrend] = useState<Trend>('week');
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -532,7 +545,10 @@ function ListTab({
     return () => clearInterval(timer);
   }, []);
   const today = dayKey(new Date(now), tz);
-  const [month, setMonth] = useState(() => today.slice(0, 7));
+  const [month, setMonth] = useState(() => (day ?? today).slice(0, 7));
+  const isMobile = useIsMobile();
+  const pageSize = usePageSize();
+  const [pageRaw, setPage] = useKeyedPage(`${filter}|${day ?? ''}`);
 
   const all = useMemo(() => rows ?? [], [rows]);
   const keyed = useMemo(() => all.map((a) => ({ a, day: dayKey(a.starts_at, tz), at: Date.parse(a.starts_at) })), [all, tz]);
@@ -545,9 +561,14 @@ function ListTab({
     else if (filter === 'past') out = out.filter((r) => r.at <= now && r.day !== today);
     else if (filter === 'completed') out = out.filter((r) => r.a.status === 'completed');
     else if (filter === 'cancelled') out = out.filter((r) => r.a.status === 'cancelled');
-    const newestFirst = !day && (filter === 'past' || filter === 'completed' || filter === 'cancelled' || filter === 'all');
-    return [...out].sort((x, y) => (newestFirst ? y.at - x.at : x.at - y.at)).slice(0, 300);
-  }, [keyed, day, filter, now, today]);
+    // On a phone the list is always latest first. On a bigger screen
+    // upcoming ones read soonest first, history latest first.
+    const newestFirst =
+      isMobile || (!day && (filter === 'past' || filter === 'completed' || filter === 'cancelled' || filter === 'all'));
+    return [...out].sort((x, y) => (newestFirst ? y.at - x.at : x.at - y.at));
+  }, [keyed, day, filter, now, today, isMobile]);
+  const page = Math.min(pageRaw, Math.max(0, Math.ceil(shown.length / pageSize) - 1));
+  const paged = shown.slice(page * pageSize, (page + 1) * pageSize);
 
   // Calendar month: how many (not cancelled) appointments each day has.
   const counts = useMemo(() => {
@@ -640,7 +661,7 @@ function ListTab({
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)] xl:items-start">
-      <div className="min-w-0 space-y-3">
+      <div className="order-2 min-w-0 space-y-3 xl:order-1">
         <div className="flex flex-wrap items-center gap-1.5">
           {FILTERS.map((f) => (
             <button
@@ -676,8 +697,10 @@ function ListTab({
             {t('empty')}
           </p>
         ) : (
+          <>
+          <ListPager page={page} pageSize={pageSize} total={shown.length} onChange={setPage} />
           <ul className="space-y-2">
-            {shown.map(({ a, day: d, at }) => (
+            {paged.map(({ a, day: d, at }) => (
               <AppointmentCard
                 key={a.id}
                 a={a}
@@ -690,10 +713,15 @@ function ListTab({
               />
             ))}
           </ul>
+          <ListPager page={page} pageSize={pageSize} total={shown.length} onChange={setPage} />
+          </>
         )}
       </div>
 
-      <div className="min-w-0 space-y-4">
+      {/* On a phone this wrapper disappears (display: contents) so the
+          calendar can sit above the list and the trend below it. */}
+      <div className="contents xl:order-2 xl:block xl:min-w-0 xl:space-y-4">
+        <div className="order-1 min-w-0 xl:order-none">
         <Section title={t('calendar')}>
           <div className="flex items-center justify-between">
             <Button variant="outline" size="sm" onClick={() => moveMonth(-1)} aria-label={t('prevMonth')}>
@@ -759,7 +787,9 @@ function ListTab({
             )}
           </div>
         </Section>
+        </div>
 
+        <div className="order-3 min-w-0 xl:order-none">
         <Section title={t('trend')} hint={t('trendHint')}>
           <div className="flex gap-1.5">
             {TRENDS.map((k) => (
@@ -791,6 +821,7 @@ function ListTab({
             ))}
           </div>
         </Section>
+        </div>
       </div>
     </div>
   );
@@ -828,6 +859,29 @@ function AppointmentCard({
   const [nextTime, setNextTime] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const [openingChat, setOpeningChat] = useState(false);
+
+  // Straight to this customer's chat on this number, to write to them.
+  const openChat = async () => {
+    setOpeningChat(true);
+    try {
+      let id = a.conversation_id ?? null;
+      if (!id) {
+        const { data } = await createClient()
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', a.contact_id)
+          .eq('channel_id', a.channel_id)
+          .limit(1);
+        id = (data as { id: string }[] | null)?.[0]?.id ?? null;
+      }
+      if (id) router.push(`/inbox?c=${id}`);
+      else toast.error(t('noChat'));
+    } finally {
+      setOpeningChat(false);
+    }
+  };
 
   const addFiles = async (picked: FileList | null) => {
     if (!picked || picked.length === 0) return;
@@ -910,6 +964,10 @@ function AppointmentCard({
             {a.source === 'ai' ? t('sourceAi') : t('sourcePortal')}
           </Badge>
         </div>
+        <Button size="sm" variant="outline" className="shrink-0" disabled={openingChat} onClick={() => void openChat()}>
+          {openingChat ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
+          {t('message')}
+        </Button>
       </div>
 
       {(a.treatment || a.medicine || a.notes) && mode !== 'complete' && mode !== 'notes' && (

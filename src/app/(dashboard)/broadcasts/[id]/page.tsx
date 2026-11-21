@@ -43,6 +43,8 @@ import {
 } from '@/lib/broadcast-status';
 import { isBroadcastDeliveryInFlight } from '@/lib/whatsapp/broadcast-delivery-lease';
 import { useTranslations } from 'next-intl';
+import { useKeyedPage, usePageSize } from '@/hooks/use-page-size';
+import { ListPager } from '@/components/ui/list-pager';
 
 interface StatCardProps {
   label: string;
@@ -210,6 +212,10 @@ export default function BroadcastDetailPage() {
         : recipients.filter((r) => r.status === statusFilter),
     [recipients, statusFilter],
   );
+  const pageSize = usePageSize();
+  const [recipientPageRaw, setRecipientPage] = useKeyedPage(String(statusFilter));
+  const recipientPage = Math.min(recipientPageRaw, Math.max(0, Math.ceil(filteredRecipients.length / pageSize) - 1));
+  const pagedRecipients = filteredRecipients.slice(recipientPage * pageSize, (recipientPage + 1) * pageSize);
 
   function handleExport() {
     if (!broadcast) return;
@@ -576,6 +582,13 @@ export default function BroadcastDetailPage() {
           </div>
         </div>
 
+        <ListPager
+          page={recipientPage}
+          pageSize={pageSize}
+          total={filteredRecipients.length}
+          onChange={setRecipientPage}
+          className="px-4 py-2"
+        />
         {filteredRecipients.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm text-muted-foreground">
@@ -599,7 +612,7 @@ export default function BroadcastDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRecipients.map((recipient) => {
+                {pagedRecipients.map((recipient) => {
                   const rStatus = getRecipientStatus(recipient.status);
                   return (
                     <TableRow key={recipient.id} className="border-border">
@@ -641,6 +654,13 @@ export default function BroadcastDetailPage() {
             </Table>
           </div>
         )}
+        <ListPager
+          page={recipientPage}
+          pageSize={pageSize}
+          total={filteredRecipients.length}
+          onChange={setRecipientPage}
+          className="px-4 py-2"
+        />
       </div>
     </div>
   );
