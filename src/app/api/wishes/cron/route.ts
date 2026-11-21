@@ -3,6 +3,7 @@ import { NextResponse, after } from 'next/server'
 import { cronAuthState, safeEqual } from '@/lib/cron-auth'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { runWishSchedule, type WishScheduleRow } from '@/lib/wishes/run'
+import { runAppointmentReminders } from '@/lib/appointments/service'
 
 // Sends are paced one a second, so a run can take a while.
 export const maxDuration = 300
@@ -58,6 +59,16 @@ export async function GET(request: Request) {
 
   const admin = supabaseAdmin()
   const now = new Date()
+
+  // Appointment reminders (migration 073) share this 15-minute call.
+  after(async () => {
+    try {
+      const r = await runAppointmentReminders(admin, now)
+      if (r.due > 0) console.log(`[appointments] reminders: due ${r.due}, sent ${r.sent}, failed ${r.failed}`)
+    } catch (err) {
+      console.error('[appointments] reminder run failed:', err instanceof Error ? err.message : err)
+    }
+  })
 
   const { data, error } = await admin
     .from('wish_schedules')

@@ -33,6 +33,7 @@ import { claimFirstInboundMessage } from '@/lib/conversations/first-inbound'
 import { resumeAwaitingReply, runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import { dispatchInboundToAppointments } from '@/lib/appointments/agent'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import {
   applyBroadcastRecipientStatus,
@@ -881,17 +882,32 @@ export async function processInboundMessage(
   // the account has enabled it. Awaited inside `after()` (same reason as
   // the webhook dispatch below); `dispatchInboundToAiReply` owns its
   // eligibility gates + try/catch and never throws.
+  //
+  // The chain is Appointment → AI agent → human (migration 073): the
+  // appointment step is offered the message first and, when it answers
+  // (or hands the chat to a person), the AI agent is not run — one
+  // message, one reply. A step that is switched off is skipped.
   if (!contentConsumed && !interactiveReplyId && inboundText.trim()) {
-    await dispatchInboundToAiReply({
+    const appointment = await dispatchInboundToAppointments({
       accountId,
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
       channelId: ctx.channelId,
-      // Lets the bot show "typing…" (and mark the message read) while
-      // the reply is generated.
       inboundMessageId: message.id,
     })
+    if (!appointment.consumed) {
+      await dispatchInboundToAiReply({
+        accountId,
+        conversationId: conversation.id,
+        contactId: contactRecord.id,
+        configOwnerUserId,
+        channelId: ctx.channelId,
+        // Lets the bot show "typing…" (and mark the message read) while
+        // the reply is generated.
+        inboundMessageId: message.id,
+      })
+    }
   }
 
   // message.received webhook (public API). Awaited — not fire-and-forget

@@ -23,6 +23,12 @@ const tablesWithoutDomainData = new Set([
   // Migration 071. A request to be given a WhatsApp Web number is not
   // domain data: it holds a name and a status, nothing a merge could lose.
   "web_number_requests",
+  // Migration 073. Both need a parent redeem_invitation already checks
+  // (appointment_settings → whatsapp_config, appointments → contacts and
+  // whatsapp_config, all NOT NULL FKs), so neither can hold data in an
+  // account the function would still consider empty.
+  "appointment_settings",
+  "appointments",
 ]);
 
 function accountScopedTables(): Set<string> {
