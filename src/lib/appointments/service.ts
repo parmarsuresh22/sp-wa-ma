@@ -16,9 +16,12 @@ import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
 import { findOrCreateConversationRow } from '@/lib/whatsapp/resolve-conversation'
 import { loadChannel } from '@/lib/whatsapp/channels'
 import { resolveAuditUserId } from '@/lib/api/v1/contacts'
+import { loadAiConfig } from '@/lib/ai/config'
+import { generateReply } from '@/lib/ai/generate'
 import {
   DATE_RE,
   DEFAULT_HOURS,
+  REPLY_LANGUAGES,
   TIME_RE,
   addDays,
   daySlots,
@@ -463,6 +466,118 @@ export function appointmentMessageText(
   }
 }
 
+/** Every run of digits in a text: "23", "2026", "10", "00", "302001"… */
+export function numbersIn(text: string): string[] {
+  return text.match(/\d+/g) ?? []
+}
+
+/** The instruction that turns an English message into the customer's language. */
+export function translationPrompt(target: string | null, customerSample: string): string {
+  return [
+    'You translate one WhatsApp message that a business sends to its customer.',
+    target
+      ? `Translate it into ${target}.`
+      : 'Write it in the same language and script as the customer\'s own messages shown at the end. If those are in English, return the message unchanged.',
+    'Keep every fact exactly as it is: the customer name, the business name, the date, the time, the address and all numbers. Write numbers with the digits 0-9. Translate weekday and month names.',
+    'Keep the line breaks. Do not add or remove information. No markdown. Return only the translated message.',
+    target ? '' : `\nThe customer's own messages:\n${customerSample}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/**
+ * Put a portal-written message (confirmation, moved, cancelled,
+ * reminder) into the language chosen in the appointment settings — or,
+ * on "Auto", the language the customer has been writing in.
+ *
+ * Uses the account's AI key. Anything that goes wrong — no key, the
+ * provider failing, a translation that lost a number — falls back to
+ * the English original, so the customer always gets the message and
+ * never one with a wrong date or time.
+ */
+export async function localizeAppointmentText(
+  db: SupabaseClient,
+  accountId: string,
+  conversationId: string,
+  settings: AppointmentSettings,
+  text: string,
+): Promise<string> {
+  const choice = settings.reply_language
+  if (choice === 'english') return text
+  try {
+    const target = REPLY_LANGUAGES[choice] ?? null
+    let sample = ''
+    if (!target) {
+      const { data } = await db
+        .from('messages')
+        .select('content_text')
+        .eq('conversation_id', conversationId)
+        .eq('sender_type', 'customer')
+        .eq('content_type', 'text')
+        .order('created_at', { ascending: false })
+        .limit(3)
+      sample = ((data ?? []) as { content_text: string | null }[])
+        .map((m) => (m.content_text ?? '').trim().slice(0, 200))
+        .filter(Boolean)
+        .join('\n')
+      // Nothing to judge the language by: English is the safe choice.
+      if (!sample) return text
+    }
+    const config = await loadAiConfig(db, accountId, { requireActive: false })
+    if (!config) return text
+    const { text: out } = await generateReply({
+      config,
+      systemPrompt: translationPrompt(target, sample),
+      messages: [{ role: 'user', content: text }],
+    })
+    const translated = (out ?? '').trim()
+    if (!translated || translated.length > text.length * 4 + 200) return text
+    // Every number of the original (day, year, hour, minutes, PIN code)
+    // must still be there; otherwise do not risk it.
+    const kept = numbersIn(translated)
+    for (const n of numbersIn(text)) {
+      const at = kept.indexOf(n)
+      if (at === -1) return text
+      kept.splice(at, 1)
+    }
+    return translated
+  } catch (err) {
+    console.error('[appointments] message translation failed, sending English:', err)
+    return text
+  }
+}
+
+/** Replace the list of closed dates of one number (and nothing else). */
+export async function saveClosedDates(
+  db: SupabaseClient,
+  accountId: string,
+  channelId: string,
+  holidays: string[],
+): Promise<AppointmentSettings> {
+  const clean = [...new Set(holidays.filter((d) => typeof d === 'string' && DATE_RE.test(d)))].sort().slice(0, 1500)
+  const current = await loadAppointmentSettings(db, accountId, channelId)
+  const now = new Date().toISOString()
+  if (current.id) {
+    const { error } = await db
+      .from('appointment_settings')
+      .update({ holidays: clean, updated_at: now })
+      .eq('id', current.id)
+      .eq('account_id', accountId)
+    if (error) throw new Error(error.message)
+  } else {
+    // No settings saved yet: start the row with the defaults the screen
+    // is showing (booking in chat stays off).
+    const { id: _id, ...defaults } = current
+    void _id
+    const { error } = await db
+      .from('appointment_settings')
+      .upsert({ ...defaults, holidays: clean, updated_at: now }, { onConflict: 'channel_id' })
+    if (error) throw new Error(error.message)
+  }
+  return loadAppointmentSettings(db, accountId, channelId)
+}
+
 /** Example wording a business can submit to Meta as a template. */
 export const TEMPLATE_EXAMPLES = {
   confirm:
@@ -476,7 +591,9 @@ export const TEMPLATE_EXAMPLES = {
  * on. WhatsApp Web numbers send plain text. Business API numbers use
  * the chosen approved template when there is one (it works outside the
  * 24-hour window); without one they try plain text, which only reaches
- * a customer who wrote in the last 24 hours.
+ * a customer who wrote in the last 24 hours. Plain text goes out in the
+ * language chosen in the settings (a template is already in the
+ * language it was approved in).
  *
  * Template body values: {{1}} name, {{2}} date, {{3}} time, {{4}} address.
  */
@@ -520,7 +637,13 @@ export async function sendAppointmentMessage(
     conversationId: conversation.id,
     channelId: appt.channel_id,
     messageType: 'text',
-    contentText: appointmentMessageText(kind, appt, settings),
+    contentText: await localizeAppointmentText(
+      db,
+      appt.account_id,
+      conversation.id,
+      settings,
+      appointmentMessageText(kind, appt, settings),
+    ),
     senderId,
   })
 }

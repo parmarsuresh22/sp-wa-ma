@@ -45,6 +45,18 @@ and polish.
 
 ### Changed
 
+- **Appointments: messages in the chosen language, closed dates that
+  stick.** The confirmation, moved, cancelled and reminder messages the
+  portal sends are now written in the reply language chosen in the
+  appointment settings (on Auto, the language the customer has been
+  writing in). The translation uses the account's AI key and falls back
+  to English if it fails or if any date, time or number changed. Closed
+  dates are saved the moment one is added or removed (they used to be
+  lost unless "Save settings" was pressed) and each has its own remove
+  button. The appointment settings show the AI key: read-only when it
+  was already provided in the AI Agent setup, a form to add it when
+  not, plus a shortcut to the AI Agent setup.
+
 - **Appointments: nobody left without an answer.** When a message is
   not about appointments and the AI agent cannot take it (switched off,
   or it has used up its replies for that chat), the appointment

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
@@ -8,6 +9,7 @@ import {
   CalendarPlus,
   Camera,
   CheckCircle2,
+  ExternalLink,
   FileText,
   Paperclip,
   ChevronLeft,
@@ -78,7 +80,7 @@ interface SettingsBundle {
   provider: 'meta' | 'waha';
   templates: { name: string; language: string }[];
   template_examples: { confirm: string; reminder: string };
-  ai: { has_key: boolean; provider: string | null; can_book: boolean; agent_on: boolean };
+  ai: { has_key: boolean; provider: string | null; model: string | null; can_book: boolean; agent_on: boolean };
 }
 
 interface SlotInfo {
@@ -151,6 +153,13 @@ function Label({ text, children }: { text: string; children: React.ReactNode }) 
     </label>
   );
 }
+
+const PROVIDER_NAMES: Record<string, string> = {
+  gemini: 'Google Gemini',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  openai_compatible: 'OpenAI-compatible',
+};
 
 const STATUS_STYLE: Record<Status, string> = {
   booked: 'border-sky-500/40 text-sky-300',
@@ -1472,6 +1481,30 @@ function SettingsTab({
     set('hours', next);
   };
 
+  // Closed dates are saved the moment one is added or removed; they do
+  // not wait for "Save settings".
+  const [savingDates, setSavingDates] = useState(false);
+  const saveDates = async (next: string[]) => {
+    const before = s.holidays;
+    set('holidays', next);
+    setSavingDates(true);
+    try {
+      const res = await api<{ settings: AppointmentSettings }>('/api/appointments/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: s.channel_id, holidays: next }),
+      });
+      setS((prev) => ({ ...prev, id: res.settings.id, holidays: res.settings.holidays }));
+      onSaved({ ...bundle.settings, id: res.settings.id, holidays: res.settings.holidays });
+      toast.success(t('closedDatesSaved'));
+    } catch (err) {
+      set('holidays', before);
+      toast.error(err instanceof Error ? err.message : String(err), { duration: 8000 });
+    } finally {
+      setSavingDates(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -1511,15 +1544,39 @@ function SettingsTab({
               <span className="block text-xs text-muted-foreground">{t('chainHint')}</span>
             </span>
           </label>
-          {!bundle.ai.has_key ? (
-            <AiKeySetup canEdit={canEdit} onSaved={onAiChanged} />
-          ) : !bundle.ai.can_book ? (
+          {bundle.ai.has_key && !bundle.ai.can_book && (
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
               {t('aiWrongProvider', { provider: bundle.ai.provider ?? '' })}
             </p>
-          ) : (
+          )}
+          {bundle.ai.has_key && bundle.ai.can_book && (
             <p className="text-xs text-muted-foreground">{bundle.ai.agent_on ? t('aiAgentOn') : t('aiAgentOff')}</p>
           )}
+        </Section>
+
+        <Section title={t('aiKeyTitle')} hint={t('aiKeyTitleHint')}>
+          {bundle.ai.has_key ? (
+            <>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Label text={t('aiProvider')}>
+                  <Input readOnly className="bg-muted text-sm opacity-80" value={PROVIDER_NAMES[bundle.ai.provider ?? ''] ?? bundle.ai.provider ?? ''} />
+                </Label>
+                <Label text={t('aiModel')}>
+                  <Input readOnly className="bg-muted font-mono text-sm opacity-80" value={bundle.ai.model ?? ''} />
+                </Label>
+                <Label text={t('aiKey')}>
+                  <Input readOnly className="bg-muted font-mono text-sm opacity-80" value="••••••••••••" />
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">{t('aiKeyFromAgent')}</p>
+            </>
+          ) : (
+            <AiKeySetup canEdit={canEdit} onSaved={onAiChanged} />
+          )}
+          <Link href="/agents" className="inline-flex items-center gap-1.5 text-sm text-primary underline">
+            <ExternalLink className="size-4" />
+            {bundle.ai.has_key ? t('aiOpenAgent') : t('aiOpenAgentSetup')}
+          </Link>
         </Section>
 
         <Section title={t('business')}>
@@ -1643,31 +1700,47 @@ function SettingsTab({
               size="sm"
               variant="outline"
               className="h-9"
-              disabled={off || !holiday || (!!holidayTo && holidayTo < holiday)}
+              disabled={off || savingDates || !holiday || (!!holidayTo && holidayTo < holiday)}
               onClick={() => {
                 // One date, or every date from the first to the last.
                 const last = holidayTo && holidayTo >= holiday ? holidayTo : holiday;
                 const add: string[] = [];
                 for (let d = holiday, i = 0; d <= last && i < 366; d = shiftDay(d, 1), i++) add.push(d);
-                set('holidays', [...new Set([...s.holidays, ...add])].sort());
+                void saveDates([...new Set([...s.holidays, ...add])].sort());
                 setHoliday('');
                 setHolidayTo('');
               }}
             >
+              {savingDates && <Loader2 className="size-4 animate-spin" />}
               {t('addHoliday')}
             </Button>
           </div>
-          {s.holidays.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+          {s.holidays.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('noClosedDates')}</p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {s.holidays.map((d) => (
-                <Badge key={d} variant="outline" className={cn('gap-1 font-normal', d < todayKey && 'opacity-50')}>
-                  {longDay(d)}
-                  <button type="button" disabled={off} aria-label={t('removeHoliday')} onClick={() => set('holidays', s.holidays.filter((x) => x !== d))}>
-                    <X className="size-3" />
+                <li
+                  key={d}
+                  className={cn(
+                    'flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm',
+                    d < todayKey && 'opacity-50',
+                  )}
+                >
+                  <span className="min-w-0 truncate">{longDay(d)}</span>
+                  <button
+                    type="button"
+                    disabled={off || savingDates}
+                    aria-label={t('removeHoliday')}
+                    title={t('removeHoliday')}
+                    onClick={() => void saveDates(s.holidays.filter((x) => x !== d))}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full border border-red-500/50 text-red-400 hover:bg-red-500/15 disabled:opacity-40"
+                  >
+                    <X className="size-3.5" />
                   </button>
-                </Badge>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </Section>
 

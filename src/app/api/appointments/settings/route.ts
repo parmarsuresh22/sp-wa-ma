@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { loadChannel } from '@/lib/whatsapp/channels'
 import { loadAiConfig } from '@/lib/ai/config'
 import { supportsAppointmentActions } from '@/lib/appointments/agent'
-import { loadAppointmentSettings, TEMPLATE_EXAMPLES } from '@/lib/appointments/service'
+import { loadAppointmentSettings, saveClosedDates, TEMPLATE_EXAMPLES } from '@/lib/appointments/service'
 import { parseSettingsInput } from '@/lib/appointments/time'
 
 const UUID = /^[0-9a-f-]{36}$/i
@@ -52,6 +52,7 @@ export async function GET(request: Request) {
       ai: {
         has_key: !!ai,
         provider: ai?.provider ?? null,
+        model: ai?.model ?? null,
         can_book: !!ai && supportsAppointmentActions(ai.provider),
         agent_on: !!ai && ai.isActive && ai.autoReplyEnabled,
       },
@@ -100,6 +101,34 @@ export async function PUT(request: Request) {
     )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ settings: await loadAppointmentSettings(db, accountId, channelId) })
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+}
+
+/**
+ * PATCH /api/appointments/settings   (admin+)
+ *
+ * Body: { channel_id, holidays: ['YYYY-MM-DD', ...] }
+ *
+ * Save only the closed dates. The screen calls this the moment a date
+ * is added or removed, so a closed date never depends on remembering to
+ * press "Save settings".
+ */
+export async function PATCH(request: Request) {
+  try {
+    const { accountId } = await requireRole('admin')
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+    const channelId = typeof body?.channel_id === 'string' ? body.channel_id : ''
+    if (!UUID.test(channelId)) return NextResponse.json({ error: 'Choose a WhatsApp number' }, { status: 400 })
+    if (!Array.isArray(body?.holidays)) return NextResponse.json({ error: 'holidays must be a list of dates' }, { status: 400 })
+
+    const db = supabaseAdmin()
+    if (!(await loadChannel(db, accountId, channelId))) {
+      return NextResponse.json({ error: 'WhatsApp number not found' }, { status: 404 })
+    }
+    const settings = await saveClosedDates(db, accountId, channelId, body.holidays as string[])
+    return NextResponse.json({ settings })
   } catch (err) {
     return toErrorResponse(err)
   }
