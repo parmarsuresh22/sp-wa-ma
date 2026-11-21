@@ -45,6 +45,16 @@ and polish.
 
 ### Changed
 
+- **Appointment cards and trend.** On a phone the card no longer cuts
+  the customer's name or wraps the date: the name shows in full, the
+  date, phone and badges have their own lines, and Message sits in a
+  row below with a Call button (phones only) that dials the customer.
+  "Did not come" now has its own filter, asks before marking, and sends
+  the customer a short WhatsApp note in the language chosen in the
+  appointment settings, inviting them to book again. The trend counts
+  every appointment as stacked bars: upcoming, took place, did not come
+  and cancelled, on the Appointments page and on the dashboard.
+
 - **Pages everywhere, and appointments closer to hand.** Lists are now
   paged the same way across the portal: 10 rows on a phone, 20 on a
   bigger screen, with first / previous / next / last buttons above and

@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { TrendBars } from '@/components/appointments/trend-bars'
 
 interface Row {
   starts_at: string
@@ -188,25 +189,20 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
     const today = dayKey(now, state.tz)
     const [y, m, d] = today.split('-').map(Number)
     const monday = shiftDay(today, -((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7))
-    const keyed = state.rows
-      .filter((r) => r.status !== 'cancelled')
-      .map((r) => ({ day: dayKey(r.starts_at, state.tz), at: Date.parse(r.starts_at), status: r.status }))
-    const weeks = []
+    const points = state.rows.map((r) => ({ day: dayKey(r.starts_at, state.tz), at: Date.parse(r.starts_at), status: r.status }))
+    const buckets = []
     for (let i = 7; i >= -1; i--) {
       const from = shiftDay(monday, -7 * i)
-      const to = shiftDay(from, 6)
-      weeks.push({
-        from,
-        label: from.slice(5).replace('-', '/'),
-        count: keyed.filter((r) => r.day >= from && r.day <= to).length,
-        current: today >= from && today <= to,
-      })
+      buckets.push({ key: from, from, to: shiftDay(from, 6), label: from.slice(5).replace('-', '/') })
     }
-    const max = Math.max(1, ...weeks.map((w) => w.count))
+    const live = points.filter((r) => r.status !== 'cancelled')
     return {
-      weeks: weeks.map((w) => ({ ...w, pct: Math.round((w.count / max) * 100) })),
-      today: keyed.filter((r) => r.day === today).length,
-      upcoming: keyed.filter((r) => r.status === 'booked' && r.at > now.getTime()).length,
+      points,
+      buckets,
+      todayKey: today,
+      nowMs: now.getTime(),
+      today: live.filter((r) => r.day === today).length,
+      upcoming: live.filter((r) => r.status === 'booked' && r.at > now.getTime()).length,
     }
   }, [state])
 
@@ -234,17 +230,8 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
             <p className="text-xs text-muted-foreground">{t('dashUpcoming')}</p>
           </div>
         </div>
-        <div className="mt-4 flex h-32 items-end gap-1.5">
-          {view.weeks.map((w) => (
-            <div key={w.from} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
-              <span className="text-[10px] text-muted-foreground">{w.count}</span>
-              <div
-                className={cn('w-full rounded-t', w.current ? 'bg-primary' : 'bg-primary/40')}
-                style={{ height: `${Math.max(w.count ? 6 : 1, w.pct * 0.7)}%` }}
-              />
-              <span className="w-full truncate text-center text-[10px] text-muted-foreground">{w.label}</span>
-            </div>
-          ))}
+        <div className="mt-4">
+          <TrendBars points={view.points} buckets={view.buckets} today={view.todayKey} nowMs={view.nowMs} />
         </div>
       </CardContent>
     </Card>

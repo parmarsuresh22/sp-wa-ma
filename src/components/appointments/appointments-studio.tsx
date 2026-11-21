@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Loader2,
   MessageCircle,
+  Phone,
   Plus,
   Settings2,
   Trash2,
@@ -37,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useIsMobile, useKeyedPage, usePageSize } from '@/hooks/use-page-size';
 import { ListPager } from '@/components/ui/list-pager';
+import { TrendBars } from './trend-bars';
 
 // ------------------------------------------------------------
 // Shapes
@@ -96,10 +98,10 @@ interface SlotInfo {
 }
 
 type Tab = 'list' | 'new' | 'settings';
-type Filter = 'live' | 'today' | 'past' | 'completed' | 'cancelled' | 'all';
+type Filter = 'live' | 'today' | 'past' | 'completed' | 'no_show' | 'cancelled' | 'all';
 type Trend = 'week' | 'month' | 'year';
 
-const FILTERS: Filter[] = ['live', 'today', 'past', 'completed', 'cancelled', 'all'];
+const FILTERS: Filter[] = ['live', 'today', 'past', 'completed', 'no_show', 'cancelled', 'all'];
 const TRENDS: Trend[] = ['week', 'month', 'year'];
 const DAY_KEYS = ['1', '2', '3', '4', '5', '6', '0']; // Monday first
 
@@ -560,11 +562,13 @@ function ListTab({
     else if (filter === 'today') out = out.filter((r) => r.day === today && r.a.status !== 'cancelled');
     else if (filter === 'past') out = out.filter((r) => r.at <= now && r.day !== today);
     else if (filter === 'completed') out = out.filter((r) => r.a.status === 'completed');
+    else if (filter === 'no_show') out = out.filter((r) => r.a.status === 'no_show');
     else if (filter === 'cancelled') out = out.filter((r) => r.a.status === 'cancelled');
     // On a phone the list is always latest first. On a bigger screen
     // upcoming ones read soonest first, history latest first.
     const newestFirst =
-      isMobile || (!day && (filter === 'past' || filter === 'completed' || filter === 'cancelled' || filter === 'all'));
+      isMobile ||
+      (!day && (filter === 'past' || filter === 'completed' || filter === 'no_show' || filter === 'cancelled' || filter === 'all'));
     return [...out].sort((x, y) => (newestFirst ? y.at - x.at : x.at - y.at));
   }, [keyed, day, filter, now, today, isMobile]);
   const page = Math.min(pageRaw, Math.max(0, Math.ceil(shown.length / pageSize) - 1));
@@ -613,7 +617,7 @@ function ListTab({
   );
 
   // Trend: appointments per week / month / year (cancelled left out).
-  const bars = useMemo(() => {
+  const trendBuckets = useMemo(() => {
     const buckets: { label: string; from: string; to: string }[] = [];
     if (trend === 'week') {
       const [y, m, d] = today.split('-').map(Number);
@@ -639,14 +643,12 @@ function ListTab({
       for (let i = 1; i >= 0; i--) buckets.push({ label: String(y - i), from: `${y - i}-01-01`, to: `${y - i}-12-31` });
       buckets.push({ label: String(y + 1), from: `${y + 1}-01-01`, to: `${y + 1}-12-31` });
     }
-    const out = buckets.map((b) => ({
-      ...b,
-      count: keyed.filter((r) => r.a.status !== 'cancelled' && r.day >= b.from && r.day <= b.to).length,
-      current: today >= b.from && today <= b.to,
-    }));
-    const max = Math.max(1, ...out.map((b) => b.count));
-    return out.map((b) => ({ ...b, pct: Math.round((b.count / max) * 100) }));
-  }, [keyed, trend, today]);
+    return buckets.map((x) => ({ ...x, key: x.from }));
+  }, [trend, today]);
+  const trendPoints = useMemo(
+    () => keyed.map((r) => ({ day: r.day, at: r.at, status: r.a.status })),
+    [keyed],
+  );
 
   const liveCount = keyed.filter((r) => r.a.status === 'booked' && r.at > now).length;
   const todayCount = keyed.filter((r) => r.day === today && r.a.status !== 'cancelled').length;
@@ -808,18 +810,7 @@ function ListTab({
               </button>
             ))}
           </div>
-          <div className="flex h-32 items-end gap-1.5">
-            {bars.map((b) => (
-              <div key={b.from} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
-                <span className="text-[10px] text-muted-foreground">{b.count}</span>
-                <div
-                  className={cn('w-full rounded-t', b.current ? 'bg-primary' : 'bg-primary/40')}
-                  style={{ height: `${Math.max(b.count ? 6 : 1, b.pct * 0.7)}%` }}
-                />
-                <span className="w-full truncate text-center text-[10px] text-muted-foreground">{b.label}</span>
-              </div>
-            ))}
-          </div>
+          <TrendBars points={trendPoints} buckets={trendBuckets} today={today} nowMs={now} />
         </Section>
         </div>
       </div>
@@ -946,15 +937,19 @@ function AppointmentCard({
   };
 
   const name = a.customer_name || a.contact?.name || a.contact?.phone || a.phone_key;
+  const callDigits = (a.contact?.phone ?? '').replace(/\D/g, '');
+  const callNumber = callDigits.length >= 10 ? `+${callDigits}` : '';
   return (
     <li className="min-w-0 rounded-xl border border-border bg-card p-3">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{name}</p>
+          <p className="break-words text-sm font-medium text-foreground">{name}</p>
           <p className="text-xs text-muted-foreground">
-            {dayLabel} · {clock(a.starts_at, tz)}
-            {a.contact?.phone ? ` · ${a.contact.phone}` : ''}
+            <span className="whitespace-nowrap">{dayLabel}</span>
+            {' · '}
+            <span className="whitespace-nowrap">{clock(a.starts_at, tz)}</span>
           </p>
+          {a.contact?.phone && <p className="text-xs text-muted-foreground">{a.contact.phone}</p>}
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="outline" className={cn('font-normal', STATUS_STYLE[a.status])}>
@@ -964,10 +959,23 @@ function AppointmentCard({
             {a.source === 'ai' ? t('sourceAi') : t('sourcePortal')}
           </Badge>
         </div>
-        <Button size="sm" variant="outline" className="shrink-0" disabled={openingChat} onClick={() => void openChat()}>
+      </div>
+
+      {/* Reach the customer: chat in the inbox, or (on a phone) call. */}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Button size="sm" variant="outline" disabled={openingChat} onClick={() => void openChat()}>
           {openingChat ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
           {t('message')}
         </Button>
+        {callNumber && (
+          <a
+            href={`tel:${callNumber}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium text-foreground hover:bg-muted md:hidden"
+          >
+            <Phone className="size-4" />
+            {t('call')}
+          </a>
+        )}
       </div>
 
       {(a.treatment || a.medicine || a.notes) && mode !== 'complete' && mode !== 'notes' && (
@@ -1006,7 +1014,14 @@ function AppointmentCard({
                 </Button>
               )}
               {isPast && (
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => void act({ action: 'no_show' }, t('saved'))}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    if (confirm(t('noShowConfirm'))) void act({ action: 'no_show' }, t('noShowDone'));
+                  }}
+                >
                   {t('noShow')}
                 </Button>
               )}

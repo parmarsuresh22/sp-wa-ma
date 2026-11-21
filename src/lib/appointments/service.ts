@@ -436,7 +436,7 @@ export async function cancelAppointment(
 // Messages to the customer
 // ------------------------------------------------------------
 
-export type AppointmentMessageKind = 'confirmed' | 'rescheduled' | 'cancelled' | 'reminder'
+export type AppointmentMessageKind = 'confirmed' | 'rescheduled' | 'cancelled' | 'reminder' | 'no_show'
 
 export function appointmentWhen(appt: Pick<AppointmentRow, 'starts_at'>, settings: AppointmentSettings) {
   const at = new Date(appt.starts_at)
@@ -463,6 +463,8 @@ export function appointmentMessageText(
       return `${hello} your appointment${at} on ${day} at ${time} has been cancelled. Reply here if you would like to book a new one.`
     case 'reminder':
       return `${hello} this is a reminder of your appointment${at}.\nDate: ${day}\nTime: ${time}${address}\n\nReply here if you need to change or cancel it.`
+    case 'no_show':
+      return `${hello} we missed you at your appointment${at} on ${day} at ${time}. We hope everything is fine. Reply here whenever you would like to book a new time.`
   }
 }
 

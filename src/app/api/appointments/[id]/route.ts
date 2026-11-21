@@ -27,7 +27,8 @@ const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().sli
  * Body, one of:
  *   { action: 'reschedule', date, time }   move it; the customer is told
  *   { action: 'cancel' }                   cancel it; the customer is told
- *   { action: 'complete' | 'no_show' }     close a visit
+ *   { action: 'complete' }                 close a visit
+ *   { action: 'no_show' }                  the customer did not come; they are told
  *   { action: 'reopen' }                   back to booked (undo)
  *   { action: 'notes', treatment, medicine, notes }
  *
@@ -60,7 +61,7 @@ export async function PATCH(request: Request, { params }: Params) {
     let messageError: string | null = null
     let nextAppointment: AppointmentRow | null = null
     let nextError: string | null = null
-    const tell = async (kind: 'rescheduled' | 'cancelled' | 'confirmed', appt: AppointmentRow) => {
+    const tell = async (kind: 'rescheduled' | 'cancelled' | 'confirmed' | 'no_show', appt: AppointmentRow) => {
       try {
         await sendAppointmentMessage(db, kind, appt, settings, userId)
       } catch (err) {
@@ -163,6 +164,9 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     } else if (action === 'no_show') {
       appointment = await update({ status: 'no_show' }, ['booked', 'completed'])
+      // A short, kind note in the language chosen in the settings, with
+      // an invitation to book again.
+      if (appointment) await tell('no_show', appointment)
     } else if (action === 'reopen') {
       appointment = await update({ status: 'booked', completed_at: null, cancelled_at: null }, ['completed', 'no_show'])
     } else if (action === 'notes') {
