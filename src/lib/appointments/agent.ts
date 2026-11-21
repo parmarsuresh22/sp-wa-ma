@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { loadAiConfig } from '@/lib/ai/config'
 import { buildConversationContext } from '@/lib/ai/context'
+import { AI_CONDUCT_RULES } from '@/lib/ai/defaults'
 import { buildHandoffSummary } from '@/lib/ai/handoff'
 import { logAiUsage } from '@/lib/ai/usage'
 import { GEMINI_OPENAI_COMPAT_URL, normalizeForGemini } from '@/lib/ai/providers/gemini'
@@ -319,9 +320,11 @@ export function appointmentSystemPrompt(
       ? '- If the latest message is clearly about something other than appointments (prices, products, complaints…), call not_about_appointments and write nothing.'
       : '- If the latest message is clearly about something other than appointments (prices, products, complaints…), do NOT call not_about_appointments. Reply in one or two lines that you can only help with appointments here and that the team will answer that question soon. Never make up an answer to it.',
     '- If the customer asks for a person or needs something you cannot do, call ask_for_human and write nothing.',
+    '- Every customer gets the same slots and the same service: availability comes only from the actions, never from who is asking.',
   ]
     .filter((line) => line !== '')
     .join('\n')
+    .concat('\n\n', AI_CONDUCT_RULES)
 }
 
 interface ToolCall {

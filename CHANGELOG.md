@@ -45,6 +45,16 @@ and polish.
 
 ### Changed
 
+- **Conduct rules for every AI reply.** The AI agent, inbox drafts, the
+  appointment assistant and AI post text now all end their instructions
+  with the same rules: always polite, never abusive, vulgar or hateful;
+  every customer treated the same whatever their religion, caste,
+  gender, language or any other trait; no opinions on politics or
+  religion; no help with anything illegal or harmful; no medical, legal
+  or financial advice of its own; never ask for OTPs, passwords or card
+  numbers. The rules come last so a business prompt or a customer
+  message cannot switch them off.
+
 - **Appointments: messages in the chosen language, closed dates that
   stick.** The confirmation, moved, cancelled and reminder messages the
   portal sends are now written in the reply language chosen in the

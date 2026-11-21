@@ -1,3 +1,4 @@
+import { AI_CONDUCT_RULES } from '@/lib/ai/defaults'
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
@@ -19,7 +20,8 @@ const CAPTION_SYSTEM_PROMPT = [
   'A few fitting emoji are fine. No hashtags unless asked. Never invent prices, dates, offers or facts that the request does not give you.',
   'Do not add a phone number or a link: a "chat with us on WhatsApp" line is appended automatically.',
   'Output only the post text — no quotes, no title, no explanation.',
-].join(' ')
+  // Marketing text is public: the same conduct rules as every other AI reply.
+].join(' ') + '\n\n' + AI_CONDUCT_RULES
 
 /**
  * POST /api/posts/ai   (agent+)

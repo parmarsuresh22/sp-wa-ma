@@ -11,6 +11,7 @@ import {
   supportsAppointmentActions,
 } from './agent'
 import { settingsFromRow } from './service'
+import { AI_CONDUCT_RULES } from '@/lib/ai/defaults'
 
 const config = { provider: 'gemini' as const, model: 'm', apiKey: 'k' }
 const reply = (message: Record<string, unknown>) =>
@@ -133,6 +134,13 @@ describe('who answers what is not about appointments', () => {
     expect(alone).toContain('do NOT call not_about_appointments')
     expect(alone).toContain('the team will answer')
     expect(alone).toContain('A greeting')
+    // Conduct rules close the instructions, whatever else is in them.
+    for (const prompt of [alone, appointmentSystemPrompt(settings, now, 'Ravi', true)]) {
+      expect(prompt.trimEnd().endsWith(AI_CONDUCT_RULES)).toBe(true)
+      expect(prompt).toContain('Never use abusive')
+      expect(prompt).toContain('Treat every customer the same')
+      expect(prompt).toContain('anything illegal or harmful')
+    }
   })
 })
 
