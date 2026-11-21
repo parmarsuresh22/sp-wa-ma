@@ -107,6 +107,24 @@ and polish.
 
 ### Added
 
+- **Appointments.** A new "Appointments" page, with a diary per WhatsApp
+  number. Customers book, move and cancel in chat in their own words
+  ("aaj dophar 3 bje"): the AI key turns the words into a date and time,
+  and the portal, not the model, checks the diary and books. One
+  upcoming appointment per phone number; a customer only ever sees the
+  appointments of the number they write from. The reply order is
+  Appointments, then the AI agent, then a person; a step that is off is
+  skipped, so a message never gets two replies. The page has a calendar,
+  filters (upcoming, today, past, completed, cancelled), weekly /
+  monthly / yearly counts, booking from the portal for a contact of that
+  number (confirmation sent at once), move / cancel / complete with
+  treatment and medicine notes, and settings for working hours, slot
+  length, places per slot, closed dates, timezone, address and the
+  reminder (day of, day before, or none; skipped for same-day bookings).
+  Business API numbers can pick approved templates for confirmation and
+  reminder. Booking in chat needs a Gemini or OpenAI key. Requires
+  `supabase/migrations/073_appointments.sql`.
+
 - **Posts.** A new "Posts" page: upload an image (or pick one saved to
   Google Drive), let the AI agent's key write the text and change or
   create the image, and send the result to several places at once —
