@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useStickToBottom } from "@/hooks/use-stick-to-bottom";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MediaLightbox } from "./media-lightbox";
@@ -593,6 +594,9 @@ export function MessageThread({
       keepalive: true,
     }).catch(() => undefined);
   }, [conversationId, hasUnread]);
+
+  // Stay on the newest message while pictures load or the keyboard opens.
+  useStickToBottom(scrollRef, `${conversationId ?? ""}:${loading}`);
 
   // Auto-scroll to bottom on new messages
   useLayoutEffect(() => {

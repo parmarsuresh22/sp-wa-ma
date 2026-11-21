@@ -138,7 +138,8 @@ export function ConversationList({
         supabase
           .from("conversations")
           .select(CONVERSATION_SELECT)
-          .order("last_message_at", { ascending: false });
+          // Newest chat first; chats with no message yet go last.
+          .order("last_message_at", { ascending: false, nullsFirst: false });
 
       // Very first load with nothing on screen: fetch just the newest
       // screenful, show it, and only then pull the whole list. An
@@ -247,7 +248,14 @@ export function ConversationList({
       });
     }
 
-    return result;
+    // Always the chat with the latest message on top, like WhatsApp. The
+    // list in memory is patched in place when a message arrives (its row
+    // keeps its old position), so the order is decided here every time.
+    const stamp = (c: (typeof result)[number]) => {
+      const t = Date.parse(c.last_message_at ?? c.created_at ?? "");
+      return Number.isNaN(t) ? 0 : t;
+    };
+    return [...result].sort((a, b) => stamp(b) - stamp(a));
   }, [conversations, filter, now, search, selectedTagIds, selectedCompany, multiChannel, channelFilter]);
 
   const toggleTag = useCallback((id: string) => {

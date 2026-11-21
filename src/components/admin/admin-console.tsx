@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { readCache, writeCache } from '@/lib/client-cache';
+import { useStickToBottom } from '@/hooks/use-stick-to-bottom';
 import type { AdminHome } from '@/lib/admin/overview';
 
 // ------------------------------------------------------------
@@ -1228,6 +1229,9 @@ function ChatMessages({ chat, onBack }: { chat: ChatRow; onBack: () => void }) {
       if (phone) document.body.style.overflow = before;
     };
   }, [onBack]);
+
+  // Stay on the newest message while attachments load.
+  useStickToBottom(scroller, chat.id);
 
   useLayoutEffect(() => {
     const el = scroller.current;

@@ -45,6 +45,13 @@ and polish.
 
 ### Changed
 
+- **Chats in WhatsApp order.** The inbox list always shows the chat with
+  the latest message on top, including when a new message arrives while
+  the list is open (it used to keep its old position until a reload),
+  and chats with no message yet go to the end. An opened chat, in the
+  inbox and on the platform admin page, stays on its newest message
+  while pictures load or the phone keyboard opens.
+
 - **Platform admin page: faster, and usable on a phone.** The page now
   arrives with the account list and the number requests already in it;
   the usage counts load afterwards and fill in. Account details, chat
