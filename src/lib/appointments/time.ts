@@ -30,6 +30,14 @@ export interface AppointmentSettings {
   reminder_time: string
   /** 'auto' (the customer's own language) or a key of REPLY_LANGUAGES. */
   reply_language: string
+  /** A booking made in chat waits until the business confirms it. */
+  confirm_required: boolean
+  /** Ask what the customer needs before booking. */
+  ask_requirements: boolean
+  /** Ask for the customer's address before booking. */
+  ask_address: boolean
+  /** More things to ask before booking, one question each. */
+  custom_questions: string[]
   confirm_template: string | null
   confirm_template_language: string | null
   reminder_template: string | null
@@ -312,6 +320,19 @@ export function parseSettingsInput(
       reminder_mode: mode,
       reminder_time: reminderTime,
       reply_language: language,
+      confirm_required: raw.confirm_required === true,
+      ask_requirements: raw.ask_requirements === true,
+      ask_address: raw.ask_address === true,
+      custom_questions: Array.isArray(raw.custom_questions)
+        ? [
+            ...new Set(
+              raw.custom_questions
+                .filter((q): q is string => typeof q === 'string')
+                .map((q) => q.trim().slice(0, 200))
+                .filter(Boolean),
+            ),
+          ].slice(0, 10)
+        : [],
       confirm_template: text(raw.confirm_template, 200),
       confirm_template_language: text(raw.confirm_template_language, 20),
       reminder_template: text(raw.reminder_template, 200),

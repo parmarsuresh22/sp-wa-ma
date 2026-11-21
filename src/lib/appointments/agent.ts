@@ -41,6 +41,7 @@ import {
   AppointmentError,
   bookAppointment,
   cancelAppointment,
+  cleanDetails,
   checkSlot,
   liveAppointment,
   loadAppointmentSettings,
@@ -108,8 +109,25 @@ export const APPOINTMENT_TOOLS = [
   {
     name: 'book_appointment',
     description:
-      'Book a new appointment. Only call after check_slot said the time is free AND the customer clearly agreed to that exact date and time.',
-    parameters: dateTimeParams,
+      'Book a new appointment. Only call after check_slot said the time is free AND the customer clearly agreed to that exact date and time. Pass what the customer told you about their requirements, their address and any other question you were told to ask.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ...dateTimeParams.properties,
+        requirements: { type: 'string', description: 'What the customer needs, in their own words' },
+        address: { type: 'string', description: "The customer's address" },
+        answers: {
+          type: 'array',
+          description: 'One entry per extra question you were told to ask',
+          items: {
+            type: 'object',
+            properties: { question: { type: 'string' }, answer: { type: 'string' } },
+            required: ['question', 'answer'],
+          },
+        },
+      },
+      required: ['date', 'time'],
+    },
   },
   {
     name: 'reschedule_appointment',
@@ -155,7 +173,7 @@ function apptView(a: AppointmentRow, settings: AppointmentSettings) {
     time: local.time,
     day: formatDay(at, settings.timezone),
     time_12h: formatTime(at, settings.timezone),
-    status: a.status,
+    status: a.status === 'pending' ? 'waiting_for_the_business_to_confirm' : a.status,
     treatment: a.treatment,
     medicine: a.medicine,
     notes: a.notes,
@@ -246,10 +264,16 @@ export async function runAppointmentTool(
           source: 'ai',
           createdBy: null,
           replaceId: name === 'reschedule_appointment' ? live?.id : null,
+          // With "confirmation required" a chat booking is a request:
+          // it holds the slot but the business has the last word. A
+          // moved booking goes back to waiting too.
+          status: settings.confirm_required ? 'pending' : 'booked',
+          details: name === 'book_appointment' ? cleanDetails(args) : undefined,
           now,
         })
         return {
           ok: true,
+          needs_business_confirmation: row.status === 'pending',
           booked: apptView(row, settings),
           business_name: settings.business_name,
           address: settings.address,
@@ -311,7 +335,10 @@ export function appointmentSystemPrompt(
       : '- Reply in the same language and script the customer writes in (Hindi, Hinglish, English, or any other). Keep replies short and friendly, like a WhatsApp message. No markdown.',
     '- Never guess availability. Call check_slot (or list_free_slots) and use only what it returns. Never invent times, appointments, treatments or medicines.',
     '- Before booking, moving or cancelling, state the full date and time and get a clear yes from the customer. Then call the action. Only say it is booked, moved or cancelled after the action returned ok: true.',
-    '- After booking or moving, confirm with the day, date, time and the address.',
+    settings.confirm_required
+      ? '- This business confirms every booking itself. After book_appointment or reschedule_appointment returns ok, tell the customer their REQUEST for that day, date and time has been sent and that they will get a confirmation message here once the business approves it. Never say it is confirmed or booked. If their upcoming appointment has status waiting_for_the_business_to_confirm, say it is still waiting for confirmation.'
+      : '- After booking or moving, confirm with the day, date, time and the address.',
+    ...beforeBooking(settings),
     '- If a time is not free, offer the alternatives the action returned.',
     '- You only ever act for the person you are chatting with. If they give another phone number or ask about someone else, say you can only help with the number they are writing from.',
     '- Decide from the LATEST customer message; earlier messages are only background.',
@@ -325,6 +352,19 @@ export function appointmentSystemPrompt(
     .filter((line) => line !== '')
     .join('\n')
     .concat('\n\n', AI_CONDUCT_RULES)
+}
+
+/** What must be collected from the customer before book_appointment. */
+function beforeBooking(settings: AppointmentSettings): string[] {
+  const ask: string[] = []
+  if (settings.ask_requirements) ask.push('what they need the appointment for (their requirements) → pass as "requirements"')
+  if (settings.ask_address) ask.push('their address → pass as "address"')
+  for (const q of settings.custom_questions) ask.push(`"${q}" → pass in "answers" with this exact question`)
+  if (ask.length === 0) return []
+  return [
+    '- Before calling book_appointment you must have asked the customer for, and received an answer to, each of the following. Ask for whatever is still missing in one short message (not one message per question), then book:',
+    ...ask.map((line) => `    • ${line}`),
+  ]
 }
 
 interface ToolCall {

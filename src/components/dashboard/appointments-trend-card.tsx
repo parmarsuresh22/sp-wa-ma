@@ -202,7 +202,7 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
       todayKey: today,
       nowMs: now.getTime(),
       today: live.filter((r) => r.day === today).length,
-      upcoming: live.filter((r) => r.status === 'booked' && r.at > now.getTime()).length,
+      upcoming: live.filter((r) => (r.status === 'booked' || r.status === 'pending') && r.at > now.getTime()).length,
     }
   }, [state])
 

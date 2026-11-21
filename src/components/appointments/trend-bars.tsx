@@ -39,7 +39,7 @@ const KINDS: { kind: Kind; color: string }[] = [
 export function trendKind(point: Pick<TrendPoint, 'at' | 'status'>, nowMs: number): Kind {
   if (point.status === 'cancelled') return 'cancelled';
   if (point.status === 'no_show') return 'noShow';
-  if (point.status === 'booked' && point.at > nowMs) return 'live';
+  if ((point.status === 'booked' || point.status === 'pending') && point.at > nowMs) return 'live';
   return 'past';
 }
 

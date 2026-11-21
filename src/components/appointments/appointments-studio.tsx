@@ -44,7 +44,7 @@ import { TrendBars } from './trend-bars';
 // Shapes
 // ------------------------------------------------------------
 
-type Status = 'booked' | 'completed' | 'cancelled' | 'no_show';
+type Status = 'pending' | 'booked' | 'completed' | 'cancelled' | 'no_show';
 
 interface Appointment {
   id: string;
@@ -64,6 +64,7 @@ interface Appointment {
   reminder_sent_at: string | null;
   reminder_error: string | null;
   attachments?: Attachment[] | null;
+  details?: { requirements?: string | null; address?: string | null; answers?: { q: string; a: string }[] } | null;
   contact?: { name: string | null; phone: string | null } | null;
 }
 
@@ -98,10 +99,10 @@ interface SlotInfo {
 }
 
 type Tab = 'list' | 'new' | 'settings';
-type Filter = 'live' | 'today' | 'past' | 'completed' | 'no_show' | 'cancelled' | 'all';
+type Filter = 'pending' | 'live' | 'today' | 'past' | 'completed' | 'no_show' | 'cancelled' | 'all';
 type Trend = 'week' | 'month' | 'year';
 
-const FILTERS: Filter[] = ['live', 'today', 'past', 'completed', 'no_show', 'cancelled', 'all'];
+const FILTERS: Filter[] = ['pending', 'live', 'today', 'past', 'completed', 'no_show', 'cancelled', 'all'];
 const TRENDS: Trend[] = ['week', 'month', 'year'];
 const DAY_KEYS = ['1', '2', '3', '4', '5', '6', '0']; // Monday first
 
@@ -169,6 +170,7 @@ const PROVIDER_NAMES: Record<string, string> = {
 };
 
 const STATUS_STYLE: Record<Status, string> = {
+  pending: 'border-violet-500/50 text-violet-300',
   booked: 'border-sky-500/40 text-sky-300',
   completed: 'border-emerald-500/40 text-emerald-300',
   cancelled: 'border-red-500/40 text-red-300',
@@ -558,7 +560,9 @@ function ListTab({
   const shown = useMemo(() => {
     let out = keyed;
     if (day) out = out.filter((r) => r.day === day);
-    else if (filter === 'live') out = out.filter((r) => r.a.status === 'booked' && (r.at > now || r.day === today));
+    else if (filter === 'pending') out = out.filter((r) => r.a.status === 'pending');
+    else if (filter === 'live')
+      out = out.filter((r) => (r.a.status === 'booked' || r.a.status === 'pending') && (r.at > now || r.day === today));
     else if (filter === 'today') out = out.filter((r) => r.day === today && r.a.status !== 'cancelled');
     else if (filter === 'past') out = out.filter((r) => r.at <= now && r.day !== today);
     else if (filter === 'completed') out = out.filter((r) => r.a.status === 'completed');
@@ -650,7 +654,8 @@ function ListTab({
     [keyed],
   );
 
-  const liveCount = keyed.filter((r) => r.a.status === 'booked' && r.at > now).length;
+  const liveCount = keyed.filter((r) => (r.a.status === 'booked' || r.a.status === 'pending') && r.at > now).length;
+  const pendingCount = keyed.filter((r) => r.a.status === 'pending').length;
   const todayCount = keyed.filter((r) => r.day === today && r.a.status !== 'cancelled').length;
 
   if (rows === null) {
@@ -665,7 +670,7 @@ function ListTab({
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)] xl:items-start">
       <div className="order-2 min-w-0 space-y-3 xl:order-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          {FILTERS.map((f) => (
+          {FILTERS.filter((f) => f !== 'pending' || pendingCount > 0 || filter === 'pending').map((f) => (
             <button
               key={f}
               type="button"
@@ -677,11 +682,13 @@ function ListTab({
                 'rounded-full border px-3 py-1 text-xs',
                 !day && filter === f
                   ? 'border-primary bg-primary/15 text-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground',
+                  : f === 'pending'
+                    ? 'border-violet-500/60 text-violet-300'
+                    : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >
               {t(`filter.${f}`)}
-              {f === 'live' ? ` (${liveCount})` : f === 'today' ? ` (${todayCount})` : ''}
+              {f === 'live' ? ` (${liveCount})` : f === 'today' ? ` (${todayCount})` : f === 'pending' ? ` (${pendingCount})` : ''}
             </button>
           ))}
           {day && (
@@ -836,7 +843,7 @@ function AppointmentCard({
   onReload: () => void | Promise<void>;
 }) {
   const t = useTranslations('Appointments');
-  const [mode, setMode] = useState<'complete' | 'move' | 'notes' | null>(null);
+  const [mode, setMode] = useState<'complete' | 'move' | 'notes' | 'confirmMove' | null>(null);
   const [busy, setBusy] = useState(false);
   const [treatment, setTreatment] = useState(a.treatment ?? '');
   const [medicine, setMedicine] = useState(a.medicine ?? '');
@@ -987,6 +994,44 @@ function AppointmentCard({
       )}
       {(a.attachments?.length ?? 0) > 0 && mode !== 'complete' && mode !== 'notes' && (
         <FileList files={a.attachments ?? []} />
+      )}
+      {(a.details?.requirements || a.details?.address || (a.details?.answers?.length ?? 0) > 0) && (
+        <div className="mt-2 space-y-0.5 break-words rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">{t('customerSaid')}</p>
+          {a.details?.requirements && (
+            <p>{t('detailRequirements')}: <span className="text-foreground">{a.details.requirements}</span></p>
+          )}
+          {a.details?.address && (
+            <p>{t('detailAddress')}: <span className="text-foreground">{a.details.address}</span></p>
+          )}
+          {(a.details?.answers ?? []).map((x, i) => (
+            <p key={i}>{x.q}: <span className="text-foreground">{x.a}</span></p>
+          ))}
+        </div>
+      )}
+      {a.status === 'pending' && mode === null && (
+        <div className="mt-2 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2.5">
+          <p className="text-xs text-violet-200">{t('pendingNote')}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button size="sm" disabled={busy} onClick={() => void act({ action: 'confirm' }, t('confirmedDone'))}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+              {t('confirmBooking')}
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setMode('confirmMove')}>
+              {t('confirmOtherTime')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                if (confirm(t('declineConfirm'))) void act({ action: 'decline' }, t('declinedDone'));
+              }}
+            >
+              {t('decline')}
+            </Button>
+          </div>
+        </div>
       )}
       {a.status === 'booked' && !isPast && (
         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -1154,6 +1199,35 @@ function AppointmentCard({
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
               {mode === 'complete' ? t('markCompleted') : t('save')}
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setMode(null)}>
+              {t('close')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'confirmMove' && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-muted-foreground">{t('confirmOtherTimeHint')}</p>
+          <DayPicker
+            channelId={channelId}
+            ignoreId={a.id}
+            value={moveDate}
+            onChange={(d) => {
+              setMoveDate(d);
+              setMoveTime(null);
+            }}
+          />
+          <SlotPicker channelId={channelId} date={moveDate} ignoreId={a.id} value={moveTime} onChange={setMoveTime} />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={busy || !moveDate || !moveTime}
+              onClick={() => void act({ action: 'confirm', date: moveDate, time: moveTime }, t('confirmedDone'))}
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              {t('confirmBooking')}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setMode(null)}>
               {t('close')}
@@ -1692,6 +1766,64 @@ function SettingsTab({
             <Label text={t('daysAhead')}>
               <input type="number" min={1} max={365} className={cn(field, 'w-full')} disabled={off} value={s.days_ahead} onChange={(e) => set('days_ahead', Number(e.target.value))} />
             </Label>
+          </div>
+        </Section>
+
+        <Section title={t('beforeBooking')} hint={t('beforeBookingHint')}>
+          {(
+            [
+              ['confirm_required', t('confirmRequired'), t('confirmRequiredHint')],
+              ['ask_requirements', t('askRequirements'), t('askRequirementsHint')],
+              ['ask_address', t('askAddress'), t('askAddressHint')],
+            ] as ['confirm_required' | 'ask_requirements' | 'ask_address', string, string][]
+          ).map(([key, label, hint]) => (
+            <label key={key} className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--primary)]"
+                checked={!!s[key]}
+                disabled={off}
+                onChange={(e) => set(key, e.target.checked)}
+              />
+              <span>
+                {label}
+                <span className="block text-xs text-muted-foreground">{hint}</span>
+              </span>
+            </label>
+          ))}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">{t('customQuestions')}</p>
+            {(s.custom_questions ?? []).map((q, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <Input
+                  className="bg-muted"
+                  disabled={off}
+                  value={q}
+                  maxLength={200}
+                  placeholder={t('customQuestionExample')}
+                  onChange={(e) => set('custom_questions', s.custom_questions.map((x, j) => (j === i ? e.target.value : x)))}
+                />
+                <button
+                  type="button"
+                  disabled={off}
+                  aria-label={t('removeQuestion')}
+                  title={t('removeQuestion')}
+                  onClick={() => set('custom_questions', s.custom_questions.filter((_, j) => j !== i))}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full border border-red-500/50 text-red-400 hover:bg-red-500/15 disabled:opacity-40"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={off || (s.custom_questions ?? []).length >= 10}
+              onClick={() => set('custom_questions', [...(s.custom_questions ?? []), ''])}
+            >
+              <Plus className="size-4" />
+              {t('addQuestion')}
+            </Button>
           </div>
         </Section>
 

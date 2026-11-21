@@ -35,7 +35,37 @@ import {
   type Slot,
 } from './time'
 
-export type AppointmentStatus = 'booked' | 'completed' | 'cancelled' | 'no_show'
+export type AppointmentStatus = 'pending' | 'booked' | 'completed' | 'cancelled' | 'no_show'
+
+/** Statuses that hold a slot and count as the customer's upcoming appointment. */
+export const HOLDING_STATUSES: AppointmentStatus[] = ['booked', 'pending']
+
+/** What the customer told the assistant before booking. */
+export interface AppointmentDetails {
+  requirements?: string | null
+  address?: string | null
+  answers?: { q: string; a: string }[]
+}
+
+/** Tidy details coming from the model or the browser. */
+export function cleanDetails(raw: unknown): AppointmentDetails {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
+  const out: AppointmentDetails = {}
+  const requirements = text(r.requirements, 1000)
+  if (requirements) out.requirements = requirements
+  const address = text(r.address, 500)
+  if (address) out.address = address
+  if (Array.isArray(r.answers)) {
+    const answers = (r.answers as unknown[])
+      .map((x) => x as { q?: unknown; a?: unknown; question?: unknown; answer?: unknown })
+      .map((x) => ({ q: text(x?.q ?? x?.question, 200), a: text(x?.a ?? x?.answer, 500) }))
+      .filter((x): x is { q: string; a: string } => !!x.q && !!x.a)
+      .slice(0, 10)
+    if (answers.length > 0) out.answers = answers
+  }
+  return out
+}
 
 export interface AppointmentRow {
   id: string
@@ -56,6 +86,7 @@ export interface AppointmentRow {
   reminder_sent_at: string | null
   reminder_error: string | null
   attachments: AppointmentAttachment[]
+  details: AppointmentDetails
   created_by: string | null
   cancelled_at: string | null
   completed_at: string | null
@@ -110,6 +141,10 @@ export function settingsFromRow(
     reminder_mode: (r.reminder_mode as AppointmentSettings['reminder_mode']) ?? 'same_day',
     reminder_time: (r.reminder_time as string) ?? '09:00',
     reply_language: (r.reply_language as string) || 'auto',
+    confirm_required: r.confirm_required === true,
+    ask_requirements: r.ask_requirements === true,
+    ask_address: r.ask_address === true,
+    custom_questions: Array.isArray(r.custom_questions) ? (r.custom_questions as string[]) : [],
     confirm_template: (r.confirm_template as string) ?? null,
     confirm_template_language: (r.confirm_template_language as string) ?? null,
     reminder_template: (r.reminder_template as string) ?? null,
@@ -168,7 +203,7 @@ export async function slotsForDate(
     .from('appointments')
     .select('id, starts_at, ends_at')
     .eq('channel_id', settings.channel_id)
-    .eq('status', 'booked')
+    .in('status', HOLDING_STATUSES)
     .lt('starts_at', last.toISOString())
     .gt('ends_at', first.toISOString())
     .limit(5000)
@@ -225,7 +260,7 @@ export async function monthAvailability(
       .from('appointments')
       .select('id, starts_at, ends_at')
       .eq('channel_id', settings.channel_id)
-      .eq('status', 'booked')
+      .in('status', HOLDING_STATUSES)
       .lt('starts_at', to.toISOString())
       .gt('ends_at', from.toISOString())
       .limit(10000)
@@ -317,7 +352,7 @@ export async function liveAppointment(
     .select('*')
     .eq('channel_id', channelId)
     .eq('phone_key', phoneKey)
-    .eq('status', 'booked')
+    .in('status', HOLDING_STATUSES)
     .gt('starts_at', now.toISOString())
     .order('starts_at', { ascending: true })
     .limit(1)
@@ -362,6 +397,9 @@ export interface BookInput {
   createdBy: string | null
   /** Move this booking instead of making a new one. */
   replaceId?: string | null
+  /** 'pending' = waits for the business to confirm. Default 'booked'. */
+  status?: 'booked' | 'pending'
+  details?: AppointmentDetails
   now?: Date
 }
 
@@ -392,6 +430,8 @@ export async function bookAppointment(db: SupabaseClient, input: BookInput): Pro
     p_created_by: input.createdBy,
     p_reminder_at: reminderAt(settings, check.slot.startsAt, now)?.toISOString() ?? null,
     p_replace_id: input.replaceId ?? null,
+    p_status: input.status ?? 'booked',
+    p_details: input.details ?? {},
   })
   if (error) {
     const msg = error.message ?? ''
@@ -426,7 +466,7 @@ export async function cancelAppointment(
     .update({ status: 'cancelled', cancelled_at: now, updated_at: now })
     .eq('id', id)
     .eq('account_id', accountId)
-    .eq('status', 'booked')
+    .in('status', HOLDING_STATUSES)
     .select('*')
   if (error) throw new Error(error.message)
   return ((data ?? [])[0] as AppointmentRow | undefined) ?? null
@@ -436,7 +476,14 @@ export async function cancelAppointment(
 // Messages to the customer
 // ------------------------------------------------------------
 
-export type AppointmentMessageKind = 'confirmed' | 'rescheduled' | 'cancelled' | 'reminder' | 'no_show'
+export type AppointmentMessageKind =
+  | 'confirmed'
+  | 'confirmed_new_time'
+  | 'declined'
+  | 'rescheduled'
+  | 'cancelled'
+  | 'reminder'
+  | 'no_show'
 
 export function appointmentWhen(appt: Pick<AppointmentRow, 'starts_at'>, settings: AppointmentSettings) {
   const at = new Date(appt.starts_at)
@@ -457,6 +504,10 @@ export function appointmentMessageText(
   switch (kind) {
     case 'confirmed':
       return `${hello} your appointment${at} is confirmed.\nDate: ${day}\nTime: ${time}${address}\n\nReply here if you need to change or cancel it.`
+    case 'confirmed_new_time':
+      return `${hello} your appointment${at} is confirmed, at a different time from the one you asked for.\nDate: ${day}\nTime: ${time}${address}\n\nReply here if this time does not suit you.`
+    case 'declined':
+      return `${hello} sorry, we could not confirm your appointment request${at} for ${day} at ${time}. Reply here to choose another day or time.`
     case 'rescheduled':
       return `${hello} your appointment${at} has been moved.\nNew date: ${day}\nNew time: ${time}${address}\n\nReply here if you need to change or cancel it.`
     case 'cancelled':
@@ -619,7 +670,8 @@ export async function sendAppointmentMessage(
   )
 
   const useReminderTemplate = kind === 'reminder' && !!settings.reminder_template
-  const useConfirmTemplate = (kind === 'confirmed' || kind === 'rescheduled') && !!settings.confirm_template
+  const useConfirmTemplate =
+    (kind === 'confirmed' || kind === 'confirmed_new_time' || kind === 'rescheduled') && !!settings.confirm_template
   if (channel.provider !== 'waha' && (useReminderTemplate || useConfirmTemplate)) {
     const { day, time } = appointmentWhen(appt, settings)
     await sendMessageToConversation(db, appt.account_id, {

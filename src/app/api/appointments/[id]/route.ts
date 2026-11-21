@@ -13,7 +13,7 @@ import {
   type AppointmentRow,
 } from '@/lib/appointments/service'
 import { isAccountMediaUrl } from '@/lib/posts/post'
-import { DATE_RE, TIME_RE } from '@/lib/appointments/time'
+import { DATE_RE, TIME_RE, reminderAt } from '@/lib/appointments/time'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -27,6 +27,8 @@ const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().sli
  * Body, one of:
  *   { action: 'reschedule', date, time }   move it; the customer is told
  *   { action: 'cancel' }                   cancel it; the customer is told
+ *   { action: 'confirm', date?, time? }    approve a request (optionally at another time); the customer is told
+ *   { action: 'decline' }                  turn a request down; the customer is told
  *   { action: 'complete' }                 close a visit
  *   { action: 'no_show' }                  the customer did not come; they are told
  *   { action: 'reopen' }                   back to booked (undo)
@@ -61,7 +63,10 @@ export async function PATCH(request: Request, { params }: Params) {
     let messageError: string | null = null
     let nextAppointment: AppointmentRow | null = null
     let nextError: string | null = null
-    const tell = async (kind: 'rescheduled' | 'cancelled' | 'confirmed' | 'no_show', appt: AppointmentRow) => {
+    const tell = async (
+      kind: 'rescheduled' | 'cancelled' | 'confirmed' | 'confirmed_new_time' | 'declined' | 'no_show',
+      appt: AppointmentRow,
+    ) => {
       try {
         await sendAppointmentMessage(db, kind, appt, settings, userId)
       } catch (err) {
@@ -106,7 +111,7 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!DATE_RE.test(date) || !TIME_RE.test(time)) {
         return NextResponse.json({ error: 'Choose a date and a time' }, { status: 400 })
       }
-      if (current.status !== 'booked') {
+      if (current.status !== 'booked' && current.status !== 'pending') {
         return NextResponse.json({ error: 'Only a booked appointment can be moved' }, { status: 400 })
       }
       try {
@@ -121,6 +126,9 @@ export async function PATCH(request: Request, { params }: Params) {
           source: 'portal',
           createdBy: userId,
           replaceId: current.id,
+          // A request moved by the business stays a request until it is
+          // confirmed; a confirmed booking stays confirmed.
+          status: current.status === 'pending' ? 'pending' : 'booked',
         })
       } catch (err) {
         if (err instanceof AppointmentError) {
@@ -128,7 +136,52 @@ export async function PATCH(request: Request, { params }: Params) {
         }
         throw err
       }
-      await tell('rescheduled', appointment)
+      if (appointment.status === 'booked') await tell('rescheduled', appointment)
+    } else if (action === 'confirm') {
+      // Approve a request waiting for confirmation — as asked, or at a
+      // different date and time the business picks.
+      if (current.status !== 'pending') {
+        return NextResponse.json({ error: 'This appointment is not waiting for confirmation' }, { status: 400 })
+      }
+      const date = typeof body?.date === 'string' ? body.date : ''
+      const time = typeof body?.time === 'string' ? body.time : ''
+      const moved = !!date || !!time
+      if (moved && (!DATE_RE.test(date) || !TIME_RE.test(time))) {
+        return NextResponse.json({ error: 'Choose a date and a time' }, { status: 400 })
+      }
+      if (moved) {
+        try {
+          appointment = await bookAppointment(db, {
+            settings,
+            contactId: current.contact_id,
+            conversationId: current.conversation_id,
+            phoneKey: current.phone_key,
+            customerName: current.customer_name,
+            date,
+            time,
+            source: 'portal',
+            createdBy: userId,
+            replaceId: current.id,
+            status: 'booked',
+          })
+        } catch (err) {
+          if (err instanceof AppointmentError) {
+            return NextResponse.json({ error: err.message, code: err.code }, { status: err.status })
+          }
+          throw err
+        }
+        await tell('confirmed_new_time', appointment)
+      } else {
+        const startsAt = new Date(current.starts_at)
+        appointment = await update(
+          { status: 'booked', reminder_at: reminderAt(settings, startsAt, new Date())?.toISOString() ?? null },
+          ['pending'],
+        )
+        if (appointment) await tell('confirmed', appointment)
+      }
+    } else if (action === 'decline') {
+      appointment = await update({ status: 'cancelled', cancelled_at: now }, ['pending'])
+      if (appointment) await tell('declined', appointment)
     } else if (action === 'cancel') {
       appointment = await cancelAppointment(db, accountId, id)
       if (!appointment) return NextResponse.json({ error: 'Only a booked appointment can be cancelled' }, { status: 400 })
