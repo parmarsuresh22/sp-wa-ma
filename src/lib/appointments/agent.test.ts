@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/flows/admin-client', () => ({ supabaseAdmin: vi.fn() }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: vi.fn() }))
 
-import { APPOINTMENT_TOOLS, appointmentSystemPrompt, runAppointmentAgent, supportsAppointmentActions } from './agent'
+import {
+  APPOINTMENT_TOOLS,
+  aiAgentWillAnswer,
+  appointmentSystemPrompt,
+  runAppointmentAgent,
+  supportsAppointmentActions,
+} from './agent'
 import { settingsFromRow } from './service'
 
 const config = { provider: 'gemini' as const, model: 'm', apiKey: 'k' }
@@ -102,6 +108,31 @@ describe('appointmentSystemPrompt', () => {
     expect(prompt).toContain('Saturday: 10:00-14:00')
     expect(prompt).toContain('12 MG Road')
     expect(prompt).toContain('Ravi')
+  })
+})
+
+describe('who answers what is not about appointments', () => {
+  const agent = { isActive: true, autoReplyEnabled: true, channelId: null, autoReplyMaxPerConversation: 20 }
+  it('is the AI agent while it is on and has replies left', () => {
+    expect(aiAgentWillAnswer(agent, 'c1', 0)).toBe(true)
+    expect(aiAgentWillAnswer(agent, 'c1', 19)).toBe(true)
+  })
+  it('is not the AI agent once it has used up its replies for the chat', () => {
+    expect(aiAgentWillAnswer(agent, 'c1', 20)).toBe(false)
+  })
+  it('is not the AI agent when it is off or pinned to another number', () => {
+    expect(aiAgentWillAnswer({ ...agent, isActive: false }, 'c1', 0)).toBe(false)
+    expect(aiAgentWillAnswer({ ...agent, autoReplyEnabled: false }, 'c1', 0)).toBe(false)
+    expect(aiAgentWillAnswer({ ...agent, channelId: 'other' }, 'c1', 0)).toBe(false)
+  })
+  it('tells the assistant to answer itself when nobody else will', () => {
+    const settings = settingsFromRow({ id: 's', enabled: true }, 'a', 'c')
+    const now = new Date('2026-11-21T06:10:00Z')
+    expect(appointmentSystemPrompt(settings, now, null, true)).toContain('call not_about_appointments and write nothing')
+    const alone = appointmentSystemPrompt(settings, now, null, false)
+    expect(alone).toContain('do NOT call not_about_appointments')
+    expect(alone).toContain('the team will answer')
+    expect(alone).toContain('A greeting')
   })
 })
 

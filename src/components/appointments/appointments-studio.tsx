@@ -25,6 +25,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useChannels, channelLabel } from '@/hooks/use-channels';
 import { REPLY_LANGUAGES, type AppointmentSettings, type HoursRange, type ReminderMode } from '@/lib/appointments/time';
 import { MEDIA_MAX_BYTES, uploadAccountMedia } from '@/lib/storage/upload-media';
+import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -316,7 +317,13 @@ export function AppointmentsStudio() {
                 }}
               />
             ) : (
-              <SettingsTab key={fromId} bundle={bundle} canEdit={canEditSettings} onSaved={(s) => setBundle({ ...bundle, settings: s })} />
+              <SettingsTab
+                key={fromId}
+                bundle={bundle}
+                canEdit={canEditSettings}
+                onSaved={(s) => setBundle({ ...bundle, settings: s })}
+                onAiChanged={loadSettings}
+              />
             )}
           </div>
         </>
@@ -1335,14 +1342,101 @@ function NewTab({
 // Settings
 // ------------------------------------------------------------
 
+/**
+ * Booking in chat needs an AI key to understand what customers write.
+ * A business that does not use the AI agent can save a key right here:
+ * it is stored as the account's AI key with the AI agent left switched
+ * off, so nothing else starts replying.
+ */
+function AiKeySetup({ canEdit, onSaved }: { canEdit: boolean; onSaved: () => void | Promise<void> }) {
+  const t = useTranslations('Appointments');
+  const [provider, setProvider] = useState<'gemini' | 'openai'>('gemini');
+  const [model, setModel] = useState(AI_PROVIDER_DEFAULT_MODEL.gemini);
+  const [key, setKey] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api('/api/ai/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          model: model.trim(),
+          api_key: key.trim(),
+          // Only the key is being set up: the AI agent itself stays off.
+          is_active: false,
+          auto_reply_enabled: false,
+        }),
+      });
+      toast.success(t('aiKeySaved'));
+      setKey('');
+      await onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err), { duration: 9000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+      <p className="text-xs text-amber-300">{t('aiNoKey')}</p>
+      {canEdit ? (
+        <>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Label text={t('aiProvider')}>
+              <select
+                className={cn(field, 'w-full')}
+                value={provider}
+                onChange={(e) => {
+                  const next = e.target.value as 'gemini' | 'openai';
+                  setProvider(next);
+                  setModel(AI_PROVIDER_DEFAULT_MODEL[next]);
+                }}
+              >
+                <option value="gemini">Google Gemini</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </Label>
+            <Label text={t('aiModel')}>
+              <Input className="bg-muted font-mono text-sm" value={model} onChange={(e) => setModel(e.target.value)} />
+            </Label>
+          </div>
+          <Label text={t('aiKey')}>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              className="bg-muted font-mono text-sm"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder={provider === 'gemini' ? 'AIza...' : 'sk-...'}
+            />
+          </Label>
+          <p className="text-[11px] text-muted-foreground">{t('aiKeyHint')}</p>
+          <Button size="sm" disabled={saving || !key.trim() || !model.trim()} onClick={() => void save()}>
+            {saving && <Loader2 className="size-4 animate-spin" />}
+            {t('aiKeySave')}
+          </Button>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t('adminOnly')}</p>
+      )}
+    </div>
+  );
+}
+
 function SettingsTab({
   bundle,
   canEdit,
   onSaved,
+  onAiChanged,
 }: {
   bundle: SettingsBundle;
   canEdit: boolean;
   onSaved: (s: AppointmentSettings) => void;
+  onAiChanged: () => void | Promise<void>;
 }) {
   const t = useTranslations('Appointments');
   const [s, setS] = useState<AppointmentSettings>(bundle.settings);
@@ -1418,7 +1512,7 @@ function SettingsTab({
             </span>
           </label>
           {!bundle.ai.has_key ? (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">{t('aiNoKey')}</p>
+            <AiKeySetup canEdit={canEdit} onSaved={onAiChanged} />
           ) : !bundle.ai.can_book ? (
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
               {t('aiWrongProvider', { provider: bundle.ai.provider ?? '' })}

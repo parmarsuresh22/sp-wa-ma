@@ -286,7 +286,13 @@ export async function runAppointmentTool(
 // The conversation with the model
 // ------------------------------------------------------------
 
-export function appointmentSystemPrompt(settings: AppointmentSettings, now: Date, customerName: string | null): string {
+export function appointmentSystemPrompt(
+  settings: AppointmentSettings,
+  now: Date,
+  customerName: string | null,
+  /** Another responder (the AI agent) will answer what is not about appointments. */
+  othersWillAnswer = true,
+): string {
   const local = localParts(now, settings.timezone)
   const business = settings.business_name?.trim() || 'this business'
   return [
@@ -307,8 +313,11 @@ export function appointmentSystemPrompt(settings: AppointmentSettings, now: Date
     '- After booking or moving, confirm with the day, date, time and the address.',
     '- If a time is not free, offer the alternatives the action returned.',
     '- You only ever act for the person you are chatting with. If they give another phone number or ask about someone else, say you can only help with the number they are writing from.',
-    '- A greeting or an unclear first message: introduce yourself in one or two lines and say what you can help with.',
-    '- If the latest message is clearly about something other than appointments, call not_about_appointments and write nothing.',
+    '- Decide from the LATEST customer message; earlier messages are only background.',
+    '- A greeting (hi, hello, namaste…) or an unclear message always gets a reply from you, even when earlier messages were about something else: introduce yourself in one or two lines and say what you can help with.',
+    othersWillAnswer
+      ? '- If the latest message is clearly about something other than appointments (prices, products, complaints…), call not_about_appointments and write nothing.'
+      : '- If the latest message is clearly about something other than appointments (prices, products, complaints…), do NOT call not_about_appointments. Reply in one or two lines that you can only help with appointments here and that the team will answer that question soon. Never make up an answer to it.',
     '- If the customer asks for a person or needs something you cannot do, call ask_for_human and write nothing.',
   ]
     .filter((line) => line !== '')
@@ -421,10 +430,19 @@ export interface AppointmentDispatchArgs {
   inboundMessageId?: string
 }
 
-/** Will the AI agent answer this conversation if we pass? */
-function aiAgentWillAnswer(config: AiConfig, channelId: string | null): boolean {
+/**
+ * Will the AI agent answer this conversation if we pass? Not when it is
+ * off, pinned to another number, or has used up its replies for this
+ * chat — passing to it then would leave the customer with no answer.
+ */
+export function aiAgentWillAnswer(
+  config: Pick<AiConfig, 'isActive' | 'autoReplyEnabled' | 'channelId' | 'autoReplyMaxPerConversation'>,
+  channelId: string | null,
+  aiReplyCount: number,
+): boolean {
   if (!config.isActive || !config.autoReplyEnabled) return false
   if (config.channelId && config.channelId !== channelId) return false
+  if (aiReplyCount >= config.autoReplyMaxPerConversation) return false
   return true
 }
 
@@ -491,7 +509,7 @@ export async function dispatchInboundToAppointments(
 
     const { data: conv } = await db
       .from('conversations')
-      .select('assigned_agent_id, ai_autoreply_disabled')
+      .select('assigned_agent_id, ai_autoreply_disabled, ai_reply_count')
       .eq('id', conversationId)
       .maybeSingle()
     if (!conv) return { consumed: false }
@@ -515,9 +533,14 @@ export async function dispatchInboundToAppointments(
 
     const now = new Date()
     const customerName = (contact as { name?: string | null } | null)?.name?.trim() || null
+    const agentAnswers = aiAgentWillAnswer(
+      config,
+      channelId,
+      (conv as { ai_reply_count?: number | null }).ai_reply_count ?? 0,
+    )
     const outcome = await runAppointmentAgent({
       config,
-      systemPrompt: appointmentSystemPrompt(settings, now, customerName),
+      systemPrompt: appointmentSystemPrompt(settings, now, customerName, agentAnswers),
       messages,
       runTool: (name, toolArgs) =>
         runAppointmentTool(name, toolArgs, {
@@ -541,9 +564,10 @@ export async function dispatchInboundToAppointments(
     })
 
     if (outcome.kind === 'pass') {
-      if (aiAgentWillAnswer(config, channelId)) return { consumed: false }
-      // AI agent is off: the next step in the chain is a person.
-      await handToHuman(db, conversationId, config, messages)
+      if (agentAnswers) return { consumed: false }
+      // No AI agent to take it: the message waits in the inbox for a
+      // person. The chat is NOT paused — one question about something
+      // else must not stop the customer booking afterwards.
       return { consumed: true }
     }
     if (outcome.kind === 'human') {

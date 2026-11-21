@@ -25,6 +25,7 @@ import { derivePresence } from '@/lib/presence'
 
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { AttentionRow } from '@/components/dashboard/attention-row'
+import { AppointmentsTrendCard } from '@/components/dashboard/appointments-trend-card'
 import { CampaignsCard } from '@/components/dashboard/campaigns-card'
 import { KpiRow } from '@/components/dashboard/kpi-row'
 import { MessageVolumeCard } from '@/components/dashboard/message-volume-card'
@@ -185,6 +186,9 @@ function DashboardPageInner() {
             <MessageVolumeCard data={data} />
             <ReplyQueueCard data={data} now={now} />
           </div>
+
+          {/* Renders nothing unless booking in chat is on for a number. */}
+          <AppointmentsTrendCard channelId={channelId} />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             <PipelineCard data={data} currency={defaultCurrency} />

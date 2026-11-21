@@ -45,6 +45,18 @@ and polish.
 
 ### Changed
 
+- **Appointments: nobody left without an answer.** When a message is
+  not about appointments and the AI agent cannot take it (switched off,
+  or it has used up its replies for that chat), the appointment
+  assistant now says the team will answer instead of staying silent,
+  and the chat is no longer paused by one off-topic question. A
+  greeting always gets a reply. The AI agent's "max auto-replies per
+  conversation" can be set up to 500 (was 20); requires
+  `supabase/migrations/075_ai_reply_cap_500.sql`. A business that does
+  not use the AI agent can save its AI key in the Appointment settings
+  (the AI agent stays off). The dashboard shows appointments per week
+  when booking in chat is on.
+
 - **Chats in WhatsApp order.** The inbox list always shows the chat with
   the latest message on top, including when a new message arrives while
   the list is open (it used to keep its old position until a reload),
