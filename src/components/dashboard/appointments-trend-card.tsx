@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { TrendBars } from '@/components/appointments/trend-bars'
+import { TrendBars, dailyBuckets } from '@/components/appointments/trend-bars'
 
 interface Row {
   starts_at: string
@@ -183,6 +183,7 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
   const t = useTranslations('Appointments')
   const state = useEnabledAppointments(channelId)
 
+  const [by, setBy] = useState<'day' | 'week'>('week')
   const view = useMemo(() => {
     if (!state) return null
     const now = new Date()
@@ -190,11 +191,12 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
     const [y, m, d] = today.split('-').map(Number)
     const monday = shiftDay(today, -((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7))
     const points = state.rows.map((r) => ({ day: dayKey(r.starts_at, state.tz), at: Date.parse(r.starts_at), status: r.status }))
-    const buckets = []
+    const weekly = []
     for (let i = 7; i >= -1; i--) {
       const from = shiftDay(monday, -7 * i)
-      buckets.push({ key: from, from, to: shiftDay(from, 6), label: from.slice(5).replace('-', '/') })
+      weekly.push({ key: from, from, to: shiftDay(from, 6), label: from.slice(5).replace('-', '/') })
     }
+    const buckets = by === 'day' ? dailyBuckets(today) : weekly
     const live = points.filter((r) => r.status !== 'cancelled')
     return {
       points,
@@ -204,7 +206,7 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
       today: live.filter((r) => r.day === today).length,
       upcoming: live.filter((r) => (r.status === 'booked' || r.status === 'pending') && r.at > now.getTime()).length,
     }
-  }, [state])
+  }, [state, by])
 
   if (!view) return null
 
@@ -230,7 +232,24 @@ export function AppointmentsTrendCard({ channelId }: { channelId?: string | null
             <p className="text-xs text-muted-foreground">{t('dashUpcoming')}</p>
           </div>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex gap-1.5">
+          {(['day', 'week'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setBy(k)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs',
+                by === k
+                  ? 'border-primary bg-primary/15 text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t(`trendBy.${k}`)}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3">
           <TrendBars points={view.points} buckets={view.buckets} today={view.todayKey} nowMs={view.nowMs} />
         </div>
       </CardContent>

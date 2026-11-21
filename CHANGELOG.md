@@ -45,6 +45,11 @@ and polish.
 
 ### Changed
 
+- **Appointment trend by day.** The trend on the Appointments page has
+  a Daily view next to Weekly, Monthly and Yearly, and the dashboard
+  card can switch between Daily and Weekly. Daily shows the last ten
+  days, today and the next three.
+
 - **Appointment cards and trend.** On a phone the card no longer cuts
   the customer's name or wraps the date: the name shows in full, the
   date, phone and badges have their own lines, and Message sits in a

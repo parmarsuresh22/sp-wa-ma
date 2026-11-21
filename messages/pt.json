@@ -3469,6 +3469,7 @@
     "trend": "Trend",
     "trendHint": "Every appointment per period: upcoming, took place, did not come and cancelled.",
     "trendBy": {
+      "day": "Daily",
       "week": "Weekly",
       "month": "Monthly",
       "year": "Yearly"
@@ -3616,7 +3617,7 @@
     "aiKeySave": "Save key",
     "aiKeySaved": "AI key saved. Booking in chat can now be switched on. The AI Agent setup will use the same key.",
     "dashTitle": "Appointments",
-    "dashHint": "Every appointment per week: upcoming, took place, did not come and cancelled.",
+    "dashHint": "Every appointment per day or week: upcoming, took place, did not come and cancelled.",
     "dashToday": "Today",
     "dashUpcoming": "Upcoming",
     "dashOpen": "Open",

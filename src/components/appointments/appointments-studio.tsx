@@ -38,7 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useIsMobile, useKeyedPage, usePageSize } from '@/hooks/use-page-size';
 import { ListPager } from '@/components/ui/list-pager';
-import { TrendBars } from './trend-bars';
+import { TrendBars, dailyBuckets } from './trend-bars';
 
 // ------------------------------------------------------------
 // Shapes
@@ -100,10 +100,10 @@ interface SlotInfo {
 
 type Tab = 'list' | 'new' | 'settings';
 type Filter = 'pending' | 'live' | 'today' | 'past' | 'completed' | 'no_show' | 'cancelled' | 'all';
-type Trend = 'week' | 'month' | 'year';
+type Trend = 'day' | 'week' | 'month' | 'year';
 
 const FILTERS: Filter[] = ['pending', 'live', 'today', 'past', 'completed', 'no_show', 'cancelled', 'all'];
-const TRENDS: Trend[] = ['week', 'month', 'year'];
+const TRENDS: Trend[] = ['day', 'week', 'month', 'year'];
 const DAY_KEYS = ['1', '2', '3', '4', '5', '6', '0']; // Monday first
 
 const field =
@@ -623,6 +623,9 @@ function ListTab({
   // Trend: appointments per week / month / year (cancelled left out).
   const trendBuckets = useMemo(() => {
     const buckets: { label: string; from: string; to: string }[] = [];
+    if (trend === 'day') {
+      return dailyBuckets(today);
+    }
     if (trend === 'week') {
       const [y, m, d] = today.split('-').map(Number);
       const dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;

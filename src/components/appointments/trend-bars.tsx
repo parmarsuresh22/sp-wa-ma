@@ -18,6 +18,31 @@ export interface TrendBucket {
   label: string;
   from: string;
   to: string;
+  /** A second, smaller line under the label (the weekday of a day). */
+  sub?: string;
+}
+
+/** `key` moved by whole days (calendar arithmetic). */
+function shiftDay(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * One bar per day: the last ten days, today, and the next three — so
+ * yesterday's visits and tomorrow's bookings are both in view.
+ */
+export function dailyBuckets(today: string): TrendBucket[] {
+  const out: TrendBucket[] = [];
+  for (let i = -10; i <= 3; i++) {
+    const day = shiftDay(today, i);
+    const [y, m, d] = day.split('-').map(Number);
+    const weekday = new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', weekday: 'narrow' }).format(
+      new Date(Date.UTC(y, m - 1, d)),
+    );
+    out.push({ key: day, from: day, to: day, label: String(d), sub: weekday });
+  }
+  return out;
 }
 
 type Kind = 'live' | 'past' | 'cancelled' | 'noShow';
@@ -92,7 +117,10 @@ export function TrendBars({
                 ) : null,
               )}
             </div>
-            <span className="w-full truncate text-center text-[10px] text-muted-foreground">{b.label}</span>
+            <span className="w-full truncate text-center text-[10px] leading-tight text-muted-foreground">
+              {b.label}
+              {b.sub && <span className="block text-[9px] opacity-70">{b.sub}</span>}
+            </span>
           </div>
         ))}
       </div>
