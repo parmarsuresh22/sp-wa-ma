@@ -90,6 +90,12 @@ export interface InboundChannelContext {
    * automations advance exactly as they do on Meta.
    */
   matchTypedInteractiveReplies?: boolean
+  /**
+   * True for a message in a WhatsApp group. The message is stored and
+   * shown like any other, but nothing automatic may answer it: no flow,
+   * no automation, no appointment assistant, no AI agent.
+   */
+  isGroup?: boolean
 }
 
 export interface WhatsAppMessage {
@@ -775,7 +781,7 @@ export async function processInboundMessage(
   // no active flows take the runner's early-exit "no_match" path
   // basically for free (one indexed SELECT for the active run).
   // ============================================================
-  const flowResult = await dispatchInboundToFlows({
+  const flowResult = ctx.isGroup ? { consumed: false } : await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
     contactId: contactRecord.id,
@@ -813,7 +819,7 @@ export async function processInboundMessage(
   // BEFORE the trigger dispatch so the message that parks a run can
   // never also resume it. Flows still win: only checked if no flow
   // consumed the message. Never throws.
-  const automationConsumed = flowConsumed
+  const automationConsumed = flowConsumed || ctx.isGroup
     ? false
     : await resumeAwaitingReply({
         accountId,
@@ -853,6 +859,8 @@ export async function processInboundMessage(
   // listens to only one trigger runs only when that trigger matches.
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
+  // A group gets no automation at all — not even the "new contact" ones.
+  if (ctx.isGroup) automationTriggers.length = 0
   // Awaited — not fire-and-forget. We're inside the route's `after()`
   // block, which only keeps the function alive for promises it can see, so
   // a detached dispatch can be frozen part-way through: the log row is
@@ -887,7 +895,7 @@ export async function processInboundMessage(
   // appointment step is offered the message first and, when it answers
   // (or hands the chat to a person), the AI agent is not run — one
   // message, one reply. A step that is switched off is skipped.
-  if (!contentConsumed && !interactiveReplyId && inboundText.trim()) {
+  if (!ctx.isGroup && !contentConsumed && !interactiveReplyId && inboundText.trim()) {
     const appointment = await dispatchInboundToAppointments({
       accountId,
       conversationId: conversation.id,

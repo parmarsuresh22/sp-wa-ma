@@ -15,6 +15,7 @@ import {
   translateBridgeInbound,
   verifyBridgeSignature,
   type BridgeEnvelope,
+  groupIdOf,
 } from '@/lib/whatsapp/bridge-webhook'
 import {
   findOrCreateConversation,
@@ -127,14 +128,20 @@ async function processBridgeEvent(channel: ChannelRow, env: BridgeEnvelope) {
       // Customer messages arrive on both events — process on `message`
       // only; the upsert's unique index makes a stray duplicate a no-op.
       if (env.event !== 'message') return
-      const translated = translateBridgeInbound(env, payload)
+      const groupId = groupIdOf(payload)
+      const translated = translateBridgeInbound(env, payload, {
+        groupName: groupId ? await groupNameFor(channel, groupId) : null,
+      })
       if (!translated) return
       await processInboundMessage(translated.message, translated.contact, {
         accountId: channel.account_id,
         configOwnerUserId: channel.user_id,
         channelId: channel.id,
         resolveMedia: bridgeMediaResolver(channel, translated.message.timestamp),
-        matchTypedInteractiveReplies: true,
+        matchTypedInteractiveReplies: !translated.isGroup,
+        // A group is a conversation between people: nothing automatic
+        // (flows, automations, appointments, AI agent) ever answers it.
+        isGroup: translated.isGroup === true,
       })
       return
     }
@@ -185,6 +192,31 @@ async function processBridgeEvent(channel: ChannelRow, env: BridgeEnvelope) {
 }
 
 /** lid → `<digits>@c.us` through the bridge's lookup endpoint. */
+/**
+ * The name to file a group under. The chat already saved for it keeps
+ * its name (so a rename in the inbox sticks and the bridge is asked
+ * only once); a group seen for the first time is looked up on the
+ * bridge, with a plain label when that fails.
+ */
+async function groupNameFor(channel: ChannelRow, groupId: string): Promise<string | null> {
+  const { data: known } = await supabaseAdmin()
+    .from('contacts')
+    .select('name')
+    .eq('account_id', channel.account_id)
+    .eq('wa_user_id', groupId)
+    .maybeSingle()
+  const saved = (known as { name?: string | null } | null)?.name?.trim()
+  if (saved) return saved
+  if (!channel.bridge_base_url || !channel.bridge_session) return null
+  try {
+    const client = createWahaClient({ baseUrl: channel.bridge_base_url, apiKey: decrypt(channel.access_token) })
+    const name = await client.groupName(channel.bridge_session, groupId)
+    return name ? `${name} (group)` : null
+  } catch {
+    return null
+  }
+}
+
 function lidResolver(channel: ChannelRow) {
   return async (lid: string): Promise<string | null> => {
     if (!channel.bridge_base_url || !channel.bridge_session) return null

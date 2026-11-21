@@ -84,6 +84,18 @@ export function isBusinessScopedUserId(value: string | null | undefined): boolea
   return !!value && BSUID_PATTERN.test(value.trim())
 }
 
+/**
+ * A WhatsApp group's chat id (`120363…@g.us`, or the older
+ * `<phone>-<timestamp>@g.us`). Only a WhatsApp Web bridge ever produces
+ * one. A group has no phone number, so — like a BSUID — its id lives in
+ * `contacts.wa_user_id` and is what replies are addressed to.
+ */
+const GROUP_CHAT_PATTERN = /^[0-9-]{5,40}@g\.us$/
+
+export function isGroupChatAddress(value: string | null | undefined): boolean {
+  return !!value && GROUP_CHAT_PATTERN.test(value.trim())
+}
+
 /** Drop a leading `@` if Meta ever starts sending one. */
 function cleanUsername(value: string | undefined): string | null {
   const trimmed = value?.trim().replace(/^@/, '')
@@ -96,7 +108,7 @@ function cleanBsuid(value: string | undefined): string | null {
   // Refuse anything that doesn't look like a BSUID rather than storing
   // it — a bad value in `wa_user_id` becomes a permanent wrong contact
   // key, and the phone fallback is still available.
-  return isBusinessScopedUserId(trimmed) ? trimmed : null
+  return isBusinessScopedUserId(trimmed) || isGroupChatAddress(trimmed) ? trimmed : null
 }
 
 /**
@@ -191,7 +203,7 @@ export function resolveContactSendTarget(contact: {
   if (isValidE164(sanitized)) return { target: sanitized, isPhone: true }
 
   const waUserId = contact?.wa_user_id?.trim()
-  if (isBusinessScopedUserId(waUserId)) {
+  if (isBusinessScopedUserId(waUserId) || isGroupChatAddress(waUserId)) {
     return { target: waUserId as string, isPhone: false }
   }
 

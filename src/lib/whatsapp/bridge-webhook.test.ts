@@ -112,9 +112,8 @@ describe('translateBridgeInbound', () => {
     expect(voice!.message.type).toBe('audio')
   })
 
-  it('skips groups, channels, status broadcasts and our own sends', () => {
+  it('skips channels, status broadcasts and our own sends', () => {
     const base = { id: 'x', body: 'hi' }
-    expect(translateBridgeInbound(ENV, { ...base, from: '1203630@g.us' })).toBeNull()
     expect(translateBridgeInbound(ENV, { ...base, from: '1203630@newsletter' })).toBeNull()
     expect(translateBridgeInbound(ENV, { ...base, from: 'status@broadcast' })).toBeNull()
     expect(translateBridgeInbound(ENV, { ...base, from: '911234567890@c.us', fromMe: true })).toBeNull()
@@ -189,6 +188,72 @@ describe('envelope helpers', () => {
     expect(sessionStatusFromPayload({ status: 'WHATEVER' })).toBeNull()
     expect(bridgeOwnPhone(ENV)).toBe('+919999999999')
     expect(bridgeOwnPhone({ ...ENV, me: null })).toBeNull()
+  })
+})
+
+describe('WhatsApp groups', () => {
+  const GROUP = '120363025246125486@g.us'
+
+  it('files a group message under the group, not under the member who wrote it', async () => {
+    // The engine reports the member (as a linked id) in `from`; only the
+    // raw payload names the group. It must not become a private chat.
+    const raw = {
+      id: 'g1',
+      from: '77777777777@lid',
+      body: 'Kal meeting hai',
+      _data: { Info: { Chat: GROUP, Sender: '77777777777@lid', SenderAlt: '919782048273@s.whatsapp.net', PushName: 'Ravi' } },
+    }
+    const resolve = async () => {
+      throw new Error('a group message must not be resolved to a private chat')
+    }
+    const payload = await normalizeBridgeAddressing(raw, resolve)
+    expect(payload.from).toBe(GROUP)
+    expect(payload.group).toEqual({ id: GROUP, senderId: '919782048273@s.whatsapp.net' })
+
+    const out = translateBridgeInbound(ENV, payload, { groupName: 'Family (group)' })!
+    expect(out.isGroup).toBe(true)
+    expect(out.phone).toBe('')
+    // The group is the contact, addressed by its chat id; no phone number.
+    expect(out.message.from).toBeUndefined()
+    expect(out.message.from_user_id).toBe(GROUP)
+    expect(out.contact).toEqual({ user_id: GROUP, profile: { name: 'Family (group)' } })
+    // The member's name leads the text.
+    expect(out.message.text?.body).toBe('Ravi: Kal meeting hai')
+  })
+
+  it('keeps every member of one group in the same chat', async () => {
+    const from = (sender: string, name: string, body: string) =>
+      normalizeBridgeAddressing(
+        { id: body, from: GROUP, participant: sender, body, _data: { pushName: name } },
+        async () => null,
+      )
+    const a = translateBridgeInbound(ENV, await from('911111111111@c.us', 'Asha', 'one'))!
+    const b = translateBridgeInbound(ENV, await from('922222222222@c.us', 'Bina', 'two'))!
+    expect(a.message.from_user_id).toBe(GROUP)
+    expect(b.message.from_user_id).toBe(GROUP)
+    expect(a.message.text?.body).toBe('Asha: one')
+    expect(b.message.text?.body).toBe('Bina: two')
+    // No group name known: a plain label rather than a member's name.
+    expect(a.contact.profile?.name).toBe('WhatsApp group')
+  })
+
+  it('names the member by phone when there is no display name, and on media captions', async () => {
+    const payload = await normalizeBridgeAddressing(
+      { id: 'm', from: GROUP, participant: '919782048273@c.us', body: 'photo', hasMedia: true, media: { url: 'https://bridge/f.jpg', mimetype: 'image/jpeg' } },
+      async () => null,
+    )
+    const out = translateBridgeInbound(ENV, payload)!
+    expect(out.message.type).toBe('image')
+    expect(out.message.image?.caption).toBe('+919782048273: photo')
+  })
+
+  it('leaves private chats exactly as before', async () => {
+    const payload = await normalizeBridgeAddressing({ id: 'p', from: '911234567890@c.us', body: 'hi' }, async () => null)
+    expect(payload.group).toBeUndefined()
+    const out = translateBridgeInbound(ENV, payload)!
+    expect(out.isGroup).toBe(false)
+    expect(out.message.from).toBe('911234567890')
+    expect(out.message.text?.body).toBe('hi')
   })
 })
 

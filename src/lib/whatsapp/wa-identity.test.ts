@@ -259,3 +259,30 @@ describe('contactHandle', () => {
     expect(contactHandle({ phone: null, wa_username: null, wa_user_id: null })).toBe('')
   })
 })
+
+describe('WhatsApp groups', () => {
+  it('recognises a group chat id and nothing else', async () => {
+    const { isGroupChatAddress } = await import('./wa-identity')
+    expect(isGroupChatAddress('120363025246125486@g.us')).toBe(true)
+    expect(isGroupChatAddress('919876543210-1612345678@g.us')).toBe(true)
+    expect(isGroupChatAddress('919876543210@c.us')).toBe(false)
+    expect(isGroupChatAddress('919876543210')).toBe(false)
+    expect(isGroupChatAddress('IN.12345678')).toBe(false)
+    expect(isGroupChatAddress('x@g.us')).toBe(false)
+  })
+  it('finds the group by its chat id and replies to that id', async () => {
+    const { resolveInboundIdentity, resolveContactSendTarget, hasUsableIdentity } = await import('./wa-identity')
+    const identity = resolveInboundIdentity(
+      { from_user_id: '120363025246125486@g.us' },
+      { user_id: '120363025246125486@g.us', profile: { name: 'Family (group)' } },
+    )
+    expect(identity.phone).toBe('')
+    expect(identity.waUserId).toBe('120363025246125486@g.us')
+    expect(identity.name).toBe('Family (group)')
+    expect(hasUsableIdentity(identity)).toBe(true)
+    expect(resolveContactSendTarget({ phone: '', wa_user_id: '120363025246125486@g.us' })).toEqual({
+      target: '120363025246125486@g.us',
+      isPhone: false,
+    })
+  })
+})

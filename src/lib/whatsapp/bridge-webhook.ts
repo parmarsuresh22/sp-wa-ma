@@ -83,6 +83,11 @@ export interface BridgeMessagePayload {
   replyTo?: { id?: string } | null
   participant?: string | null
   source?: string
+  /**
+   * Set by `normalizeBridgeAddressing` when the message belongs to a
+   * group: the group's chat id and who in the group wrote it.
+   */
+  group?: { id: string; senderId: string | null } | null
   _data?: {
     pushName?: string
     notifyName?: string
@@ -122,6 +127,24 @@ export async function normalizeBridgeAddressing(
   const info = payload._data?.Info
   const toCus = (jid: string | null | undefined): string | null =>
     chatIdToPhone(jid ?? null) ? `${chatIdToPhone(jid ?? null)!.slice(1)}@c.us` : null
+
+  // A group message must stay a group message. On some engines `from`
+  // is the member who wrote it (often as a linked id) and only the raw
+  // payload names the group — rewriting `from` to that member's phone
+  // would file every group message under the member's private chat.
+  const groupId = [payload.from, payload.to, info?.Chat].find((id) => isGroupChatId(id)) ?? null
+  if (groupId) {
+    const senderId =
+      [payload.participant, info?.SenderAlt, info?.Sender, payload.from].find(
+        (id) => typeof id === 'string' && !!id && !isGroupChatId(id),
+      ) ?? null
+    return {
+      ...payload,
+      from: payload.fromMe ? payload.from : groupId,
+      to: payload.fromMe ? groupId : payload.to,
+      group: { id: groupId, senderId },
+    }
+  }
 
   const out: BridgeMessagePayload = { ...payload }
   const chatLid = isLidChatId(payload.from)
@@ -185,15 +208,28 @@ function mediaKindFromMime(mime: string | null | undefined): 'image' | 'video' |
 export interface TranslatedInbound {
   message: WhatsAppMessage
   contact: WaContactPayload
-  /** `+<digits>` of the customer. */
+  /** `+<digits>` of the customer; '' for a group. */
   phone: string
+  /** True when this is a message in a WhatsApp group. */
+  isGroup?: boolean
+}
+
+/** A group chat id from whichever field carries it, or null. */
+export function groupIdOf(payload: BridgeMessagePayload): string | null {
+  if (payload.group?.id) return payload.group.id
+  return [payload.from, payload.to, payload._data?.Info?.Chat].find((id) => isGroupChatId(id)) ?? null
 }
 
 /**
  * Translate a WAHA `message` (customer → business) into the Meta
  * webhook shape. Returns null for anything the pipeline should skip:
- * groups, channels/newsletters, status broadcasts, our own sends
- * (`fromMe`), and payloads with no usable sender.
+ * channels/newsletters, status broadcasts, our own sends (`fromMe`),
+ * and payloads with no usable sender.
+ *
+ * A message in a WhatsApp group becomes a message in ONE chat for that
+ * group (the group is the "contact", addressed by its chat id), with
+ * the member's name in front of the text. `isGroup` tells the pipeline
+ * that no flow, automation or AI may answer it.
  *
  * Media: the "media id" handed to the pipeline is the bridge's download
  * URL — the WAHA media resolver in the route fetches it with the API
@@ -202,49 +238,67 @@ export interface TranslatedInbound {
 export function translateBridgeInbound(
   env: BridgeEnvelope,
   payload: BridgeMessagePayload,
+  opts: { groupName?: string | null } = {},
 ): TranslatedInbound | null {
   if (payload.fromMe) return null
-  const chatId = payload.from ?? ''
-  if (!chatId || isGroupChatId(chatId)) return null
+  const groupId = groupIdOf(payload)
+  const chatId = groupId ?? payload.from ?? ''
+  if (!chatId) return null
   if (chatId.endsWith('@newsletter') || chatId === 'status@broadcast') return null
-  const phone = chatIdToPhone(chatId)
-  if (!phone) return null
+  const phone = groupId ? '' : (chatIdToPhone(chatId) ?? '')
+  if (!groupId && !phone) return null
   const digits = phone.slice(1)
-
-  const timestamp = toMetaTimestamp(payload.timestamp, env.timestamp)
-  const base: WhatsAppMessage = {
-    id: payload.id,
-    from: digits,
-    timestamp,
-    type: 'text',
-    ...(payload.replyTo?.id ? { context: { id: payload.replyTo.id } } : {}),
-  }
 
   const pushName =
     payload._data?.pushName ||
     payload._data?.notifyName ||
     payload._data?.Info?.PushName ||
     undefined
-  const contact: WaContactPayload = {
-    wa_id: digits,
-    profile: { name: pushName },
-  }
+
+  const timestamp = toMetaTimestamp(payload.timestamp, env.timestamp)
+  const base: WhatsAppMessage = groupId
+    ? {
+        id: payload.id,
+        // No phone: the group's chat id is the identity (see wa-identity).
+        from_user_id: groupId,
+        timestamp,
+        type: 'text',
+        ...(payload.replyTo?.id ? { context: { id: payload.replyTo.id } } : {}),
+      }
+    : {
+        id: payload.id,
+        from: digits,
+        timestamp,
+        type: 'text',
+        ...(payload.replyTo?.id ? { context: { id: payload.replyTo.id } } : {}),
+      }
+
+  const contact: WaContactPayload = groupId
+    ? { user_id: groupId, profile: { name: opts.groupName?.trim() || 'WhatsApp group' } }
+    : { wa_id: digits, profile: { name: pushName } }
+
+  // In a group, say who wrote it.
+  const memberPhone = groupId ? chatIdToPhone(payload.group?.senderId ?? null) : null
+  const member = groupId ? pushName || memberPhone || 'Member' : ''
+  const withMember = (text: string | undefined) =>
+    groupId ? (text ? `${member}: ${text}` : `${member}:`) : text
+  const isGroup = !!groupId
 
   const mediaUrl = payload.media?.url ?? null
   if (payload.hasMedia && mediaUrl) {
     const mime = payload.media?.mimetype ?? null
     const kind = mediaKindFromMime(mime)
-    const caption = payload.body?.trim() || undefined
+    const caption = withMember(payload.body?.trim() || undefined)
     const ref = { id: mediaUrl, mime_type: mime || 'application/octet-stream' }
     switch (kind) {
       case 'image':
-        return { message: { ...base, type: 'image', image: { ...ref, caption } }, contact, phone }
+        return { message: { ...base, type: 'image', image: { ...ref, caption } }, contact, phone, isGroup }
       case 'video':
-        return { message: { ...base, type: 'video', video: { ...ref, caption } }, contact, phone }
+        return { message: { ...base, type: 'video', video: { ...ref, caption } }, contact, phone, isGroup }
       case 'audio':
-        return { message: { ...base, type: 'audio', audio: ref }, contact, phone }
+        return { message: { ...base, type: 'audio', audio: ref }, contact, phone, isGroup }
       case 'sticker':
-        return { message: { ...base, type: 'sticker', sticker: ref }, contact, phone }
+        return { message: { ...base, type: 'sticker', sticker: ref }, contact, phone, isGroup }
       default:
         return {
           message: {
@@ -254,6 +308,7 @@ export function translateBridgeInbound(
           },
           contact,
           phone,
+          isGroup,
         }
     }
   }
@@ -265,10 +320,11 @@ export function translateBridgeInbound(
       message: { ...base, type: 'text', text: { body: '[attachment not downloaded by bridge]' } },
       contact,
       phone,
+      isGroup,
     }
   }
   if (!text) return null
-  return { message: { ...base, type: 'text', text: { body: text } }, contact, phone }
+  return { message: { ...base, type: 'text', text: { body: withMember(text) ?? text } }, contact, phone, isGroup }
 }
 
 export interface TranslatedEcho {

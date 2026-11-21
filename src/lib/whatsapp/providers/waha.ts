@@ -359,6 +359,26 @@ export function createWahaClient(cfg: WahaClientConfig) {
         throw err
       }
     },
+    /**
+     * A group's name (its "subject"), or null when the bridge will not
+     * say. Engines differ in the field they use, so try the known ones.
+     */
+    async groupName(session: string, groupId: string): Promise<string | null> {
+      try {
+        const r = await call<Record<string, unknown>>(
+          'GET',
+          `/api/${encodeURIComponent(session)}/groups/${encodeURIComponent(groupId)}`,
+        )
+        const info = (r?.groupMetadata ?? r) as Record<string, unknown> | null
+        for (const key of ['subject', 'Subject', 'name', 'Name']) {
+          const v = info?.[key]
+          if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 120)
+        }
+        return null
+      } catch {
+        return null
+      }
+    },
     /** Download a media file the bridge stored (payload.media.url). */
     async downloadMedia(url: string): Promise<{ buffer: Buffer; contentType: string | null }> {
       const controller = new AbortController()
