@@ -26,9 +26,9 @@ interface ScanAnswer {
 /** The same QR is ignored for this long, so holding it up does not re-scan it. */
 const SAME_CODE_MS = 6000;
 const SCAN_EVERY_MS = 180;
-/** How long the answer covers the camera: short for green so the queue keeps moving. */
-const SHOW_OK_MS = 2200;
-const SHOW_BAD_MS = 6000;
+/** How long the answer stays above the camera, unless the next scan replaces it first. */
+const SHOW_OK_MS = 4000;
+const SHOW_BAD_MS = 8000;
 
 type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -81,7 +81,7 @@ export function PassScanner({
   const [checking, setChecking] = useState(false);
   const [answer, setAnswer] = useState<ScanAnswer | null>(null);
   const [typed, setTyped] = useState('');
-  // The answer covers the camera for a moment; `last` stays as a small
+  // The answer shows above the camera for a moment; `last` stays as a small
   // line underneath in case the person at the gate looked away.
   const [last, setLast] = useState<ScanAnswer | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
@@ -255,6 +255,48 @@ export function PassScanner({
     <div className="mx-auto w-full max-w-md space-y-3">
       <p className="text-center text-sm text-muted-foreground">{t('scanCount', { used: checkedIn, total: issued })}</p>
 
+      {/* The answer sits above the camera, never on it, so the next
+          pass can be read while this one is still on show. The strip
+          keeps its height, so the camera does not jump. */}
+      <div
+        role="status"
+        aria-live="assertive"
+        className={cn(
+          'flex h-28 w-full items-center gap-3 overflow-hidden rounded-xl px-4 text-left',
+          !answer
+            ? 'border border-dashed border-border text-muted-foreground'
+            : good
+              ? 'bg-emerald-600 text-white'
+              : 'bg-red-600 text-white',
+        )}
+      >
+        {!answer ? (
+          <>
+            {checking ? <Loader2 className="size-8 shrink-0 animate-spin" /> : <Camera className="size-8 shrink-0" />}
+            <span className="text-sm">{checking ? t('scanChecking') : t('scanReady')}</span>
+          </>
+        ) : (
+          <>
+            {good ? <CheckCircle2 className="size-16 shrink-0" /> : <XCircle className="size-16 shrink-0" />}
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl font-extrabold leading-tight">{t(`scan.${answer.result}`)}</p>
+              {pass && (
+                <>
+                  <p className="truncate text-lg font-semibold leading-snug">{pass.holder_name || pass.phone_key}</p>
+                  <p className="truncate text-sm text-white/90">
+                    {pass.pass_type}
+                    {pass.quantity ? ` · ${t('passOf', { n: pass.seq, total: pass.quantity })}` : ''}
+                    {answer.result === 'used' && pass.used_at ? ` · ${t('usedAt', { time: stamp(pass.used_at) })}` : ''}
+                    {answer.result === 'wrong_event' && pass.event_name ? ` · ${t('passIsFor', { event: pass.event_name })}` : ''}
+                  </p>
+                </>
+              )}
+            </div>
+            {checking && <Loader2 className="size-6 shrink-0 animate-spin" />}
+          </>
+        )}
+      </div>
+
       <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-black">
         <video
           ref={videoRef}
@@ -265,7 +307,12 @@ export function PassScanner({
         />
         <canvas ref={canvasRef} className="hidden" />
         {on && !starting ? (
-          <div className="pointer-events-none absolute inset-8 rounded-xl border-2 border-white/70" />
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-8 rounded-xl border-4',
+              !answer ? 'border-white/70' : good ? 'border-emerald-400' : 'border-red-500',
+            )}
+          />
         ) : starting ? (
           <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
             <Loader2 className="size-10 animate-spin text-white/80" />
@@ -281,42 +328,6 @@ export function PassScanner({
             <p role={cameraError ? 'alert' : undefined} className={cn('text-sm', cameraError ? 'text-red-200' : 'text-white/70')}>
               {cameraError ?? t('scanIntro')}
             </p>
-          </div>
-        )}
-        {answer && (
-          <button
-            type="button"
-            role="status"
-            aria-live="assertive"
-            onClick={() => setAnswer(null)}
-            className={cn(
-              'absolute inset-0 flex flex-col items-center justify-center gap-1 p-4 text-center text-white',
-              good ? 'bg-emerald-600' : 'bg-red-600',
-            )}
-          >
-            {good ? <CheckCircle2 className="size-24 shrink-0" /> : <XCircle className="size-24 shrink-0" />}
-            <span className="text-3xl font-extrabold leading-tight">{t(`scan.${answer.result}`)}</span>
-            {pass && (
-              <>
-                <span className="mt-1 max-w-full truncate text-xl font-semibold">{pass.holder_name || pass.phone_key}</span>
-                <span className="text-base text-white/90">
-                  {pass.pass_type}
-                  {pass.quantity ? ` · ${t('passOf', { n: pass.seq, total: pass.quantity })}` : ''}
-                </span>
-                {answer.result === 'used' && pass.used_at && (
-                  <span className="text-base font-semibold">{t('usedAt', { time: stamp(pass.used_at) })}</span>
-                )}
-                {answer.result === 'wrong_event' && pass.event_name && (
-                  <span className="text-base font-semibold">{t('passIsFor', { event: pass.event_name })}</span>
-                )}
-              </>
-            )}
-            <span className="mt-2 text-xs text-white/80">{t('tapForNext')}</span>
-          </button>
-        )}
-        {checking && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <Loader2 className="size-8 animate-spin text-white" />
           </div>
         )}
       </div>
