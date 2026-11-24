@@ -49,6 +49,7 @@ export function PassScanner({
   const lastRef = useRef<{ code: string; at: number }>({ code: '', at: 0 });
   const busyRef = useRef(false);
   const [on, setOn] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [answer, setAnswer] = useState<ScanAnswer | null>(null);
@@ -84,18 +85,45 @@ export function PassScanner({
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
-          audio: false,
-        });
-      } catch {
-        if (!stopped) {
-          setCameraError(t('cameraBlocked'));
-          setOn(false);
-        }
+      const fail = (key: string) => {
+        if (stopped) return;
+        setCameraError(t(key));
+        setStarting(false);
+        setOn(false);
+      };
+      // Browsers inside another app (the one WhatsApp opens links in,
+      // for example) and pages not on https have no camera at all.
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        fail('cameraUnsupported');
         return;
       }
+      // This call is what makes the browser ask "Allow camera?".
+      try {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+            audio: false,
+          });
+        } catch (err) {
+          const name = (err as { name?: string })?.name;
+          if (name !== 'OverconstrainedError' && name !== 'NotFoundError') throw err;
+          // No back camera (a laptop, say): take whichever camera there is.
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+      } catch (err) {
+        const name = (err as { name?: string })?.name;
+        fail(
+          name === 'NotAllowedError' || name === 'SecurityError'
+            ? 'cameraDenied'
+            : name === 'NotFoundError' || name === 'OverconstrainedError'
+              ? 'cameraMissing'
+              : name === 'NotReadableError' || name === 'AbortError'
+                ? 'cameraBusy'
+                : 'cameraBlocked',
+        );
+        return;
+      }
+      if (!stopped) setStarting(false);
       if (stopped) {
         stream.getTracks().forEach((track) => track.stop());
         return;
@@ -150,14 +178,31 @@ export function PassScanner({
       <p className="text-center text-sm text-muted-foreground">{t('scanCount', { used: checkedIn, total: issued })}</p>
 
       <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-black">
-        <video ref={videoRef} playsInline muted className={cn('size-full object-cover', !on && 'hidden')} />
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className={cn('size-full object-cover', (!on || starting) && 'hidden')}
+        />
         <canvas ref={canvasRef} className="hidden" />
-        {on ? (
+        {on && !starting ? (
           <div className="pointer-events-none absolute inset-8 rounded-xl border-2 border-white/70" />
+        ) : starting ? (
+          <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <Loader2 className="size-10 animate-spin text-white/80" />
+            <p className="text-sm text-white/80">{t('cameraAsking')}</p>
+          </div>
         ) : (
           <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
-            <Camera className="size-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">{cameraError ?? t('scanIntro')}</p>
+            {cameraError ? (
+              <CameraOff className="size-10 text-red-400" />
+            ) : (
+              <Camera className="size-10 text-white/60" />
+            )}
+            <p role={cameraError ? 'alert' : undefined} className={cn('text-sm', cameraError ? 'text-red-200' : 'text-white/70')}>
+              {cameraError ?? t('scanIntro')}
+            </p>
           </div>
         )}
         {checking && (
@@ -173,11 +218,12 @@ export function PassScanner({
         variant={on ? 'outline' : 'default'}
         onClick={() => {
           setCameraError(null);
+          setStarting(!on);
           setOn((v) => !v);
         }}
       >
         {on ? <CameraOff className="size-4" /> : <Camera className="size-4" />}
-        {on ? t('stopCamera') : t('startCamera')}
+        {on ? t('stopCamera') : cameraError ? t('retryCamera') : t('startCamera')}
       </Button>
 
       {answer && (

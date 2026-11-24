@@ -148,6 +148,14 @@ and polish.
 
 ### Fixed
 
+- **The gate scanner's camera now opens.** A security header blocked
+  the camera on every page, so the browser never asked for permission.
+  The camera is now allowed for the portal itself, the browser asks on
+  the first press of "Start camera", and the scanner says on screen
+  what to do when access is switched off, no camera is found, another
+  app is using it, or the browser cannot open one.
+- **The AI footer is just "AI Powered".** The business name is no
+  longer added after it.
 - **Business branding now shows and stays.** The saved name and logo
   were read from the database but dropped before reaching the menu and
   the settings panel, so the menu kept the default and the panel looked

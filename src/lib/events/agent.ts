@@ -28,7 +28,7 @@ import { formatDay, localParts } from '@/lib/appointments/time'
 import { loadAiConfig } from '@/lib/ai/config'
 import { buildConversationContext } from '@/lib/ai/context'
 import { AI_CONDUCT_RULES } from '@/lib/ai/defaults'
-import { loadAiFooter, withAiFooter } from '@/lib/ai/footer'
+import { aiFooter, withAiFooter } from '@/lib/ai/footer'
 import { REPLY_LANGUAGES } from '@/lib/ai/languages'
 import { logAiUsage } from '@/lib/ai/usage'
 import { phoneKey } from '@/lib/data-tables/lookup'
@@ -599,7 +599,7 @@ export async function dispatchInboundToEvents(args: EventDispatchArgs): Promise<
         userId: configOwnerUserId,
         conversationId,
         contactId,
-        text: withAiFooter(outcome.text, await loadAiFooter(db, accountId, channelId)),
+        text: withAiFooter(outcome.text, aiFooter()),
         aiGenerated: true,
       })
     }

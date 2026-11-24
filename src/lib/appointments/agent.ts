@@ -653,7 +653,7 @@ export async function dispatchInboundToAppointments(
     }
 
     // Says who is speaking: "AI Assistant - <business name>".
-    const replyText = withAiFooter(outcome.text, aiFooter(settings.business_name))
+    const replyText = withAiFooter(outcome.text, aiFooter())
     const logo = confirmedNow ? await confirmationLogo(db, accountId, settings) : null
     if (logo) {
       try {

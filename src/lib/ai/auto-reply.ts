@@ -7,7 +7,7 @@ import { buildSystemPrompt } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
-import { loadAiFooter, withAiFooter } from './footer'
+import { aiFooter, withAiFooter } from './footer'
 import { tableExcerptsForAi } from '@/lib/data-tables/lookup'
 import { engineSendText, loadConversationSender } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
@@ -246,7 +246,7 @@ export async function dispatchInboundToAiReply(
       conversationId,
       contactId,
       // Every automatic reply says who is speaking (see lib/ai/footer).
-      text: withAiFooter(text, await loadAiFooter(db, accountId, channelId)),
+      text: withAiFooter(text, aiFooter()),
       aiGenerated: true,
     })
   } catch (err) {

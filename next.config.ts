@@ -15,9 +15,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
  *   - HSTS: only meaningful on HTTPS (no-op on http://localhost).
  *   - X-Content-Type-Options / X-Frame-Options / Referrer-Policy:
  *     baseline OWASP hardening, no behavioural cost.
- *   - Permissions-Policy: we don't use camera / microphone / etc, so
- *     deny them. A supply-chain compromise or a forgotten plugin
- *     can't silently opt back in.
+ *   - Permissions-Policy: only the camera (gate scanner) and the
+ *     microphone (voice notes) are allowed, same-origin; the rest is
+ *     denied. A supply-chain compromise or a forgotten plugin can't
+ *     silently opt back in.
  */
 const SECURITY_HEADERS = [
   {
@@ -29,11 +30,13 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     // Microphone is allowed for same-origin (`self`) so the inbox
-    // composer can record voice notes via MediaRecorder. Everything
+    // composer can record voice notes via MediaRecorder, and the
+    // camera so the event gate scanner can read pass QR codes. The
+    // browser still asks the person before either is used. Everything
     // else stays denied — a compromised dependency can't silently grab
-    // the camera / geolocation / etc.
+    // geolocation / etc.
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
+    value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()",
   },
   {
     key: "Content-Security-Policy-Report-Only",
