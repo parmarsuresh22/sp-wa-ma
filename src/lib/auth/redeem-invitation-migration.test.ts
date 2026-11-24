@@ -41,6 +41,11 @@ const tablesWithoutDomainData = new Set([
   "event_orders",
   "event_passes",
   "event_scans",
+  // Migration 081. Service Today rows need a WhatsApp number (NOT NULL
+  // FK to whatsapp_config, which redeem_invitation checks).
+  "service_settings",
+  "service_customers",
+  "service_visits",
 ]);
 
 function accountScopedTables(): Set<string> {

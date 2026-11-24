@@ -148,6 +148,15 @@ and polish.
 
 ### Fixed
 
+- **Service Today (migration required: `081_service_today.sql`).** A
+  new page for businesses that visit customers again and again: one
+  entry per visit (customer, service or device, visit date, next visit,
+  comment, up to three photos). The customer gets a WhatsApp
+  confirmation when the entry is saved, and a reminder the day before
+  and on the day of the next visit, in English or Hindi. Customer list
+  with the nearest due date first, search, history per customer, edit
+  and remove. Free (no balance or charges) and on WhatsApp Web numbers
+  only. New "Service Today" section for team permissions.
 - **Appointment card with a QR, and a Scan tab.** Every confirmation
   and every change of time now carries a picture, drawn afresh from the
   appointment, with the business name and logo, the customer's name,

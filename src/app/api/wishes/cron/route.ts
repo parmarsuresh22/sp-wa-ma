@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { runWishSchedule, type WishScheduleRow } from '@/lib/wishes/run'
 import { runAppointmentReminders } from '@/lib/appointments/service'
 import { runEventReminders } from '@/lib/events/service'
+import { runServiceReminders } from '@/lib/service/service'
 
 // Sends are paced one a second, so a run can take a while.
 export const maxDuration = 300
@@ -68,6 +69,16 @@ export async function GET(request: Request) {
       if (r.due > 0) console.log(`[appointments] reminders: due ${r.due}, sent ${r.sent}, failed ${r.failed}`)
     } catch (err) {
       console.error('[appointments] reminder run failed:', err instanceof Error ? err.message : err)
+    }
+  })
+
+  // Service Today reminders (migration 081) too.
+  after(async () => {
+    try {
+      const r = await runServiceReminders(admin, now)
+      if (r.due > 0) console.log(`[service] reminders: due ${r.due}, sent ${r.sent}, failed ${r.failed}`)
+    } catch (err) {
+      console.error('[service] reminder run failed:', err instanceof Error ? err.message : err)
     }
   })
 
