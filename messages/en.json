@@ -3793,7 +3793,8 @@
       "used": "Already used",
       "cancelled": "Pass cancelled",
       "wrong_event": "Pass for another event",
-      "unknown": "Not a valid pass"
+      "unknown": "Not a valid pass",
+      "error": "Not checked - scan again"
     },
     "passDone": {
       "checkin": "Checked in",
@@ -3828,6 +3829,8 @@
     "cameraBusy": "Another app is using the camera. Close it, then press the button below.",
     "cameraUnsupported": "This browser cannot open the camera. Open the portal in Chrome or Safari itself, not inside another app.",
     "retryCamera": "Try the camera again",
+    "tapForNext": "Tap for the next pass",
+    "lastScan": "Last scan: {who} - {result}",
     "scanCount": "{used} of {total} checked in",
     "scanIntro": "Start the camera and hold a pass QR inside the frame.",
     "stopCamera": "Stop camera",

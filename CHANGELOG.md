@@ -154,6 +154,11 @@ and polish.
   the first press of "Start camera", and the scanner says on screen
   what to do when access is switched off, no camera is found, another
   app is using it, or the browser cannot open one.
+- **The gate scanner answers on the camera itself.** The whole camera
+  square turns green or red with the result, the guest's name and the
+  pass type in large type, with a beep and a vibration. It clears by
+  itself (about 2 seconds for green, 6 for red) or on a tap, and the
+  phone's screen stays on while scanning.
 - **The AI footer is just "AI Powered".** The business name is no
   longer added after it.
 - **Business branding now shows and stays.** The saved name and logo

@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils';
 import { api, postJson, stamp, type EventView } from './shared';
 
 interface ScanAnswer {
-  result: 'ok' | 'used' | 'cancelled' | 'wrong_event' | 'unknown';
+  /** `error` is ours: the portal could not be reached. */
+  result: 'ok' | 'used' | 'cancelled' | 'wrong_event' | 'unknown' | 'error';
   pass?: {
     holder_name: string | null;
     phone_key: string;
@@ -25,6 +26,32 @@ interface ScanAnswer {
 /** The same QR is ignored for this long, so holding it up does not re-scan it. */
 const SAME_CODE_MS = 6000;
 const SCAN_EVERY_MS = 180;
+/** How long the answer covers the camera: short for green so the queue keeps moving. */
+const SHOW_OK_MS = 2200;
+const SHOW_BAD_MS = 6000;
+
+type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
+
+/** One high beep for "let them in", two low ones for "stop". */
+function beep(ctx: AudioContext | null, good: boolean) {
+  if (!ctx) return;
+  try {
+    const tones = good ? [[880, 0, 0.16]] : [[220, 0, 0.22], [220, 0.3, 0.22]];
+    for (const [freq, start, length] of tones) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = good ? 'sine' : 'square';
+      osc.frequency.value = freq;
+      gain.gain.value = good ? 0.25 : 0.18;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + length);
+    }
+  } catch {
+    // No sound is fine; the colour and the vibration still tell.
+  }
+}
 
 /**
  * The gate scanner: the phone camera reads a pass QR and the portal
@@ -54,6 +81,33 @@ export function PassScanner({
   const [checking, setChecking] = useState(false);
   const [answer, setAnswer] = useState<ScanAnswer | null>(null);
   const [typed, setTyped] = useState('');
+  // The answer covers the camera for a moment; `last` stays as a small
+  // line underneath in case the person at the gate looked away.
+  const [last, setLast] = useState<ScanAnswer | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+
+  /** Sound may only start from a tap, so this runs on the buttons. */
+  const wakeSound = useCallback(() => {
+    try {
+      if (!audioRef.current) {
+        const Ctx = window.AudioContext ?? (window as AudioWindow).webkitAudioContext;
+        if (Ctx) audioRef.current = new Ctx();
+      }
+      void audioRef.current?.resume();
+    } catch {
+      // Sound is a bonus.
+    }
+  }, []);
+
+  const show = useCallback((res: ScanAnswer) => {
+    setAnswer(res);
+    setLast(res);
+    const good = res.result === 'ok';
+    beep(audioRef.current, good);
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(good ? 120 : [120, 80, 120, 80, 120]);
+    }
+  }, []);
 
   const submit = useCallback(
     async (code: string) => {
@@ -62,21 +116,45 @@ export function PassScanner({
       setChecking(true);
       try {
         const res = await api<ScanAnswer>(`/api/events/${event.id}/scan`, postJson('POST', { code }));
-        setAnswer(res);
-        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-          navigator.vibrate(res.result === 'ok' ? 120 : [120, 80, 120, 80, 120]);
-        }
+        show(res);
         if (res.result === 'ok') onScanned();
       } catch {
-        setAnswer(null);
-        setCameraError(t('scanFailed'));
+        // Forget the code, so holding the same pass up again retries it.
+        lastRef.current = { code: '', at: 0 };
+        show({ result: 'error' });
       } finally {
         busyRef.current = false;
         setChecking(false);
       }
     },
-    [event.id, onScanned, t],
+    [event.id, onScanned, show],
   );
+
+  // The answer clears itself, so the next guest can step up without a tap.
+  useEffect(() => {
+    if (!answer) return;
+    const timer = setTimeout(() => setAnswer(null), answer.result === 'ok' ? SHOW_OK_MS : SHOW_BAD_MS);
+    return () => clearTimeout(timer);
+  }, [answer]);
+
+  // Keep the phone's screen on while the camera is scanning.
+  useEffect(() => {
+    if (!on) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let gone = false;
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } };
+    nav.wakeLock
+      ?.request('screen')
+      .then((l) => {
+        if (gone) void l.release().catch(() => undefined);
+        else lock = l;
+      })
+      .catch(() => undefined);
+    return () => {
+      gone = true;
+      void lock?.release().catch(() => undefined);
+    };
+  }, [on]);
 
   useEffect(() => {
     if (!on) return;
@@ -205,6 +283,37 @@ export function PassScanner({
             </p>
           </div>
         )}
+        {answer && (
+          <button
+            type="button"
+            role="status"
+            aria-live="assertive"
+            onClick={() => setAnswer(null)}
+            className={cn(
+              'absolute inset-0 flex flex-col items-center justify-center gap-1 p-4 text-center text-white',
+              good ? 'bg-emerald-600' : 'bg-red-600',
+            )}
+          >
+            {good ? <CheckCircle2 className="size-24 shrink-0" /> : <XCircle className="size-24 shrink-0" />}
+            <span className="text-3xl font-extrabold leading-tight">{t(`scan.${answer.result}`)}</span>
+            {pass && (
+              <>
+                <span className="mt-1 max-w-full truncate text-xl font-semibold">{pass.holder_name || pass.phone_key}</span>
+                <span className="text-base text-white/90">
+                  {pass.pass_type}
+                  {pass.quantity ? ` · ${t('passOf', { n: pass.seq, total: pass.quantity })}` : ''}
+                </span>
+                {answer.result === 'used' && pass.used_at && (
+                  <span className="text-base font-semibold">{t('usedAt', { time: stamp(pass.used_at) })}</span>
+                )}
+                {answer.result === 'wrong_event' && pass.event_name && (
+                  <span className="text-base font-semibold">{t('passIsFor', { event: pass.event_name })}</span>
+                )}
+              </>
+            )}
+            <span className="mt-2 text-xs text-white/80">{t('tapForNext')}</span>
+          </button>
+        )}
         {checking && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <Loader2 className="size-8 animate-spin text-white" />
@@ -217,6 +326,7 @@ export function PassScanner({
         className="w-full"
         variant={on ? 'outline' : 'default'}
         onClick={() => {
+          wakeSound();
           setCameraError(null);
           setStarting(!on);
           setOn((v) => !v);
@@ -226,44 +336,25 @@ export function PassScanner({
         {on ? t('stopCamera') : cameraError ? t('retryCamera') : t('startCamera')}
       </Button>
 
-      {answer && (
-        <div
-          role="status"
+      {last && !answer && (
+        <p
           className={cn(
-            'rounded-xl border-2 p-4 text-center',
-            good ? 'border-emerald-500 bg-emerald-500/15' : 'border-red-500 bg-red-500/15',
+            'truncate text-center text-sm font-medium',
+            last.result === 'ok' ? 'text-emerald-400' : 'text-red-400',
           )}
         >
-          {good ? (
-            <CheckCircle2 className="mx-auto size-12 text-emerald-400" />
-          ) : (
-            <XCircle className="mx-auto size-12 text-red-400" />
-          )}
-          <p className={cn('mt-2 text-lg font-bold', good ? 'text-emerald-300' : 'text-red-300')}>
-            {t(`scan.${answer.result}`)}
-          </p>
-          {pass && (
-            <div className="mt-2 space-y-0.5 text-sm text-foreground">
-              <p className="font-semibold">{pass.holder_name || pass.phone_key}</p>
-              <p className="text-muted-foreground">
-                {pass.pass_type}
-                {pass.quantity ? ` · ${t('passOf', { n: pass.seq, total: pass.quantity })}` : ''}
-              </p>
-              {answer.result === 'used' && pass.used_at && (
-                <p className="text-red-300">{t('usedAt', { time: stamp(pass.used_at) })}</p>
-              )}
-              {answer.result === 'wrong_event' && pass.event_name && (
-                <p className="text-red-300">{t('passIsFor', { event: pass.event_name })}</p>
-              )}
-            </div>
-          )}
-        </div>
+          {t('lastScan', {
+            result: t(`scan.${last.result}`),
+            who: last.pass ? last.pass.holder_name || last.pass.phone_key : '-',
+          })}
+        </p>
       )}
 
       <form
         className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
+          wakeSound();
           if (typed.trim()) void submit(typed.trim());
           setTyped('');
         }}
