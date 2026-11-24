@@ -30,6 +30,7 @@ import { loadAiConfig } from '@/lib/ai/config'
 import { buildConversationContext } from '@/lib/ai/context'
 import { AI_CONDUCT_RULES } from '@/lib/ai/defaults'
 import { aiFooter, withAiFooter } from '@/lib/ai/footer'
+import { appointmentCardUrl } from './card'
 import { buildHandoffSummary } from '@/lib/ai/handoff'
 import { logAiUsage } from '@/lib/ai/usage'
 import { GEMINI_OPENAI_COMPAT_URL, normalizeForGemini } from '@/lib/ai/providers/gemini'
@@ -43,7 +44,6 @@ import {
   bookAppointment,
   cancelAppointment,
   cleanDetails,
-  confirmationLogo,
   checkSlot,
   liveAppointment,
   loadAppointmentSettings,
@@ -585,7 +585,7 @@ export async function dispatchInboundToAppointments(
 
     const now = new Date()
     // Set when this very message ends in a confirmed booking, so the
-    // reply that confirms it can carry the business logo.
+    // reply that confirms it can carry the appointment card.
     let confirmedNow = false
     const customerName = (contact as { name?: string | null } | null)?.name?.trim() || null
     const agentAnswers = aiAgentWillAnswer(
@@ -654,7 +654,9 @@ export async function dispatchInboundToAppointments(
 
     // Says who is speaking: "AI Assistant - <business name>".
     const replyText = withAiFooter(outcome.text, aiFooter())
-    const logo = confirmedNow ? await confirmationLogo(db, accountId, settings) : null
+    // The booking just made is this customer's one upcoming appointment.
+    const confirmed = confirmedNow ? await liveAppointment(db, settings.channel_id, key, now).catch(() => null) : null
+    const logo = confirmed?.status === 'booked' ? await appointmentCardUrl(db, confirmed, settings) : null
     if (logo) {
       try {
         await engineSendMedia({
@@ -668,7 +670,7 @@ export async function dispatchInboundToAppointments(
         })
         return { consumed: true }
       } catch (err) {
-        console.warn('[appointments] logo could not be sent with the confirmation:', err instanceof Error ? err.message : err)
+        console.warn('[appointments] the card could not be sent with the confirmation:', err instanceof Error ? err.message : err)
       }
     }
     await engineSendText({

@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Phone,
   Plus,
+  ScanLine,
   Settings2,
   Trash2,
   X,
@@ -39,6 +40,7 @@ import { cn } from '@/lib/utils';
 import { useIsMobile, useKeyedPage, usePageSize } from '@/hooks/use-page-size';
 import { ListPager } from '@/components/ui/list-pager';
 import { TrendBars, dailyBuckets } from './trend-bars';
+import { GateScanner, type GateAnswer } from '@/components/events/pass-scanner';
 
 // ------------------------------------------------------------
 // Shapes
@@ -98,7 +100,7 @@ interface SlotInfo {
   free: boolean;
 }
 
-type Tab = 'list' | 'new' | 'settings';
+type Tab = 'list' | 'new' | 'scan' | 'settings';
 type Filter = 'pending' | 'live' | 'today' | 'past' | 'completed' | 'no_show' | 'cancelled' | 'all';
 type Trend = 'day' | 'week' | 'month' | 'year';
 
@@ -298,7 +300,12 @@ export function AppointmentsStudio() {
             {(
               [
                 ['list', t('tabList'), CalendarCheck],
-                ...(canSendMessages ? ([['new', t('tabNew'), CalendarPlus]] as [Tab, string, typeof CalendarCheck][]) : []),
+                ...(canSendMessages
+                  ? ([
+                      ['new', t('tabNew'), CalendarPlus],
+                      ['scan', t('tabScan'), ScanLine],
+                    ] as [Tab, string, typeof CalendarCheck][])
+                  : []),
                 ['settings', t('tabSettings'), Settings2],
               ] as [Tab, string, typeof CalendarCheck][]
             ).map(([id, label, Icon]) => (
@@ -337,6 +344,8 @@ export function AppointmentsStudio() {
                   void a;
                 }}
               />
+            ) : tab === 'scan' ? (
+              <ScanTab rows={rows} tz={tz} onScanned={loadRows} />
             ) : (
               <SettingsTab
                 key={fromId}
@@ -350,6 +359,62 @@ export function AppointmentsStudio() {
         </>
       )}
     </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Scan: the reception reads the QR on an appointment card
+// ------------------------------------------------------------
+
+interface ScanReply {
+  result: 'ok' | 'already_completed' | 'cancelled' | 'pending' | 'other_day' | 'unknown';
+  appointment?: {
+    customer_name: string | null;
+    phone_key: string;
+    day: string;
+    time: string;
+    completed_at: string | null;
+  };
+}
+
+function ScanTab({ rows, tz, onScanned }: { rows: Appointment[] | null; tz: string; onScanned: () => void | Promise<void> }) {
+  const t = useTranslations('Appointments');
+  const [today] = useState(() => dayKey(new Date(), tz));
+  const visits = (rows ?? []).filter(
+    (r) => dayKey(r.starts_at, tz) === today && (r.status === 'booked' || r.status === 'completed' || r.status === 'no_show'),
+  );
+  const done = visits.filter((r) => r.status === 'completed').length;
+
+  const check = useCallback(
+    async (code: string): Promise<GateAnswer> => {
+      const res = await api<ScanReply>('/api/appointments/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const a = res.appointment;
+      return {
+        good: res.result === 'ok',
+        title: t(`scanResult.${res.result}`),
+        who: a ? a.customer_name || `+${a.phone_key}` : null,
+        detail: a
+          ? res.result === 'already_completed' && a.completed_at
+            ? t('scanCompletedAt', { time: clock(a.completed_at, tz) })
+            : `${a.time} · ${a.day}`
+          : null,
+      };
+    },
+    [t, tz],
+  );
+
+  return (
+    <GateScanner
+      check={check}
+      onGood={() => void onScanned()}
+      countText={t('scanCount', { done, total: visits.length })}
+      typeHint={t('scanTypeHint')}
+      helpText={t('scanHelp')}
+    />
   );
 }
 

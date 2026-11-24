@@ -148,6 +148,16 @@ and polish.
 
 ### Fixed
 
+- **Appointment card with a QR, and a Scan tab.** The setting "Send the
+  business logo with the confirmation" is now "Send an appointment card
+  with the confirmation": instead of the bare logo, the confirmation
+  carries a picture with the business name and logo, the customer's
+  name, the date, the time, the address and a QR code. The new Scan tab
+  on the Appointments page reads that QR at the reception and marks the
+  visit completed; a card for another day, a cancelled or unconfirmed
+  appointment, or one already completed shows red and changes nothing.
+  Names and addresses not written in Latin letters are left off the
+  picture (the message under it still carries them). No migration.
 - **The gate scanner's camera now opens.** A security header blocked
   the camera on every page, so the browser never asked for permission.
   The camera is now allowed for the portal itself, the browser asks on

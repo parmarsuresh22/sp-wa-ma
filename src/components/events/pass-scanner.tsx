@@ -10,8 +10,7 @@ import { cn } from '@/lib/utils';
 import { api, postJson, stamp, type EventView } from './shared';
 
 interface ScanAnswer {
-  /** `error` is ours: the portal could not be reached. */
-  result: 'ok' | 'used' | 'cancelled' | 'wrong_event' | 'unknown' | 'error';
+  result: 'ok' | 'used' | 'cancelled' | 'wrong_event' | 'unknown';
   pass?: {
     holder_name: string | null;
     phone_key: string;
@@ -21,6 +20,17 @@ interface ScanAnswer {
     quantity: number | null;
     event_name: string | null;
   };
+}
+
+/** What the scanner shows for one scan, whatever was scanned. */
+export interface GateAnswer {
+  good: boolean;
+  /** The verdict, in large type. */
+  title: string;
+  /** Who it belongs to. */
+  who?: string | null;
+  /** One more line: pass type, time, the reason. */
+  detail?: string | null;
 }
 
 /** The same QR is ignored for this long, so holding it up does not re-scan it. */
@@ -54,10 +64,8 @@ function beep(ctx: AudioContext | null, good: boolean) {
 }
 
 /**
- * The gate scanner: the phone camera reads a pass QR and the portal
- * answers green (let them in) or red (why not). Works in any browser
- * with a camera — the picture is decoded on the phone, only the code
- * is sent.
+ * The gate scanner for event passes: green lets them in, red says why
+ * not.
  */
 export function PassScanner({
   event,
@@ -71,6 +79,62 @@ export function PassScanner({
   onScanned: () => void;
 }) {
   const t = useTranslations('Events');
+  const check = useCallback(
+    async (code: string): Promise<GateAnswer> => {
+      const res = await api<ScanAnswer>(`/api/events/${event.id}/scan`, postJson('POST', { code }));
+      const pass = res.pass;
+      const detail = pass
+        ? [
+            pass.pass_type,
+            pass.quantity ? t('passOf', { n: pass.seq, total: pass.quantity }) : null,
+            res.result === 'used' && pass.used_at ? t('usedAt', { time: stamp(pass.used_at) }) : null,
+            res.result === 'wrong_event' && pass.event_name ? t('passIsFor', { event: pass.event_name }) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : null;
+      return {
+        good: res.result === 'ok',
+        title: t(`scan.${res.result}`),
+        who: pass ? pass.holder_name || pass.phone_key : null,
+        detail,
+      };
+    },
+    [event.id, t],
+  );
+  return (
+    <GateScanner
+      check={check}
+      onGood={onScanned}
+      countText={t('scanCount', { used: checkedIn, total: issued })}
+      typeHint={t('typeCode')}
+      helpText={t('scanHelp')}
+    />
+  );
+}
+
+/**
+ * A QR scanner for a busy entrance: the phone camera reads the code and
+ * the answer shows above the camera, green or red. Works in any browser
+ * with a camera — the picture is decoded on the phone, only the code is
+ * sent. `check` says what the code is; a thrown error is shown as "not
+ * checked, scan again".
+ */
+export function GateScanner({
+  check,
+  onGood,
+  countText,
+  typeHint,
+  helpText,
+}: {
+  check: (code: string) => Promise<GateAnswer>;
+  onGood?: () => void;
+  countText?: string | null;
+  typeHint: string;
+  helpText?: string | null;
+}) {
+  // The camera wording is shared, and lives with the event texts.
+  const t = useTranslations('Events');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastRef = useRef<{ code: string; at: number }>({ code: '', at: 0 });
@@ -79,11 +143,11 @@ export function PassScanner({
   const [starting, setStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [answer, setAnswer] = useState<ScanAnswer | null>(null);
+  const [answer, setAnswer] = useState<GateAnswer | null>(null);
   const [typed, setTyped] = useState('');
   // The answer shows above the camera for a moment; `last` stays as a small
   // line underneath in case the person at the gate looked away.
-  const [last, setLast] = useState<ScanAnswer | null>(null);
+  const [last, setLast] = useState<GateAnswer | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
 
   /** Sound may only start from a tap, so this runs on the buttons. */
@@ -99,13 +163,12 @@ export function PassScanner({
     }
   }, []);
 
-  const show = useCallback((res: ScanAnswer) => {
+  const show = useCallback((res: GateAnswer) => {
     setAnswer(res);
     setLast(res);
-    const good = res.result === 'ok';
-    beep(audioRef.current, good);
+    beep(audioRef.current, res.good);
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(good ? 120 : [120, 80, 120, 80, 120]);
+      navigator.vibrate(res.good ? 120 : [120, 80, 120, 80, 120]);
     }
   }, []);
 
@@ -115,25 +178,25 @@ export function PassScanner({
       busyRef.current = true;
       setChecking(true);
       try {
-        const res = await api<ScanAnswer>(`/api/events/${event.id}/scan`, postJson('POST', { code }));
+        const res = await check(code);
         show(res);
-        if (res.result === 'ok') onScanned();
+        if (res.good) onGood?.();
       } catch {
-        // Forget the code, so holding the same pass up again retries it.
+        // Forget the code, so holding the same one up again retries it.
         lastRef.current = { code: '', at: 0 };
-        show({ result: 'error' });
+        show({ good: false, title: t('scan.error') });
       } finally {
         busyRef.current = false;
         setChecking(false);
       }
     },
-    [event.id, onScanned, show],
+    [check, onGood, show, t],
   );
 
-  // The answer clears itself, so the next guest can step up without a tap.
+  // The answer clears itself, so the next person can step up without a tap.
   useEffect(() => {
     if (!answer) return;
-    const timer = setTimeout(() => setAnswer(null), answer.result === 'ok' ? SHOW_OK_MS : SHOW_BAD_MS);
+    const timer = setTimeout(() => setAnswer(null), answer.good ? SHOW_OK_MS : SHOW_BAD_MS);
     return () => clearTimeout(timer);
   }, [answer]);
 
@@ -155,6 +218,12 @@ export function PassScanner({
       void lock?.release().catch(() => undefined);
     };
   }, [on]);
+
+  // The camera loop reads the latest `submit` without restarting the camera.
+  const submitRef = useRef(submit);
+  useEffect(() => {
+    submitRef.current = submit;
+  }, [submit]);
 
   useEffect(() => {
     if (!on) return;
@@ -227,11 +296,11 @@ export function PassScanner({
             const found = jsQR(frame.data, frame.width, frame.height, { inversionAttempts: 'dontInvert' });
             const code = found?.data?.trim();
             if (code) {
-              const last = lastRef.current;
+              const prev = lastRef.current;
               const now = Date.now();
-              if (code !== last.code || now - last.at > SAME_CODE_MS) {
+              if (code !== prev.code || now - prev.at > SAME_CODE_MS) {
                 lastRef.current = { code, at: now };
-                void submit(code);
+                void submitRef.current(code);
               }
             }
           }
@@ -246,17 +315,16 @@ export function PassScanner({
       if (timer) clearTimeout(timer);
       stream?.getTracks().forEach((track) => track.stop());
     };
-  }, [on, submit, t]);
+  }, [on, t]);
 
-  const good = answer?.result === 'ok';
-  const pass = answer?.pass;
+  const good = !!answer?.good;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-3">
-      <p className="text-center text-sm text-muted-foreground">{t('scanCount', { used: checkedIn, total: issued })}</p>
+      {countText && <p className="text-center text-sm text-muted-foreground">{countText}</p>}
 
       {/* The answer sits above the camera, never on it, so the next
-          pass can be read while this one is still on show. The strip
+          code can be read while this one is still on show. The strip
           keeps its height, so the camera does not jump. */}
       <div
         role="status"
@@ -279,18 +347,9 @@ export function PassScanner({
           <>
             {good ? <CheckCircle2 className="size-16 shrink-0" /> : <XCircle className="size-16 shrink-0" />}
             <div className="min-w-0 flex-1">
-              <p className="text-2xl font-extrabold leading-tight">{t(`scan.${answer.result}`)}</p>
-              {pass && (
-                <>
-                  <p className="truncate text-lg font-semibold leading-snug">{pass.holder_name || pass.phone_key}</p>
-                  <p className="truncate text-sm text-white/90">
-                    {pass.pass_type}
-                    {pass.quantity ? ` · ${t('passOf', { n: pass.seq, total: pass.quantity })}` : ''}
-                    {answer.result === 'used' && pass.used_at ? ` · ${t('usedAt', { time: stamp(pass.used_at) })}` : ''}
-                    {answer.result === 'wrong_event' && pass.event_name ? ` · ${t('passIsFor', { event: pass.event_name })}` : ''}
-                  </p>
-                </>
-              )}
+              <p className="text-2xl font-extrabold leading-tight">{answer.title}</p>
+              {answer.who && <p className="truncate text-lg font-semibold leading-snug">{answer.who}</p>}
+              {answer.detail && <p className="truncate text-sm text-white/90">{answer.detail}</p>}
             </div>
             {checking && <Loader2 className="size-6 shrink-0 animate-spin" />}
           </>
@@ -348,16 +407,8 @@ export function PassScanner({
       </Button>
 
       {last && !answer && (
-        <p
-          className={cn(
-            'truncate text-center text-sm font-medium',
-            last.result === 'ok' ? 'text-emerald-400' : 'text-red-400',
-          )}
-        >
-          {t('lastScan', {
-            result: t(`scan.${last.result}`),
-            who: last.pass ? last.pass.holder_name || last.pass.phone_key : '-',
-          })}
+        <p className={cn('truncate text-center text-sm font-medium', last.good ? 'text-emerald-400' : 'text-red-400')}>
+          {t('lastScan', { result: last.title, who: last.who || '-' })}
         </p>
       )}
 
@@ -370,12 +421,12 @@ export function PassScanner({
           setTyped('');
         }}
       >
-        <Input value={typed} autoCapitalize="characters" onChange={(e) => setTyped(e.target.value)} placeholder={t('typeCode')} />
+        <Input value={typed} autoCapitalize="characters" onChange={(e) => setTyped(e.target.value)} placeholder={typeHint} />
         <Button type="submit" variant="outline" disabled={!typed.trim() || checking}>
           {t('check')}
         </Button>
       </form>
-      <p className="text-center text-xs text-muted-foreground">{t('scanHelp')}</p>
+      {helpText && <p className="text-center text-xs text-muted-foreground">{helpText}</p>}
     </div>
   );
 }

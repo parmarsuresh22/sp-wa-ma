@@ -18,6 +18,7 @@ import { loadChannel } from '@/lib/whatsapp/channels'
 import { resolveAuditUserId } from '@/lib/api/v1/contacts'
 import { loadAiConfig } from '@/lib/ai/config'
 import { generateReply } from '@/lib/ai/generate'
+import { appointmentCardUrl } from './card'
 import {
   DATE_RE,
   DEFAULT_HOURS,
@@ -645,30 +646,6 @@ export async function saveClosedDates(
   return loadAppointmentSettings(db, accountId, channelId)
 }
 
-/**
- * The logo to send with a confirmation, or null: only when the
- * appointment setting is on AND business branding is switched on with a
- * logo uploaded (migration 079).
- */
-export async function confirmationLogo(
-  db: SupabaseClient,
-  accountId: string,
-  settings: Pick<AppointmentSettings, 'send_brand_logo'>,
-): Promise<string | null> {
-  if (!settings.send_brand_logo) return null
-  try {
-    const { data } = await db
-      .from('accounts')
-      .select('brand_enabled, brand_logo_url')
-      .eq('id', accountId)
-      .maybeSingle()
-    const row = data as { brand_enabled?: boolean; brand_logo_url?: string | null } | null
-    return row?.brand_enabled && row.brand_logo_url ? row.brand_logo_url : null
-  } catch {
-    return null
-  }
-}
-
 /** Example wording a business can submit to Meta as a template. */
 export const TEMPLATE_EXAMPLES = {
   confirm:
@@ -722,6 +699,25 @@ export async function sendAppointmentMessage(
       templateParams: [appt.customer_name?.trim() || 'there', day, time, settings.address || '-'],
       senderId,
     })
+    // A template is words only, so the card follows as a picture of its
+    // own. It only arrives when the customer wrote in the last 24
+    // hours; when it cannot be sent, the template has still gone out.
+    if (useConfirmTemplate) {
+      const card = await appointmentCardUrl(db, appt, settings)
+      if (card) {
+        try {
+          await sendMessageToConversation(db, appt.account_id, {
+            conversationId: conversation.id,
+            channelId: appt.channel_id,
+            messageType: 'image',
+            mediaUrl: card,
+            senderId,
+          })
+        } catch (err) {
+          console.warn('[appointments] the card could not be sent after the template:', err instanceof Error ? err.message : err)
+        }
+      }
+    }
     return
   }
 
@@ -733,11 +729,11 @@ export async function sendAppointmentMessage(
     appointmentMessageText(kind, appt, settings),
   )
 
-  // A confirmation can carry the business logo as its picture (only a
+  // A confirmation carries the appointment card as its picture (only a
   // confirmation, and only when that is switched on). If the picture
-  // cannot be sent, the words still go out on their own.
+  // cannot be made or sent, the words still go out on their own.
   if (kind === 'confirmed' || kind === 'confirmed_new_time' || kind === 'rescheduled') {
-    const logo = await confirmationLogo(db, appt.account_id, settings)
+    const logo = await appointmentCardUrl(db, appt, settings)
     if (logo) {
       try {
         await sendMessageToConversation(db, appt.account_id, {
@@ -750,7 +746,7 @@ export async function sendAppointmentMessage(
         })
         return
       } catch (err) {
-        console.warn('[appointments] logo could not be sent with the confirmation:', err instanceof Error ? err.message : err)
+        console.warn('[appointments] the card could not be sent with the confirmation:', err instanceof Error ? err.message : err)
       }
     }
   }
