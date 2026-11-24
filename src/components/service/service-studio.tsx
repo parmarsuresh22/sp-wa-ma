@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Camera, Eye, ImagePlus, Loader2, MessageCircle, Pencil, Phone, Plus, Settings2, Trash2, X } from 'lucide-react';
 
+import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useChannels, channelLabel } from '@/hooks/use-channels';
 import { useKeyedPage } from '@/hooks/use-page-size';
@@ -104,6 +106,28 @@ export function ServiceStudio() {
   const [zoom, setZoom] = useState<string | null>(null);
   const [removing, setRemoving] = useState<{ kind: 'customer' | 'visit'; id: string; label: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  const [openingChat, setOpeningChat] = useState<string | null>(null);
+
+  // Straight to this customer's chat on this number, inside the portal.
+  const openChat = async (c: ServiceCustomer) => {
+    setOpeningChat(c.id);
+    try {
+      const { data: found } = await createClient()
+        .from('conversations')
+        .select('id')
+        .eq('contact_id', c.contact_id)
+        .eq('channel_id', c.channel_id)
+        .limit(1);
+      const id = (found as { id: string }[] | null)?.[0]?.id ?? null;
+      if (id) router.push(`/inbox?c=${id}`);
+      else toast.error(t('noChat'));
+    } catch {
+      toast.error(t('noChat'));
+    } finally {
+      setOpeningChat(null);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!fromId) return;
@@ -313,16 +337,16 @@ export function ServiceStudio() {
                         >
                           <Phone className="size-4" />
                         </a>
-                        <a
-                          href={`https://wa.me/${c.phone_key}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
                           aria-label={t('whatsapp')}
                           title={t('whatsapp')}
-                          className="flex size-8 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-500"
+                          disabled={openingChat === c.id}
+                          onClick={() => void openChat(c)}
+                          className="flex size-8 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60"
                         >
-                          <MessageCircle className="size-4" />
-                        </a>
+                          {openingChat === c.id ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
+                        </button>
                         <Button variant="outline" size="sm" onClick={() => setHistory(c.id)}>
                           <Eye className="size-4" />
                           <span className="hidden sm:inline">{t('view')}</span>
