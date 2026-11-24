@@ -398,13 +398,18 @@ export async function runAppointmentAgent(args: {
   messages: ChatMessage[]
   runTool: (name: string, toolArgs: Record<string, unknown>) => Promise<Record<string, unknown>>
   onUsage?: (usage: AiUsage | null) => void
+  /** Another step's actions (event passes); the appointment ones by default. */
+  tools?: readonly { name: string; description: string; parameters: unknown }[]
+  /** The action that means "this message is not for me". */
+  passTool?: string
 }): Promise<AppointmentOutcome> {
   const { config } = args
   const gemini = config.provider === 'gemini'
   const url = gemini ? GEMINI_OPENAI_COMPAT_URL : OPENAI_URL
   const history = gemini ? normalizeForGemini(args.messages) : mergeConsecutive(args.messages)
   const thread: unknown[] = [{ role: 'system', content: args.systemPrompt }, ...history]
-  const tools = APPOINTMENT_TOOLS.map((t) => ({ type: 'function', function: t }))
+  const tools = (args.tools ?? APPOINTMENT_TOOLS).map((t) => ({ type: 'function', function: t }))
+  const passTool = args.passTool ?? 'not_about_appointments'
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const res = await fetch(url, {
@@ -443,7 +448,7 @@ export async function runAppointmentAgent(args: {
       return text ? { kind: 'reply', text } : { kind: 'pass' }
     }
     if (calls.some((c) => c.function?.name === 'ask_for_human')) return { kind: 'human' }
-    if (calls.some((c) => c.function?.name === 'not_about_appointments')) return { kind: 'pass' }
+    if (calls.some((c) => c.function?.name === passTool)) return { kind: 'pass' }
 
     // Echo the model's own turn back exactly as it came (Gemini attaches
     // data to it that must be returned), then answer every call.

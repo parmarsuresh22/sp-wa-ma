@@ -25,6 +25,7 @@ export const SECTIONS = [
   { key: 'broadcasts', path: '/broadcasts' },
   { key: 'posts', path: '/posts' },
   { key: 'appointments', path: '/appointments' },
+  { key: 'events', path: '/events' },
   { key: 'automations', path: '/automations' },
   { key: 'flows', path: '/flows' },
   { key: 'agents', path: '/agents' },

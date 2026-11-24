@@ -4,6 +4,7 @@ import { cronAuthState, safeEqual } from '@/lib/cron-auth'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { runWishSchedule, type WishScheduleRow } from '@/lib/wishes/run'
 import { runAppointmentReminders } from '@/lib/appointments/service'
+import { runEventReminders } from '@/lib/events/service'
 
 // Sends are paced one a second, so a run can take a while.
 export const maxDuration = 300
@@ -67,6 +68,16 @@ export async function GET(request: Request) {
       if (r.due > 0) console.log(`[appointments] reminders: due ${r.due}, sent ${r.sent}, failed ${r.failed}`)
     } catch (err) {
       console.error('[appointments] reminder run failed:', err instanceof Error ? err.message : err)
+    }
+  })
+
+  // Event reminders (migration 080) too.
+  after(async () => {
+    try {
+      const r = await runEventReminders(admin, now)
+      if (r.due > 0) console.log(`[events] reminders: due ${r.due}, sent ${r.sent}, failed ${r.failed}`)
+    } catch (err) {
+      console.error('[events] reminder run failed:', err instanceof Error ? err.message : err)
     }
   })
 

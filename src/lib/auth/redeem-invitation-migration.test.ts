@@ -32,6 +32,15 @@ const tablesWithoutDomainData = new Set([
   // Migration 077. A list of numbers prepared for one WhatsApp number
   // (NOT NULL FK to whatsapp_config, which redeem_invitation checks).
   "post_recipient_lists",
+  // Migration 080. An event needs a WhatsApp number (NOT NULL FK to
+  // whatsapp_config, which redeem_invitation checks) and the other four
+  // need an event, so none can hold data in an account the function
+  // would still consider empty.
+  "events",
+  "event_pass_types",
+  "event_orders",
+  "event_passes",
+  "event_scans",
 ]);
 
 function accountScopedTables(): Set<string> {

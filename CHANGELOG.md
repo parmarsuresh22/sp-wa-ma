@@ -178,6 +178,19 @@ and polish.
 
 ### Added
 
+- **Event passes with a QR code.** A new "Events" page: create an event
+  (concert, wedding, dinner, meet-up) with pass types, each with its own
+  price and number of places. Customers ask for passes in the WhatsApp
+  chat, or the business issues them from the portal. A paid pass is paid
+  to the business's own UPI ID: the chat sends a UPI QR with the amount
+  filled in, the customer sends the payment screenshot back, and the
+  portal reads it (amount, payee, reference number, date) and either
+  issues the pass or leaves it for a person to approve — in the portal
+  or from a one-tap link sent to an approval number. Every pass is one
+  QR picture; the Scan tab reads it with the phone camera and admits it
+  once. Team members can be limited to the new "Events" section.
+  Requires `supabase/migrations/080_event_passes.sql`.
+
 - **Business branding.** Settings has a "Business branding" section: a
   business name and one logo, with a switch. When on, they show at the
   top of the menu with the product name small underneath; when off, the
