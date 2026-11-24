@@ -1848,8 +1848,7 @@ function SettingsTab({
               ['confirm_required', t('confirmRequired'), t('confirmRequiredHint')],
               ['ask_requirements', t('askRequirements'), t('askRequirementsHint')],
               ['ask_address', t('askAddress'), t('askAddressHint')],
-              ['send_brand_logo', t('sendBrandLogo'), t('sendBrandLogoHint')],
-            ] as ['confirm_required' | 'ask_requirements' | 'ask_address' | 'send_brand_logo', string, string][]
+            ] as ['confirm_required' | 'ask_requirements' | 'ask_address', string, string][]
           ).map(([key, label, hint]) => (
             <label key={key} className="flex cursor-pointer items-start gap-2 text-sm">
               <input

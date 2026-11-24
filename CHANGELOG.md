@@ -148,11 +148,12 @@ and polish.
 
 ### Fixed
 
-- **Appointment card with a QR, and a Scan tab.** The setting "Send the
-  business logo with the confirmation" is now "Send an appointment card
-  with the confirmation": instead of the bare logo, the confirmation
-  carries a picture with the business name and logo, the customer's
-  name, the date, the time, the address and a QR code. The new Scan tab
+- **Appointment card with a QR, and a Scan tab.** Every confirmation
+  and every change of time now carries a picture, drawn afresh from the
+  appointment, with the business name and logo, the customer's name,
+  the date, the time, the address and a QR code. It replaces the
+  setting "Send the business logo with the confirmation", which is
+  gone: the card always goes out. The new Scan tab
   on the Appointments page reads that QR at the reception and marks the
   visit completed; a card for another day, a cancelled or unconfirmed
   appointment, or one already completed shows red and changes nothing.

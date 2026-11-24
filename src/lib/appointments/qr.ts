@@ -65,6 +65,7 @@ export function judgeAppointmentScan(input: {
  */
 export function drawable(text: string | null | undefined): text is string {
   if (!text) return false
-  // Latin with accents, punctuation, and the rupee sign.
-  return /^[ -ɏ -⁯₹]+$/.test(text)
+  // What the card's typeface holds: Latin letters with the common
+  // accents, digits and punctuation.
+  return /^[\u0020-\u007E\u00A0-\u00FF\u2010-\u2027]+$/.test(text)
 }
