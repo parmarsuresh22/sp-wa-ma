@@ -249,16 +249,24 @@ export function AccountPlanPicker({
   accountId,
   planKey,
   onChanged,
+  plans: given,
+  bare,
 }: {
   accountId: string;
   planKey: string | undefined;
   onChanged: () => void | Promise<void>;
+  /** The plans, when the caller already has them. */
+  plans?: AdminPlan[];
+  /** Hide the word "Subscription" (a table column says it). */
+  bare?: boolean;
 }) {
-  const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [loaded, setPlans] = useState<AdminPlan[]>([]);
+  const plans = given ?? loaded;
   const [current, setCurrent] = useState(planKey ?? '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (given) return;
     let gone = false;
     api<{ plans: AdminPlan[] }>('/api/admin8085/plans')
       .then((d) => {
@@ -268,7 +276,7 @@ export function AccountPlanPicker({
     return () => {
       gone = true;
     };
-  }, []);
+  }, [given]);
 
   const assign = async (key: string) => {
     const before = current;
@@ -292,7 +300,7 @@ export function AccountPlanPicker({
 
   return (
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
-      Subscription
+      {bare ? <span className="sr-only">Subscription</span> : 'Subscription'}
       <select
         value={current}
         disabled={saving || plans.length === 0}
@@ -308,5 +316,95 @@ export function AccountPlanPicker({
       </select>
       {saving && <Loader2 className="size-4 animate-spin" />}
     </label>
+  );
+}
+
+/**
+ * Every account with its plan beside it. Choosing another plan saves at
+ * once and replaces the one the account had.
+ */
+export function AccountPlansList({
+  accounts,
+  onChanged,
+}: {
+  accounts: { account_id: string; name: string; owner_email: string | null; plan_key?: string; web_number_limit: number }[];
+  onChanged: () => void | Promise<void>;
+}) {
+  const [plans, setPlans] = useState<AdminPlan[] | null>(null);
+  const [q, setQ] = useState('');
+  const [only, setOnly] = useState('');
+
+  const loadPlans = useCallback(async () => {
+    try {
+      setPlans((await api<{ plans: AdminPlan[] }>('/api/admin8085/plans')).plans);
+    } catch {
+      setPlans((prev) => prev ?? []);
+    }
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => void loadPlans(), 0);
+    return () => clearTimeout(timer);
+  }, [loadPlans]);
+
+  const needle = q.trim().toLowerCase();
+  const rows = accounts.filter(
+    (a) =>
+      (!only || a.plan_key === only) &&
+      (!needle || a.name.toLowerCase().includes(needle) || (a.owner_email ?? '').toLowerCase().includes(needle)),
+  );
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold">Accounts and their plans</h2>
+        <p className="text-xs text-muted-foreground">
+          Pick a plan beside an account; it is saved at once and replaces the plan the account had. A new account starts on Standard.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email" className="h-8 w-full bg-muted sm:w-64" />
+        <select
+          value={only}
+          aria-label="Show accounts on one plan"
+          onChange={(e) => setOnly(e.target.value)}
+          className="h-8 rounded-md border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary"
+        >
+          <option value="">All plans ({accounts.length})</option>
+          {(plans ?? []).map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.name} ({accounts.filter((a) => a.plan_key === p.key).length})
+            </option>
+          ))}
+        </select>
+      </div>
+      {!plans ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="size-5 animate-spin text-primary" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No account matches.</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+          {rows.map((a) => (
+            <li key={a.account_id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+              <div className="min-w-0 flex-1 basis-48">
+                <p className="truncate text-sm font-semibold">{a.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{a.owner_email ?? '—'}</p>
+              </div>
+              <AccountPlanPicker
+                key={`${a.account_id}:${a.plan_key ?? ''}`}
+                accountId={a.account_id}
+                planKey={a.plan_key}
+                plans={plans}
+                bare
+                onChanged={async () => {
+                  await Promise.all([onChanged(), loadPlans()]);
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

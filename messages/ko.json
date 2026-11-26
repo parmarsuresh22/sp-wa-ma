@@ -49,7 +49,8 @@
     "events": "이벤트",
     "service": "Service Today",
     "plans": "Plans",
-    "notInPlan": "Not in your plan (read-only)"
+    "notInPlan": "Not in your plan (read-only)",
+    "planLine": "{plan} plan"
   },
   "Header": {
     "dashboard": "대시보드",

@@ -1,6 +1,6 @@
 'use client';
 
-import { AccountPlanPicker, PlansSection } from './plans-admin';
+import { AccountPlanPicker, AccountPlansList, PlansSection } from './plans-admin';
 
 /* The platform admin page (/admin8085). One person uses it, so its
  * text is plain English rather than routed through the locale files. */
@@ -114,6 +114,8 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openAccount, setOpenAccount] = useState<string | null>(null);
+  // Two pages: the accounts, and the subscription plans.
+  const [page, setPage] = useState<'accounts' | 'plans'>('accounts');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,6 +151,32 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
             <p className="truncate text-xs text-muted-foreground">Signed in as {email}</p>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="flex rounded-md border border-border p-0.5" role="tablist" aria-label="Admin pages">
+              {(
+                [
+                  ['accounts', 'Accounts'],
+                  ['plans', 'Plans'],
+                ] as ['accounts' | 'plans', string][]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={page === id}
+                  onClick={() => {
+                    setPage(id);
+                    setOpenAccount(null);
+                  }}
+                  className={
+                    page === id
+                      ? 'rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground'
+                      : 'rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground'
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} aria-label="Refresh">
               {loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
               <span className="hidden sm:inline">Refresh</span>
@@ -171,6 +199,11 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
           <div className="flex justify-center py-16">
             <Loader2 className="size-6 animate-spin text-primary" />
           </div>
+        ) : overview && page === 'plans' ? (
+          <>
+            <PlansSection />
+            <AccountPlansList accounts={overview.accounts} onChanged={load} />
+          </>
         ) : overview && opened ? (
           <AccountDetail
             stats={opened}
@@ -188,7 +221,6 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
             />
             <BridgeSection bridge={overview.bridge} onChanged={load} />
             <GoogleSection initial={initial?.google ?? null} />
-            <PlansSection />
             <AccountsSection accounts={overview.accounts} onOpen={setOpenAccount} />
           </>
         ) : null}

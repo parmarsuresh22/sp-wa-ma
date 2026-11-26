@@ -28,9 +28,14 @@ export async function GET() {
     ])
     if (statsErr) return NextResponse.json({ error: statsErr.message }, { status: 500 })
 
+    // The stats function predates subscription plans (migration 082),
+    // so each account's plan is read beside it.
+    const { data: planRows } = await db.from('accounts').select('id, plan_key').limit(10000)
+    const planOf = new Map(((planRows ?? []) as { id: string; plan_key: string }[]).map((r) => [r.id, r.plan_key]))
+
     const emailById = await emailsByUserId(db, requests.requesterIds)
     return NextResponse.json({
-      accounts: accounts ?? [],
+      accounts: ((accounts ?? []) as { account_id: string }[]).map((a) => ({ ...a, plan_key: planOf.get(a.account_id) })),
       requests: requests.rows.map((r) => ({
         ...r,
         requested_by_email: emailById.get(r.requested_by as string) ?? null,

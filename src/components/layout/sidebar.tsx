@@ -405,6 +405,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 <p className="truncate text-sm font-medium text-foreground">
                   {profile?.full_name ?? t("defaultUser")}
                 </p>
+                {plan && (
+                  <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-primary">
+                    {t("planLine", { plan: plan.name })}
+                  </p>
+                )}
                 <p className="truncate text-xs text-muted-foreground">
                   {profile?.email ?? ""}
                 </p>
