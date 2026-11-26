@@ -8,6 +8,7 @@ import { canSeeSection, firstAllowedPath, sectionForPath } from "@/lib/auth/sect
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
+import { PlanModuleNotice } from "@/components/plans/plan-gates";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import { BrowserNotificationsListener } from "@/components/notifications/browser-notifications-listener";
 
@@ -74,6 +75,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           {/* Above every page: writes are being rejected and here's why.
               Renders nothing unless the account/role failed to resolve. */}
           <AccountAccessAlert />
+          {hideContent ? null : <PlanModuleNotice />}
           {hideContent ? null : children}
         </main>
       </div>

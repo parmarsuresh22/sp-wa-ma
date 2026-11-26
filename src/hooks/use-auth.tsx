@@ -1,6 +1,8 @@
 "use client";
 
 import { cleanSections, type SectionKey } from "@/lib/auth/sections";
+import { usePathname } from "next/navigation";
+import { pathLockedByPlan, toPlan, type Plan } from "@/lib/plans/plans";
 import {
   createContext,
   useContext,
@@ -50,6 +52,8 @@ interface AccountSummary {
   brand_enabled?: boolean;
   brand_name?: string | null;
   brand_logo_url?: string | null;
+  /** Subscription plan (migration 082). */
+  plan_key?: string | null;
 }
 
 /**
@@ -139,6 +143,16 @@ interface AuthContextValue {
   canSendMessages: boolean;
   /** Sections this member may open; null = every section. */
   allowedSections: SectionKey[] | null;
+  /** Every subscription plan, lowest first (empty until loaded). */
+  plans: Plan[];
+  /** The plan of this account; null until known, which locks nothing. */
+  plan: Plan | null;
+  /**
+   * True on a page of a module outside the plan: it can be read, and
+   * `canSendMessages` / `canEditSettings` are false there so nothing
+   * can be changed.
+   */
+  planLocked: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -248,7 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from("accounts")
             // default_currency added in migration 021; narrowed to the
             // USD fallback below for older schemas where it reads null.
-            .select("id, name, default_currency, brand_enabled, brand_name, brand_logo_url")
+            .select("*")
             .eq("id", data.account_id)
             .maybeSingle();
           if (accountErr) {
@@ -269,6 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               brand_enabled: account.brand_enabled === true,
               brand_name: account.brand_name ?? null,
               brand_logo_url: account.brand_logo_url ?? null,
+              plan_key: (account as { plan_key?: string | null }).plan_key ?? null,
             };
           }
         }
@@ -431,6 +446,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [profile?.account_role, profile?.account_id, profile?.allowed_sections]);
 
+  // Subscription plans (migration 082). Read once the account is known;
+  // a failed read leaves the list empty, which locks nothing.
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const planAccountId = profile?.account_id ?? null;
+  useEffect(() => {
+    if (!planAccountId) return;
+    let gone = false;
+    void createClient()
+      .from("plans")
+      .select("*")
+      .order("position", { ascending: true })
+      .then(({ data }) => {
+        if (!gone && data) setPlans((data as Record<string, unknown>[]).map(toPlan));
+      });
+    return () => {
+      gone = true;
+    };
+  }, [planAccountId]);
+  const pathname = usePathname();
+  const plan = plans.find((p) => p.key === account?.plan_key) ?? null;
+  const planLocked = pathLockedByPlan(plan?.sections, pathname ?? "");
+
   // Signed out is not a broken account — the shell redirects to /login
   // before anything reads this.
   const accountStatus: AccountStatus = !user
@@ -457,6 +494,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accountStatus,
         accountStatusDetail: statusDetail,
         ...derived,
+        // On a module outside the plan everyone is a reader.
+        ...(planLocked ? { canSendMessages: false, canEditSettings: false } : {}),
+        plans,
+        plan,
+        planLocked,
       }}
     >
       {children}
@@ -500,6 +542,9 @@ export function useAuth(): AuthContextValue {
       canEditSettings: false,
       canSendMessages: false,
       allowedSections: null,
+      plans: [],
+      plan: null,
+      planLocked: false,
     };
   }
   return ctx;

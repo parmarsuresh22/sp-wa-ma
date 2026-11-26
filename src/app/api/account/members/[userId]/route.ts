@@ -20,6 +20,7 @@ import { NextResponse } from "next/server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
+import { assertRoleRoom } from "@/lib/plans/server";
 import { isAccountRole } from "@/lib/auth/roles";
 import {
   checkRateLimit,
@@ -113,6 +114,9 @@ export async function PATCH(
         { status: 400 },
       );
     }
+
+    // The plan may limit how many members of a role the team has.
+    await assertRoleRoom(ctx.supabase, ctx.accountId, role, userId);
 
     const { error } = await ctx.supabase.rpc("set_member_role", {
       p_user_id: userId,

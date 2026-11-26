@@ -1,6 +1,7 @@
 "use client";
 
 import { canSeeSection, sectionForPath } from "@/lib/auth/sections";
+import { pathLockedByPlan } from "@/lib/plans/plans";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -23,6 +24,8 @@ import {
   Megaphone,
   CalendarCheck,
   Ticket,
+  Lock,
+  CreditCard,
   Wrench,
   User,
   UserCog,
@@ -114,6 +117,7 @@ const navItems: NavItem[] = [
 
 const bottomNavItems = [
   { href: "/settings", labelKey: "settings", icon: Settings },
+  { href: "/plans", labelKey: "plans", icon: CreditCard },
 ];
 
 interface SidebarProps {
@@ -128,7 +132,7 @@ import { BrandMark } from "@/components/brand/brand-mark";
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, allowedSections, signOut } = useAuth();
+  const { profile, profileLoading, account, accountRole, allowedSections, signOut, plan } = useAuth();
   // Business branding (migration 079): shown only when switched on and
   // there is a name or a logo to show.
   const branded =
@@ -286,6 +290,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="flex-1">{t(item.labelKey as string)}</span>
+                    {pathLockedByPlan(plan?.sections, item.href) && (
+                      <Lock aria-label={t("notInPlan")} className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                    )}
                     {item.beta && (
                       <span
                         aria-label={t("beta")}

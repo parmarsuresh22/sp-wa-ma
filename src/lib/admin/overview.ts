@@ -23,6 +23,7 @@ export interface AdminHomeAccount {
   created_at: string
   owner_email: string | null
   web_number_limit: number
+  plan_key?: string
 }
 
 export interface AdminHomeRequest {
@@ -85,7 +86,7 @@ export async function loadAdminHome(db: SupabaseClient): Promise<AdminHome> {
   const [accountsRes, requests, bridge, google] = await Promise.all([
     db
       .from('accounts')
-      .select('id, name, created_at, web_number_limit, owner_user_id')
+      .select('id, name, created_at, web_number_limit, owner_user_id, plan_key')
       .order('created_at', { ascending: false })
       .limit(1000),
     loadNumberRequests(db),
@@ -99,6 +100,7 @@ export async function loadAdminHome(db: SupabaseClient): Promise<AdminHome> {
     created_at: string
     web_number_limit: number
     owner_user_id: string | null
+    plan_key?: string
   }[]
 
   const emails = await emailsByUserId(db, [
@@ -113,6 +115,7 @@ export async function loadAdminHome(db: SupabaseClient): Promise<AdminHome> {
       created_at: a.created_at,
       owner_email: a.owner_user_id ? (emails.get(a.owner_user_id) ?? null) : null,
       web_number_limit: a.web_number_limit,
+      plan_key: a.plan_key,
     })),
     requests: requests.rows.map((r) => ({
       ...(r as unknown as AdminHomeRequest),

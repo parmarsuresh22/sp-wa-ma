@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { assertPlanFeature } from '@/lib/plans/server'
 import { isAccountMediaUrl } from '@/lib/posts/post'
 
 const MAX_NAME = 40
@@ -16,6 +17,7 @@ const MAX_NAME = 40
 export async function PATCH(request: Request) {
   try {
     const ctx = await requireRole('admin')
+    await assertPlanFeature(ctx.supabase, ctx.accountId, 'branding')
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })

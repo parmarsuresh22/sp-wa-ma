@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { assertPlanFeature } from '@/lib/plans/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { loadChannel } from '@/lib/whatsapp/channels'
@@ -26,6 +27,7 @@ export async function POST(_request: Request, { params }: Params) {
   try {
     const { channelId } = await params
     const { supabase, accountId, userId } = await requireRole('admin')
+    await assertPlanFeature(supabase, accountId, 'wishes')
     const limit = checkRateLimit(`wishes-run:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 

@@ -148,6 +148,21 @@ and polish.
 
 ### Fixed
 
+- **Subscription plans (migration required: `082_plans.sql`).** Two
+  plans, Standard and Premium, assigned per account from a dropdown on
+  the platform admin page; a new plan replaces the old one. The admin
+  page also has a "Plans and modules" table to choose which menu
+  modules and which parts of Settings each plan includes, its WhatsApp
+  Web number limit and its team limits, so a module added later can be
+  given to either plan without a code change. A module outside the
+  plan stays in the menu with a lock and opens read-only; the server
+  refuses changes, and the chat assistants of Appointments and Events
+  stay silent. Standard starts with Dashboard, Inbox, Notifications,
+  Contacts, Pipelines, Broadcasts, Automations, Flows and AI Agents,
+  one WhatsApp Web number, one agent and one viewer, and business
+  branding, the wish scheduler and API keys read-only. New "Plans"
+  page at the end of the menu. Existing accounts start on Standard;
+  the platform admin's own account on Premium.
 - **Service Today (migration required: `081_service_today.sql`).** A
   new page for businesses that visit customers again and again: one
   entry per visit (customer, service or device, visit date, next visit,

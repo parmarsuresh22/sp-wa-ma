@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSuperAdmin } from '@/lib/admin/super-admin'
+import { forgetPlans } from '@/lib/plans/server'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -68,7 +69,7 @@ export async function GET(request: Request, { params }: Params) {
   }
 
   const [account, members, channels, ai, flows, automations, broadcasts, tables] = await Promise.all([
-    db.from('accounts').select('id, name, created_at, web_number_limit').eq('id', id).maybeSingle(),
+    db.from('accounts').select('id, name, created_at, web_number_limit, plan_key').eq('id', id).maybeSingle(),
     db
       .from('profiles')
       .select('user_id, full_name, email, account_role, created_at')
@@ -145,7 +146,10 @@ export async function GET(request: Request, { params }: Params) {
 /**
  * PATCH /api/admin8085/accounts/[id]   (platform admin only)
  *
- * Body: { web_number_limit: number }  — 0 to 50.
+ * Body: { web_number_limit: number }  — 0 to 50, or
+ *       { plan_key: string }          — the subscription. It replaces
+ *       the plan the account had, and sets the number limit to the new
+ *       plan's.
  */
 export async function PATCH(request: Request, { params }: Params) {
   const admin = await getSuperAdmin()
@@ -155,6 +159,24 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!UUID.test(id)) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  if (typeof body?.plan_key === 'string') {
+    const { data: plan } = await admin.db
+      .from('plans')
+      .select('key, name, web_number_limit')
+      .eq('key', body.plan_key)
+      .maybeSingle()
+    if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 400 })
+    const { data: changed, error: planError } = await admin.db
+      .from('accounts')
+      .update({ plan_key: plan.key, web_number_limit: plan.web_number_limit })
+      .eq('id', id)
+      .select('id')
+    if (planError) return NextResponse.json({ error: planError.message }, { status: 500 })
+    if (!changed || changed.length === 0) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
+    forgetPlans()
+    return NextResponse.json({ success: true, plan_key: plan.key, web_number_limit: plan.web_number_limit })
+  }
+
   const limit = body?.web_number_limit
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0 || limit > 50) {
     return NextResponse.json(

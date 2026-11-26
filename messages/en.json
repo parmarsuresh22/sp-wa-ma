@@ -47,7 +47,9 @@
     "posts": "Posts",
     "appointments": "Appointments",
     "events": "Events",
-    "service": "Service Today"
+    "service": "Service Today",
+    "plans": "Plans",
+    "notInPlan": "Not in your plan (read-only)"
   },
   "Header": {
     "dashboard": "Dashboard",
@@ -3963,5 +3965,51 @@
     "messageError": "A message could not be sent: {error}",
     "badPhone": "Enter the customer's 10-digit number",
     "nextBeforeVisit": "The next visit cannot be before the visit date"
+  },
+  "Plans": {
+    "title": "Plans",
+    "description": "What each subscription includes. Your own plan is marked.",
+    "none": "The plans could not be loaded.",
+    "yourPlan": "Your plan",
+    "seePlans": "See plans",
+    "moduleLocked": "This module is not part of your {plan} plan. You can look around, but nothing can be changed here.",
+    "featureLocked": "This is not part of your {plan} plan, so it is shown read-only.",
+    "modulesCount": "Modules",
+    "webNumbers": "WhatsApp Web numbers",
+    "team": "Team",
+    "teamNoLimit": "No limit",
+    "teamOwnerOnly": "Owner only",
+    "teamAdmins": "{n, plural, one {# admin} other {# admins}}",
+    "teamAgents": "{n, plural, one {# agent} other {# agents}}",
+    "teamViewers": "{n, plural, one {# viewer} other {# viewers}}",
+    "whatYouGet": "What you get",
+    "modulesHead": "Modules in the menu",
+    "settingsHead": "Settings",
+    "limitsHead": "Limits",
+    "included": "Included",
+    "readOnly": "Read-only",
+    "noteReadOnly": "A module or setting that is not in your plan stays visible. You can open it and look, but you cannot change or use it.",
+    "noteExisting": "WhatsApp numbers and team members you already have stay as they are when a plan has a lower limit; only adding more is stopped.",
+    "noteChange": "To change your plan, contact the administrator of this portal. A new plan replaces the one you had and applies at once.",
+    "modules": {
+      "dashboard": "Dashboard",
+      "inbox": "Inbox and Notifications",
+      "contacts": "Contacts",
+      "pipelines": "Pipelines",
+      "broadcasts": "Broadcasts",
+      "posts": "Posts",
+      "appointments": "Appointments",
+      "events": "Events",
+      "service": "Service Today",
+      "automations": "Automations",
+      "flows": "Flows",
+      "agents": "AI Agents",
+      "data": "Data tables"
+    },
+    "features": {
+      "branding": "Business branding",
+      "wishes": "Wish scheduler",
+      "api_keys": "API keys"
+    }
   }
 }

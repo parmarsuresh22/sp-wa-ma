@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account'
+import { assertPlanFeature } from '@/lib/plans/server'
 import { loadChannel } from '@/lib/whatsapp/channels'
 import { resolveTemplateRow } from '@/lib/whatsapp/template-body'
 import { extractTemplateVariables } from '@/lib/whatsapp/template-validators'
@@ -60,6 +61,7 @@ export async function PUT(request: Request, { params }: Params) {
   try {
     const { contactId } = await params
     const { supabase, accountId } = await requireRole('agent')
+    await assertPlanFeature(supabase, accountId, 'wishes')
 
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     if (!body || typeof body !== 'object') {
@@ -253,6 +255,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { contactId } = await params
     const { supabase, accountId } = await requireRole('agent')
+    await assertPlanFeature(supabase, accountId, 'wishes')
     const body = (await request.json().catch(() => null)) as {
       enabled?: unknown
       channel_id?: unknown
@@ -335,6 +338,7 @@ export async function DELETE(request: Request, { params }: Params) {
   try {
     const { contactId } = await params
     const { supabase, accountId } = await requireRole('agent')
+    await assertPlanFeature(supabase, accountId, 'wishes')
     const wishId = new URL(request.url).searchParams.get('id')
     if (!wishId) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })

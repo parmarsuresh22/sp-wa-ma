@@ -46,6 +46,8 @@ const AppearancePanel = dynamic(
   () => import('@/components/settings/appearance-panel').then((m) => m.AppearancePanel),
   { loading: () => <PanelSkeleton /> },
 );
+import { PlanFeatureGate } from '@/components/plans/plan-gates';
+
 const BrandingPanel = dynamic(
   () => import('@/components/settings/branding-panel').then((m) => m.BrandingPanel),
   { loading: () => <PanelSkeleton /> },
@@ -139,16 +141,28 @@ function SettingsPageInner() {
     profile: () => <ProfileForm />,
     security: () => <SecurityPanel />,
     appearance: () => <AppearancePanel />,
-    branding: () => <BrandingPanel />,
+    branding: () => (
+      <PlanFeatureGate feature="branding">
+        <BrandingPanel />
+      </PlanFeatureGate>
+    ),
     whatsapp: () => <WhatsAppChannels />,
     templates: () => <TemplateManager />,
     'quick-replies': () => <QuickRepliesManager />,
     fields: () => <FieldsAndTagsPanel />,
     inbox: () => <InboxSettings />,
-    wishes: () => <WishScheduler />,
+    wishes: () => (
+      <PlanFeatureGate feature="wishes">
+        <WishScheduler />
+      </PlanFeatureGate>
+    ),
     deals: () => <DealsSettings />,
     members: () => <MembersTab />,
-    api: () => <ApiKeysSettings />,
+    api: () => (
+      <PlanFeatureGate feature="api_keys">
+        <ApiKeysSettings />
+      </PlanFeatureGate>
+    ),
   };
 
   return (

@@ -35,6 +35,8 @@ import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchInboundToAppointments } from '@/lib/appointments/agent'
 import { dispatchInboundToEvents } from '@/lib/events/agent'
+import { accountPlanAllows } from '@/lib/plans/server'
+import { supabaseAdmin as planDb } from '@/lib/flows/admin-client'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import {
   applyBroadcastRecipientStatus,
@@ -901,7 +903,10 @@ export async function processInboundMessage(
   // request that is waiting for it, or a message asking for passes. It
   // is the only step that also looks at pictures.
   let eventsConsumed = false
-  if (!ctx.isGroup && !contentConsumed && !interactiveReplyId) {
+  // A module outside the plan of the account (migration 082) does not answer.
+  const eventsInPlan = await accountPlanAllows(planDb(), accountId, 'events')
+  const appointmentsInPlan = await accountPlanAllows(planDb(), accountId, 'appointments')
+  if (eventsInPlan && !ctx.isGroup && !contentConsumed && !interactiveReplyId) {
     const events = await dispatchInboundToEvents({
       accountId,
       conversationId: conversation.id,
@@ -916,7 +921,9 @@ export async function processInboundMessage(
     eventsConsumed = events.consumed
   }
   if (!eventsConsumed && !ctx.isGroup && !contentConsumed && !interactiveReplyId && inboundText.trim()) {
-    const appointment = await dispatchInboundToAppointments({
+    const appointment = !appointmentsInPlan
+      ? { consumed: false }
+      : await dispatchInboundToAppointments({
       accountId,
       conversationId: conversation.id,
       contactId: contactRecord.id,

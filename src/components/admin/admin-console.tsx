@@ -1,5 +1,7 @@
 'use client';
 
+import { AccountPlanPicker, PlansSection } from './plans-admin';
+
 /* The platform admin page (/admin8085). One person uses it, so its
  * text is plain English rather than routed through the locale files. */
 
@@ -36,6 +38,7 @@ interface AccountStats {
   created_at: string;
   owner_email: string | null;
   web_number_limit: number;
+  plan_key?: string;
   // The usage counts arrive a moment after the list itself (they read
   // far more data), so every one of them may still be missing.
   last_sign_in_at?: string | null;
@@ -185,6 +188,7 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
             />
             <BridgeSection bridge={overview.bridge} onChanged={load} />
             <GoogleSection initial={initial?.google ?? null} />
+            <PlansSection />
             <AccountsSection accounts={overview.accounts} onOpen={setOpenAccount} />
           </>
         ) : null}
@@ -710,6 +714,12 @@ function AccountDetail({
   );
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(String(stats.web_number_limit));
+  // A new plan brings its own number limit.
+  const [seenLimit, setSeenLimit] = useState(stats.web_number_limit);
+  if (seenLimit !== stats.web_number_limit) {
+    setSeenLimit(stats.web_number_limit);
+    setLimit(String(stats.web_number_limit));
+  }
   const [savingLimit, setSavingLimit] = useState(false);
 
   useEffect(() => {
@@ -770,6 +780,13 @@ function AccountDetail({
             {stats.owner_email ?? '—'} · joined {when(stats.created_at)}
           </p>
         </div>
+        <AccountPlanPicker
+          accountId={stats.account_id}
+          planKey={stats.plan_key}
+          onChanged={async () => {
+            await onChanged();
+          }}
+        />
         <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:ml-auto sm:w-auto">
           WhatsApp Web number limit
           <Input

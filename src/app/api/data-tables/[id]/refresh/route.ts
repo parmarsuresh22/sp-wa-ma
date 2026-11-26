@@ -22,7 +22,7 @@ type Params = { params: Promise<{ id: string }> }
 export async function POST(_request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const { supabase, accountId, userId } = await requireRole('admin')
+    const { supabase, accountId, userId } = await requireRole('admin', 'data')
     const limit = checkRateLimit(`data-tables:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 

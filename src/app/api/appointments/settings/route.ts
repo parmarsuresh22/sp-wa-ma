@@ -72,7 +72,7 @@ export async function GET(request: Request) {
  */
 export async function PUT(request: Request) {
   try {
-    const { accountId } = await requireRole('admin')
+    const { accountId } = await requireRole('admin', 'appointments')
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
@@ -117,7 +117,7 @@ export async function PUT(request: Request) {
  */
 export async function PATCH(request: Request) {
   try {
-    const { accountId } = await requireRole('admin')
+    const { accountId } = await requireRole('admin', 'appointments')
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     const channelId = typeof body?.channel_id === 'string' ? body.channel_id : ''
     if (!UUID.test(channelId)) return NextResponse.json({ error: 'Choose a WhatsApp number' }, { status: 400 })

@@ -32,6 +32,8 @@ import { createClient } from "@/lib/supabase/server";
 import { hasMinRole, isAccountRole, type AccountRole } from "./roles";
 import { canSeeSection, cleanSections, type SectionKey } from "./sections";
 import { getT } from "@/lib/i18n/translate";
+import { PlanLimitError, planAllows, type Plan } from "@/lib/plans/plans";
+import { loadPlan } from "@/lib/plans/server";
 
 const t = getT("LibErrors.auth");
 
@@ -74,6 +76,10 @@ export function toErrorResponse(err: unknown): NextResponse {
   if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  // Refused by the subscription plan (migration 082).
+  if (err instanceof PlanLimitError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+  }
   console.error("[toErrorResponse] uncategorized error:", err);
   return NextResponse.json({ error: t("internal") }, { status: 500 });
 }
@@ -98,6 +104,11 @@ export interface AccountContext {
    * null for owners and admins. Checked by `requireRole(min, section)`.
    */
   allowedSections: SectionKey[] | null;
+  /**
+   * The subscription plan of the account (migration 082); null when it
+   * could not be read, which locks nothing.
+   */
+  plan: Plan | null;
 }
 
 /**
@@ -158,7 +169,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // RLS, so it stays robust against cache staleness and older schemas.
   const { data: account, error: accountErr } = await supabase
     .from("accounts")
-    .select("id, name")
+    .select("*")
     .eq("id", data.account_id)
     .maybeSingle();
 
@@ -178,6 +189,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     accountId: data.account_id,
     role: data.account_role,
     account: { id: account.id, name: account.name },
+    plan: await loadPlan(supabase, (account as { plan_key?: string | null }).plan_key),
     allowedSections:
       data.account_role === "owner" || data.account_role === "admin"
         ? null
@@ -205,6 +217,13 @@ export async function requireRole(
   }
   if (section && !canSeeSection(ctx.role, ctx.allowedSections, section)) {
     throw new ForbiddenError("You do not have access to this part of the portal");
+  }
+  // A module outside the plan can be read (viewer-level routes) but not
+  // changed.
+  if (section && min !== "viewer" && !planAllows(ctx.plan?.sections, section)) {
+    throw new PlanLimitError(
+      `This module is not part of your ${ctx.plan?.name ?? ""} plan, so it is read-only. See the Plans page.`,
+    );
   }
   return ctx;
 }

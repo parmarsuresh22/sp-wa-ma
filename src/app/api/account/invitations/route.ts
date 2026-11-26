@@ -21,6 +21,7 @@ import { cleanSections, roleCanBeRestricted } from "@/lib/auth/sections";
 import { NextResponse } from "next/server";
 
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
+import { assertRoleRoom } from "@/lib/plans/server";
 import {
   clampExpiryDays,
   generateInviteToken,
@@ -219,6 +220,9 @@ export async function POST(request: Request) {
     }
 
     const { token, hash } = generateInviteToken();
+
+    // The plan may limit how many members of a role the team has.
+    await assertRoleRoom(ctx.supabase, ctx.accountId, role);
 
     const { data, error } = await ctx.supabase
       .from("account_invitations")

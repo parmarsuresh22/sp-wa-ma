@@ -26,7 +26,7 @@ export const maxDuration = 60
  */
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId, userId } = await requireRole('admin')
+    const { supabase, accountId, userId } = await requireRole('admin', 'data')
     const limit = checkRateLimit(`data-tables:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 

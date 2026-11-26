@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account'
+import { assertPlanFeature } from '@/lib/plans/server'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { listChannels, loadChannel } from '@/lib/whatsapp/channels'
 import { DEFAULT_WISH_SCHEDULE, type WishScheduleRow } from '@/lib/wishes/run'
@@ -82,6 +83,7 @@ const intIn = (v: unknown, min: number, max: number): number | null =>
 export async function PUT(request: Request) {
   try {
     const { supabase, accountId, userId } = await requireRole('admin')
+    await assertPlanFeature(supabase, accountId, 'wishes')
     const limit = checkRateLimit(`wishes-admin:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 
