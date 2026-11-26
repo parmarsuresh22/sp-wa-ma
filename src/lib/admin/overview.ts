@@ -22,6 +22,8 @@ export interface AdminHomeAccount {
   name: string
   created_at: string
   owner_email: string | null
+  /** The owner's name as it is in their profile now. */
+  owner_name?: string | null
   web_number_limit: number
   plan_key?: string
 }
@@ -76,6 +78,33 @@ export async function emailsByUserId(db: SupabaseClient, userIds: string[]): Pro
   return map
 }
 
+/**
+ * What the usage counts do not carry, read fresh on every load: each
+ * account's plan, and its owner's name and email as they are in the
+ * owner's profile now — so a customer who changes their name or email
+ * shows that way here too.
+ */
+export async function accountOwners(
+  db: SupabaseClient,
+): Promise<Map<string, { plan_key: string | undefined; owner_name: string | null; owner_email: string | null }>> {
+  const out = new Map<string, { plan_key: string | undefined; owner_name: string | null; owner_email: string | null }>()
+  const { data: accounts } = await db.from('accounts').select('id, plan_key, owner_user_id').limit(10000)
+  const rows = (accounts ?? []) as { id: string; plan_key?: string; owner_user_id: string | null }[]
+  const ids = [...new Set(rows.map((r) => r.owner_user_id).filter((v): v is string => !!v))]
+  const people = new Map<string, { full_name: string | null; email: string | null }>()
+  if (ids.length > 0) {
+    const { data: profiles } = await db.from('profiles').select('user_id, full_name, email').in('user_id', ids)
+    for (const p of (profiles ?? []) as { user_id: string; full_name: string | null; email: string | null }[]) {
+      people.set(p.user_id, { full_name: p.full_name?.trim() || null, email: p.email })
+    }
+  }
+  for (const r of rows) {
+    const person = r.owner_user_id ? people.get(r.owner_user_id) : undefined
+    out.set(r.id, { plan_key: r.plan_key, owner_name: person?.full_name ?? null, owner_email: person?.email ?? null })
+  }
+  return out
+}
+
 export function bridgeInfo(
   bridge: { baseUrl: string; source: 'settings' | 'admin_channel' } | null,
 ): AdminBridgeInfo {
@@ -103,6 +132,7 @@ export async function loadAdminHome(db: SupabaseClient): Promise<AdminHome> {
     plan_key?: string
   }[]
 
+  const owners = await accountOwners(db).catch(() => new Map())
   const emails = await emailsByUserId(db, [
     ...accounts.map((a) => a.owner_user_id ?? ''),
     ...requests.requesterIds,
@@ -116,6 +146,7 @@ export async function loadAdminHome(db: SupabaseClient): Promise<AdminHome> {
       owner_email: a.owner_user_id ? (emails.get(a.owner_user_id) ?? null) : null,
       web_number_limit: a.web_number_limit,
       plan_key: a.plan_key,
+      owner_name: owners.get(a.id)?.owner_name ?? null,
     })),
     requests: requests.rows.map((r) => ({
       ...(r as unknown as AdminHomeRequest),

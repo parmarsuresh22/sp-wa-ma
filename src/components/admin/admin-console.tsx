@@ -1,6 +1,6 @@
 'use client';
 
-import { AccountPlanPicker, AccountPlansList, PlansSection } from './plans-admin';
+import { AccountPlanPicker, AccountPlansList, PlansSection, accountSubtitle, accountTitle } from './plans-admin';
 
 /* The platform admin page (/admin8085). One person uses it, so its
  * text is plain English rather than routed through the locale files. */
@@ -37,6 +37,7 @@ interface AccountStats {
   name: string;
   created_at: string;
   owner_email: string | null;
+  owner_name?: string | null;
   web_number_limit: number;
   plan_key?: string;
   // The usage counts arrive a moment after the list itself (they read
@@ -596,8 +597,8 @@ function AccountsSection({
             >
               <span className="flex items-start gap-2">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{a.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{a.owner_email ?? '—'}</span>
+                  <span className="block truncate text-sm font-medium">{accountTitle(a)}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{accountSubtitle(a)}</span>
                 </span>
                 <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               </span>
@@ -650,8 +651,8 @@ function AccountsSection({
                 onClick={() => onOpen(a.account_id)}
               >
                 <td className={td}>
-                  <p className="font-medium">{a.name}</p>
-                  <p className="text-xs text-muted-foreground">{a.owner_email ?? '—'}</p>
+                  <p className="font-medium">{accountTitle(a)}</p>
+                  <p className="text-xs text-muted-foreground">{accountSubtitle(a)}</p>
                 </td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>{when(a.created_at)}</td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>{when(a.last_sign_in_at)}</td>
@@ -807,9 +808,9 @@ function AccountDetail({
           All accounts
         </Button>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold leading-tight">{stats.name}</h2>
+          <h2 className="truncate text-base font-semibold leading-tight">{accountTitle(stats)}</h2>
           <p className="truncate text-xs text-muted-foreground">
-            {stats.owner_email ?? '—'} · joined {when(stats.created_at)}
+            {accountSubtitle(stats)} · joined {when(stats.created_at)}
           </p>
         </div>
         <AccountPlanPicker

@@ -17,7 +17,7 @@ import { BrowserNotificationsListener } from "@/components/notifications/browser
 // client components can't export Next's metadata object.
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
-  const { user, loading, profileLoading, accountRole, allowedSections } = useAuth();
+  const { user, loading, profileLoading, accountRole, allowedSections, planLocked } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -76,7 +76,16 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
               Renders nothing unless the account/role failed to resolve. */}
           <AccountAccessAlert />
           {hideContent ? null : <PlanModuleNotice />}
-          {hideContent ? null : children}
+          {hideContent ? null : planLocked ? (
+            // Every button, box and file picker on the page is switched
+            // off by the browser itself, whatever the page is made of.
+            // Links still work, and the server refuses changes too.
+            <fieldset disabled aria-readonly="true" className="m-0 min-w-0 border-0 p-0">
+              {children}
+            </fieldset>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

@@ -11,6 +11,23 @@ import { Input } from '@/components/ui/input';
 
 type AdminPlan = Plan & { accounts: number };
 
+export interface AccountNames {
+  name: string;
+  owner_name?: string | null;
+  owner_email: string | null;
+}
+
+/** Who the account is: the owner's name as it is now, else the account's own name. */
+export function accountTitle(a: AccountNames): string {
+  return a.owner_name?.trim() || a.name;
+}
+
+/** The account's own name when it differs from the owner's, then the email. */
+export function accountSubtitle(a: AccountNames): string {
+  const title = accountTitle(a);
+  return [a.name !== title ? a.name : null, a.owner_email ?? '—'].filter(Boolean).join(' · ');
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: 'no-store', ...init });
   const data = await res.json().catch(() => ({}));
@@ -327,7 +344,7 @@ export function AccountPlansList({
   accounts,
   onChanged,
 }: {
-  accounts: { account_id: string; name: string; owner_email: string | null; plan_key?: string; web_number_limit: number }[];
+  accounts: (AccountNames & { account_id: string; plan_key?: string; web_number_limit: number })[];
   onChanged: () => void | Promise<void>;
 }) {
   const [plans, setPlans] = useState<AdminPlan[] | null>(null);
@@ -350,7 +367,7 @@ export function AccountPlansList({
   const rows = accounts.filter(
     (a) =>
       (!only || a.plan_key === only) &&
-      (!needle || a.name.toLowerCase().includes(needle) || (a.owner_email ?? '').toLowerCase().includes(needle)),
+      (!needle || `${a.name} ${a.owner_name ?? ''} ${a.owner_email ?? ''}`.toLowerCase().includes(needle)),
   );
 
   return (
@@ -388,8 +405,8 @@ export function AccountPlansList({
           {rows.map((a) => (
             <li key={a.account_id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
               <div className="min-w-0 flex-1 basis-48">
-                <p className="truncate text-sm font-semibold">{a.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{a.owner_email ?? '—'}</p>
+                <p className="truncate text-sm font-semibold">{accountTitle(a)}</p>
+                <p className="truncate text-xs text-muted-foreground">{accountSubtitle(a)}</p>
               </div>
               <AccountPlanPicker
                 key={`${a.account_id}:${a.plan_key ?? ''}`}

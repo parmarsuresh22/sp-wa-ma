@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSuperAdmin, loadPlatformBridge } from '@/lib/admin/super-admin'
-import { bridgeInfo, emailsByUserId, loadNumberRequests } from '@/lib/admin/overview'
+import { bridgeInfo, emailsByUserId, loadNumberRequests, accountOwners } from '@/lib/admin/overview'
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -28,14 +28,22 @@ export async function GET() {
     ])
     if (statsErr) return NextResponse.json({ error: statsErr.message }, { status: 500 })
 
-    // The stats function predates subscription plans (migration 082),
-    // so each account's plan is read beside it.
-    const { data: planRows } = await db.from('accounts').select('id, plan_key').limit(10000)
-    const planOf = new Map(((planRows ?? []) as { id: string; plan_key: string }[]).map((r) => [r.id, r.plan_key]))
+    // The stats function predates subscription plans (migration 082) and
+    // knows nothing of profile changes, so each account's plan and its
+    // owner's current name and email are read beside it.
+    const owners = await accountOwners(db)
 
     const emailById = await emailsByUserId(db, requests.requesterIds)
     return NextResponse.json({
-      accounts: ((accounts ?? []) as { account_id: string }[]).map((a) => ({ ...a, plan_key: planOf.get(a.account_id) })),
+      accounts: ((accounts ?? []) as { account_id: string; owner_email?: string | null }[]).map((a) => {
+        const owner = owners.get(a.account_id)
+        return {
+          ...a,
+          plan_key: owner?.plan_key,
+          owner_name: owner?.owner_name ?? null,
+          owner_email: owner?.owner_email ?? a.owner_email ?? null,
+        }
+      }),
       requests: requests.rows.map((r) => ({
         ...r,
         requested_by_email: emailById.get(r.requested_by as string) ?? null,
