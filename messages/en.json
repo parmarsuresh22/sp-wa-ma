@@ -2144,7 +2144,7 @@
         "renameDesc": "A short name shown in the inbox dropdown and on each conversation.",
         "setDefault": "Make default",
         "remove": "Remove number",
-        "removeConfirm": "Remove \"{name}\"? Existing conversations keep their history and fall back to the default number for new replies.",
+        "removeConfirm": "Remove \"{name}\"? Everything of this number stops. Removing is permanent: to pause a number and get everything back later, leave it disconnected instead of removing it.",
         "removed": "Number removed",
         "removeFailed": "Could not remove the number",
         "updateFailed": "Could not update the number",
@@ -2218,7 +2218,9 @@
         "addBridgeDescReuse": "Your WhatsApp Web bridge is already set up. Give this number a name; a QR code appears next.",
         "bridgeReuseNote": "The bridge address and key saved on this account are reused. Nothing else to enter.",
         "bridgeManagedNote": "The bridge this number runs on is managed by wacrm; its address and key are never shown here.",
-        "acceptAndLink": "I understand, link"
+        "acceptAndLink": "I understand, link",
+        "pausedNote": "This number is not connected, so it is paused: its chats, contacts, appointments, reminders, wishes and automatic replies are hidden and stopped. Nothing is deleted. Connect it again and everything of this number is back.",
+        "autoReconnectNote": "The portal tries to reconnect a WhatsApp Web number by itself every few minutes. A new QR code is needed only if WhatsApp logged the phone out."
       },
       "readOnlyHint": "Only admins can change WhatsApp numbers.",
       "firstConnect": {

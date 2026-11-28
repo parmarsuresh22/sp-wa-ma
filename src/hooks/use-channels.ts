@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { WhatsAppConfig } from '@/types';
 
 /** A channel as the browser sees it — no secrets (see toPublicChannel). */
@@ -73,12 +73,23 @@ export function channelLabel(ch: Pick<ChannelSummary, 'label' | 'display_phone' 
   );
 }
 
+/** A number the portal works with right now. */
+export function isChannelActive(ch: Pick<ChannelSummary, 'status'>): boolean {
+  return ch.status === 'connected';
+}
+
 /**
  * The account's WhatsApp numbers (default first). `channels` is null
  * until the first load resolves; an error leaves it as an empty list.
+ *
+ * A number that is not connected is paused: `channels` leaves it out,
+ * so no module offers or shows it until it is connected again. Only
+ * Settings → WhatsApp asks for every number (`{ all: true }`), because
+ * that is where a number is connected again.
  */
-export function useChannels() {
-  const [channels, setChannels] = useState<ChannelSummary[] | null>(cache);
+export function useChannels(opts?: { all?: boolean }) {
+  const everyNumber = opts?.all === true;
+  const [allChannels, setChannels] = useState<ChannelSummary[] | null>(cache);
   const [loading, setLoading] = useState(cache === null);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,9 +125,18 @@ export function useChannels() {
   }, []);
 
   const byId = useCallback(
-    (id: string | null | undefined) => (id ? channels?.find((c) => c.id === id) ?? null : null),
-    [channels],
+    (id: string | null | undefined) => (id ? allChannels?.find((c) => c.id === id) ?? null : null),
+    [allChannels],
+  );
+  const channels = useMemo(
+    () => (everyNumber || !allChannels ? allChannels : allChannels.filter(isChannelActive)),
+    [allChannels, everyNumber],
+  );
+  /** Ids of the numbers that are not connected (their chats are hidden). */
+  const inactiveIds = useMemo(
+    () => new Set((allChannels ?? []).filter((c) => !isChannelActive(c)).map((c) => c.id)),
+    [allChannels],
   );
 
-  return { channels, loading, error, refresh, byId };
+  return { channels, inactiveIds, loading, error, refresh, byId };
 }

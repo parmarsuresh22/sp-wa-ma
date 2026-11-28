@@ -7,6 +7,7 @@
 // Server-only.
 // ============================================================
 
+import { inactiveChannelIds, withoutInactiveChannels } from '@/lib/whatsapp/channel-activity'
 import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 import { randomBytes, randomInt } from 'node:crypto'
 
@@ -735,14 +736,15 @@ const REMINDERS_PER_RUN = 40
  */
 export async function runEventReminders(db: SupabaseClient, now: Date): Promise<{ due: number; sent: number; failed: number }> {
   // Events of a blocked account are passed over (migration 085).
+  // A number that is not connected is paused too.
   const { data } = await withoutBlocked(
-    db
+    withoutInactiveChannels(db
       .from('events')
       .select(EVENT_SELECT)
       .neq('status', 'cancelled')
       .gt('reminder_hours', 0)
       .gt('starts_at', now.toISOString())
-      .lte('starts_at', new Date(now.getTime() + 168 * 3_600_000).toISOString()),
+      .lte('starts_at', new Date(now.getTime() + 168 * 3_600_000).toISOString()), await inactiveChannelIds()),
     await blockedAccountIds(),
   )
   const events = ((data ?? []) as Record<string, unknown>[])

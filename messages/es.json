@@ -2144,7 +2144,7 @@
         "renameDesc": "Un nombre corto que se muestra en el desplegable de la bandeja y en cada conversación.",
         "setDefault": "Hacer predeterminado",
         "remove": "Quitar número",
-        "removeConfirm": "¿Quitar \"{name}\"? Las conversaciones conservan su historial y usarán el número predeterminado para nuevas respuestas.",
+        "removeConfirm": "Remove \"{name}\"? Everything of this number stops. Removing is permanent: to pause a number and get everything back later, leave it disconnected instead of removing it.",
         "removed": "Número eliminado",
         "removeFailed": "No se pudo quitar el número",
         "updateFailed": "No se pudo actualizar el número",
@@ -2218,7 +2218,9 @@
         "addBridgeDescReuse": "Tu puente de WhatsApp Web ya está configurado. Ponle un nombre a este número; después aparece un código QR.",
         "bridgeReuseNote": "Se reutilizan la dirección y la clave del puente guardadas en esta cuenta. No hay nada más que introducir.",
         "bridgeManagedNote": "El puente en el que funciona este número lo gestiona wacrm; su dirección y clave nunca se muestran aquí.",
-        "acceptAndLink": "Entendido, vincular"
+        "acceptAndLink": "Entendido, vincular",
+        "pausedNote": "This number is not connected, so it is paused: its chats, contacts, appointments, reminders, wishes and automatic replies are hidden and stopped. Nothing is deleted. Connect it again and everything of this number is back.",
+        "autoReconnectNote": "The portal tries to reconnect a WhatsApp Web number by itself every few minutes. A new QR code is needed only if WhatsApp logged the phone out."
       },
       "readOnlyHint": "Solo los administradores pueden cambiar los números de WhatsApp.",
       "firstConnect": {

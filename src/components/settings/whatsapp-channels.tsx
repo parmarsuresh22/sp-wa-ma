@@ -77,7 +77,7 @@ export function WhatsAppChannels() {
   const t = useTranslations('Settings.whatsapp.channels');
   const tw = useTranslations('Settings.whatsapp');
   const { canEditSettings } = useAuth();
-  const { channels, loading, refresh } = useChannels();
+  const { channels, loading, refresh } = useChannels({ all: true });
   const [selection, setSelection] = useState<Selection>(null);
   const [addBridgeOpen, setAddBridgeOpen] = useState(false);
   const [renaming, setRenaming] = useState<ChannelSummary | null>(null);
@@ -414,6 +414,14 @@ export function WhatsAppChannels() {
           )}
           <WhatsAppConfig key="new-meta" channelId={null} embedded onChanged={onMetaChanged} />
         </>
+      )}
+      {selected && selected.status !== 'connected' && (
+        <Alert className="mb-4 border-amber-500/40 bg-amber-500/10">
+          <AlertDescription className="text-amber-200">
+            {t('pausedNote')}
+            {selected.provider === 'waha' ? ` ${t('autoReconnectNote')}` : ''}
+          </AlertDescription>
+        </Alert>
       )}
       {selected && selected.provider !== 'waha' && (
         <WhatsAppConfig key={selected.id} channelId={selected.id} embedded onChanged={onMetaChanged} />

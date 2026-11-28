@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
+import { recoverBridgeChannels } from '@/lib/whatsapp/bridge-keepalive'
+import { supabaseAdmin } from '@/lib/flows/admin-client'
 import {
   getCurrentAccount,
   requireRole,
@@ -24,6 +26,11 @@ export async function GET() {
   try {
     const { supabase, accountId } = await getCurrentAccount()
     const channels = await listChannels(supabase, accountId)
+    // A WhatsApp Web number that dropped is brought back after the
+    // answer is sent (at most every few minutes per number).
+    if (channels.some((c) => c.provider === 'waha' && c.status !== 'connected')) {
+      after(() => recoverBridgeChannels(supabaseAdmin(), { accountId }).then(() => undefined))
+    }
     return NextResponse.json({ channels: channels.map(toPublicChannel) })
   } catch (err) {
     return toErrorResponse(err)

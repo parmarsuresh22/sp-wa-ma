@@ -80,7 +80,7 @@ export function ConversationList({
   // Channel (WhatsApp number) dropdown — only shown once the account has
   // more than one number. "all" or a whatsapp_config id, remembered per
   // browser; a remembered number that no longer exists reads as "all".
-  const { channels } = useChannels();
+  const { channels, inactiveIds } = useChannels();
   const [storedChannelFilter, setChannelFilter] = useActiveChannel();
   // Memoised (not plain derived) so the `filtered` memo below can list
   // them as dependencies the compiler can track.
@@ -223,6 +223,12 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = applyInboxFilter(conversations, filter, now);
 
+    // Chats of a number that is not connected are hidden until it is
+    // connected again; nothing is deleted.
+    if (inactiveIds.size > 0) {
+      result = result.filter((c) => !c.channel_id || !inactiveIds.has(c.channel_id));
+    }
+
     // Which number the thread runs on (migration 061). A thread with no
     // channel (pre-061, or its channel was removed) shows under "all"
     // only.
@@ -258,7 +264,7 @@ export function ConversationList({
       return Number.isNaN(t) ? 0 : t;
     };
     return [...result].sort((a, b) => stamp(b) - stamp(a));
-  }, [conversations, filter, now, search, selectedTagIds, selectedCompany, multiChannel, channelFilter]);
+  }, [conversations, filter, now, search, selectedTagIds, selectedCompany, multiChannel, channelFilter, inactiveIds]);
 
   // Paged: 10 chats on a phone, 20 on a bigger screen. Any change to
   // the search or the filters starts again from the first page.

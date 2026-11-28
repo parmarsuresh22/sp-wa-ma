@@ -148,6 +148,15 @@ and polish.
 
 ### Fixed
 
+- **WhatsApp Web numbers reconnect by themselves.** A session that
+  failed, stopped or never finished starting is started again every few
+  minutes, from the scheduled job and whenever the list of numbers is
+  loaded. A number stopped on purpose is left alone (migration 088).
+- **A number that is not connected is paused.** Its chats are hidden
+  from the inbox, the modules no longer offer it, and its appointment
+  reminders, event reminders and wishes wait. Everything returns when
+  the number is connected again.
+
 - **A new account gets the number limit of its plan.** New accounts
   start on Standard, which allows one WhatsApp Web number, but were
   created with a limit of 2 (the old column default). The limit is now

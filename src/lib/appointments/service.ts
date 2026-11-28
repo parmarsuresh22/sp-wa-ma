@@ -10,6 +10,7 @@
 // and change their own appointments.
 // ============================================================
 
+import { inactiveChannelIds, withoutInactiveChannels } from '@/lib/whatsapp/channel-activity'
 import { cleanWakeMinutes, wakeWordsInForce } from './wake'
 import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -778,16 +779,18 @@ export async function runAppointmentReminders(
   db: SupabaseClient,
   now: Date = new Date(),
 ): Promise<{ due: number; sent: number; failed: number }> {
-  // Appointments of a blocked account are passed over (migration 085).
+  // Appointments of a blocked account are passed over (migration 085),
+  // and so are those of a number that is not connected: its reminders
+  // wait until the number is back.
   const { data, error } = await withoutBlocked(
-    db
+    withoutInactiveChannels(db
       .from('appointments')
       .select('*')
       .eq('status', 'booked')
       .is('reminder_sent_at', null)
       .not('reminder_at', 'is', null)
       .lte('reminder_at', now.toISOString())
-      .gt('starts_at', now.toISOString()),
+      .gt('starts_at', now.toISOString()), await inactiveChannelIds()),
     await blockedAccountIds(),
   )
     .order('reminder_at', { ascending: true })

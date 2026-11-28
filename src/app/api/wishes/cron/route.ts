@@ -1,3 +1,4 @@
+import { inactiveChannelIds, withoutInactiveChannels } from '@/lib/whatsapp/channel-activity'
 import { NextResponse, after } from 'next/server'
 
 import { cronAuthState, safeEqual } from '@/lib/cron-auth'
@@ -94,12 +95,14 @@ export async function GET(request: Request) {
   })
 
   // Schedules of a blocked account are passed over (migration 085).
+  // So are the schedules of a number that is not connected: its wishes
+  // wait until the number is back.
   const { data, error } = await withoutBlocked(
-    admin
+    withoutInactiveChannels(admin
       .from('wish_schedules')
       .select('*')
       .eq('enabled', true)
-      .or(`next_run_at.is.null,next_run_at.lte.${now.toISOString()}`),
+      .or(`next_run_at.is.null,next_run_at.lte.${now.toISOString()}`), await inactiveChannelIds()),
     await blockedAccountIds(),
   )
     .order('next_run_at', { ascending: true, nullsFirst: true })

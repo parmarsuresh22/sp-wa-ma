@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
+import { recoverBridgeChannels } from '@/lib/whatsapp/bridge-keepalive'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
   claimPendingExecution,
@@ -43,6 +44,8 @@ export async function GET(request: Request) {
   const requeued = await requeueStalledExecutions()
 
   const admin = supabaseAdmin()
+  // WhatsApp Web numbers that dropped are brought back (migration 088).
+  after(() => recoverBridgeChannels(admin).then(() => undefined))
   // Steps waiting for a blocked account stay waiting (migration 085).
   const { data: due, error } = await withoutBlocked(
     admin

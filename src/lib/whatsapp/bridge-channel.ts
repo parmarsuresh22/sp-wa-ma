@@ -333,6 +333,8 @@ export async function runBridgeAction(
     .update({
       status: 'disconnected',
       bridge_status: action === 'stop' ? 'STOPPED' : 'STARTING',
+      // Stopped on purpose: the keep-alive leaves it alone (migration 088).
+      bridge_keep_stopped: action === 'stop',
       updated_at: new Date().toISOString(),
     })
     .eq('id', channel.id)

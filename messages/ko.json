@@ -2144,7 +2144,7 @@
         "renameDesc": "받은편지함 드롭다운과 각 대화에 표시되는 짧은 이름입니다.",
         "setDefault": "기본으로 설정",
         "remove": "번호 삭제",
-        "removeConfirm": "\"{name}\"을(를) 삭제할까요? 기존 대화는 기록을 유지하며 새 답장은 기본 번호로 발송됩니다.",
+        "removeConfirm": "Remove \"{name}\"? Everything of this number stops. Removing is permanent: to pause a number and get everything back later, leave it disconnected instead of removing it.",
         "removed": "번호가 삭제되었습니다",
         "removeFailed": "번호를 삭제할 수 없습니다",
         "updateFailed": "번호를 업데이트할 수 없습니다",
@@ -2218,7 +2218,9 @@
         "addBridgeDescReuse": "WhatsApp Web 브리지가 이미 설정되어 있습니다. 이 번호의 이름을 입력하면 QR 코드가 표시됩니다.",
         "bridgeReuseNote": "이 계정에 저장된 브리지 주소와 키를 재사용합니다. 더 입력할 것이 없습니다.",
         "bridgeManagedNote": "이 번호가 사용하는 브리지는 wacrm이 관리하며 주소와 키는 여기에 표시되지 않습니다.",
-        "acceptAndLink": "이해했습니다, 연결"
+        "acceptAndLink": "이해했습니다, 연결",
+        "pausedNote": "This number is not connected, so it is paused: its chats, contacts, appointments, reminders, wishes and automatic replies are hidden and stopped. Nothing is deleted. Connect it again and everything of this number is back.",
+        "autoReconnectNote": "The portal tries to reconnect a WhatsApp Web number by itself every few minutes. A new QR code is needed only if WhatsApp logged the phone out."
       },
       "readOnlyHint": "관리자만 WhatsApp 번호를 변경할 수 있습니다.",
       "firstConnect": {
