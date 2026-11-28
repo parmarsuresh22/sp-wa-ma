@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FOMS{% endblock %}</title>
+  <script>
+    /* Apply the saved theme before the stylesheet paints (no flash of wrong theme). */
+    (function () {
+      try {
+        var pref = localStorage.getItem('foms-theme') || 'system';
+        var t = pref;
+        if (pref === 'system') {
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'indigo';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'indigo');
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v={{ asset_ver }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-text">AEDA forms</span>
+      <span class="brand-sub">by LLC</span>
+    </a>
+    <div class="crumbs" id="crumbs"></div>
+    <div class="spacer"></div>
+    {% block topbar_right %}{% endblock %}
+  </div>
+  {% block body %}{% endblock %}
+  <script src="{{ url_for('static', filename='js/common.js') }}?v={{ asset_ver }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

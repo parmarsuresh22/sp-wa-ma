@@ -5,6 +5,7 @@ import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 import { Check, Minus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useReadOnlyArea } from "@/lib/plans/read-only-context"
 
 // Root: primary token when checked or indeterminate (responds to the active
 // color theme), input border when unchecked. Mirrors switch.tsx conventions.
@@ -12,6 +13,8 @@ function Checkbox({
   className,
   ...props
 }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+  // Drawn with a <span>, so a disabled <fieldset> does not switch it off.
+  const readOnlyArea = useReadOnlyArea()
   return (
     <CheckboxPrimitive.Root
       data-slot="checkbox"
@@ -24,6 +27,7 @@ function Checkbox({
         className,
       )}
       {...props}
+      disabled={readOnlyArea || props.disabled}
     >
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"

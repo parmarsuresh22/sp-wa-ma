@@ -148,6 +148,35 @@ and polish.
 
 ### Fixed
 
+- **A new account gets the number limit of its plan.** New accounts
+  start on Standard, which allows one WhatsApp Web number, but were
+  created with a limit of 2 (the old column default). The limit is now
+  taken from the plan when the account is created (migration 087).
+- **Read-only really is read-only.** In a module or a part of Settings
+  outside the plan, switches, tick boxes and radio buttons stayed
+  clickable (the Wish Scheduler switch, for instance): they are drawn
+  with elements a disabled fieldset does not reach. They are now
+  switched off there too. The server refused the change already.
+- **First WhatsApp number.** An account with no number yet sees two
+  choices, WhatsApp Web (chosen to begin with) and Business API, each
+  with its full steps in English and Hindi.
+- **Where to create an AI key.** Under the API key box in AI Agents →
+  Setup there is a direct link to the key page of the chosen provider
+  (OpenAI, Anthropic, Google Gemini).
+- **Help on every page.** A Help button in the top bar explains the
+  page that is open (and the open section of Settings), with setup steps
+  and outside links, in English or Hindi.
+- **Menu modules.** Settings → Menu modules: the owner ticks the modules
+  the menu shows for everyone in the account. Hidden modules keep
+  working (migration 087).
+- **Form Studio (FOMS).** Added in the `foms/` folder as its own Python
+  service with its own SQLite file. The menu shows its link to the
+  platform admin only. `launch_atlas.bat` starts it together with the
+  portal on a computer.
+- **Appointments answer round the clock.** No change in behaviour; the
+  settings and the help text now say so: working hours only decide which
+  slots are offered.
+
 - **Answer only when woken.** Appointments settings have a "When to
   answer" section for numbers that are also a personal WhatsApp: the
   Appointment assistant and the AI agent stay silent in a chat until the

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Projects · FOMS{% endblock %}
+{% block body %}
+<div class="container">
+  <div class="page-head">
+    <h1 id="pageTitle">Projects</h1>
+    <div class="finder">
+      <input type="search" id="projSearch" placeholder="Search projects…" autocomplete="off">
+      <select id="projJump"><option value="">Jump to project…</option></select>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="archivedToggle">🗄 Show archived</button>
+    <a class="btn ghost" href="/settings" title="Settings — appearance, theme &amp; email">⚙ Settings</a>
+    <button class="btn primary" id="newProjectBtn">+ Create New Project</button>
+  </div>
+  <div id="projectGrid" class="grid"></div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/landing.js') }}?v={{ asset_ver }}"></script>{% endblock %}

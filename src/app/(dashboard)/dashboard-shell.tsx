@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
 import { PlanModuleNotice } from "@/components/plans/plan-gates";
+import { ReadOnlyArea } from "@/lib/plans/read-only-context";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import { BrowserNotificationsListener } from "@/components/notifications/browser-notifications-listener";
 
@@ -80,8 +81,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             // Every button, box and file picker on the page is switched
             // off by the browser itself, whatever the page is made of.
             // Links still work, and the server refuses changes too.
-            <fieldset disabled aria-readonly="true" className="m-0 min-w-0 border-0 p-0">
-              {children}
+            <fieldset disabled aria-readonly="true" className="plan-read-only m-0 min-w-0 border-0 p-0">
+              {/* Switches and tick boxes drawn with spans ask this. */}
+              <ReadOnlyArea>{children}</ReadOnlyArea>
             </fieldset>
           ) : (
             children

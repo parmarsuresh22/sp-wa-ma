@@ -52,7 +52,9 @@
     "service": "Service Today",
     "plans": "Plans",
     "notInPlan": "Not in your plan (read-only)",
-    "planLine": "{plan} plan"
+    "planLine": "{plan} plan",
+    "formStudio": "Form Studio",
+    "formStudioHint": "FOMS, shown to the platform admin only. It runs on your own computer: start it with launch_foms.bat in the foms folder first."
   },
   "Header": {
     "dashboard": "대시보드",
@@ -69,7 +71,16 @@
     "defaultAvatar": "아바타",
     "menuProfile": "프로필",
     "menuSettings": "설정",
-    "menuSignOut": "로그아웃"
+    "menuSignOut": "로그아웃",
+    "help": "Help",
+    "posts": "Posts",
+    "appointments": "Appointments",
+    "events": "Events",
+    "service": "Service Today",
+    "flows": "Flows",
+    "agents": "AI Agents",
+    "data": "Data tables",
+    "plans": "Plans"
   },
   "ModeToggle": {
     "switchMode": "{mode} 모드로 전환"
@@ -2209,7 +2220,20 @@
         "bridgeManagedNote": "이 번호가 사용하는 브리지는 wacrm이 관리하며 주소와 키는 여기에 표시되지 않습니다.",
         "acceptAndLink": "이해했습니다, 연결"
       },
-      "readOnlyHint": "관리자만 WhatsApp 번호를 변경할 수 있습니다."
+      "readOnlyHint": "관리자만 WhatsApp 번호를 변경할 수 있습니다.",
+      "firstConnect": {
+        "title": "Connect your first WhatsApp number",
+        "description": "Choose how to connect. The steps are below, in English and Hindi.",
+        "webTitle": "WhatsApp Web",
+        "webBadge": "Easiest",
+        "webDesc": "Scan a QR code with your phone. Ready in a few minutes. For chats, appointments and reminders.",
+        "apiTitle": "Business API",
+        "apiDesc": "The official Meta API. Needed for templates and broadcasts. Takes longer to set up.",
+        "linkWeb": "Link WhatsApp Web",
+        "waiting": "Your request is waiting for approval. The QR code will appear on this page.",
+        "apiFormBelow": "Enter the details from Meta in the form below.",
+        "askAdmin": "Only an owner or admin of the account can connect a number."
+      }
     },
     "sections": {
       "overview": "개요",
@@ -2225,7 +2249,8 @@
       "inbox": "인박스",
       "members": "팀원",
       "api": "API 키",
-      "wishes": "축하 메시지 예약"
+      "wishes": "축하 메시지 예약",
+      "menu": "Menu modules"
     },
     "groups": {
       "account": "계정",
@@ -2447,7 +2472,11 @@
       "autoReplyOnDesc": "봇을 한 번호로 제한합니다. 받은편지함의 초안 작성은 모든 번호에서 동작합니다.",
       "loading": "불러오는 중…",
       "handoffEnabled": "필요할 때 사람에게 넘기기",
-      "handoffEnabledDesc": "켜면 고객이 사람을 요청하거나 봇이 도울 수 없을 때 해당 대화의 응답을 멈추고 담당자에게 넘깁니다. 끄면 봇이 항상 답하고 스스로 멈추지 않습니다."
+      "handoffEnabledDesc": "켜면 고객이 사람을 요청하거나 봇이 도울 수 없을 때 해당 대화의 응답을 멈추고 담당자에게 넘깁니다. 끄면 봇이 항상 답하고 스스로 멈추지 않습니다.",
+      "getKeyLead": "No key yet?",
+      "getKeyLink": "Create your {provider} API key",
+      "getKeyTail": "Sign in there, create a key, copy it and paste it above.",
+      "getKeyCompatible": "Create the key on the website of the service whose address you entered above."
     },
     "aiKnowledge": {
       "loadFailed": "지식베이스를 불러오지 못했습니다",
@@ -2568,6 +2597,17 @@
       "amPm": "오전/오후",
       "am": "오전",
       "pm": "오후"
+    },
+    "menuModules": {
+      "title": "Menu modules",
+      "description": "Choose the modules shown in the menu for everyone in this account. Untick the ones your business does not use to keep the menu short.",
+      "ownerOnly": "Only the owner of the account can change this.",
+      "hint": "A module you untick is only left out of the menu. It keeps working, nothing in it is deleted, and you can tick it back any time. Settings and Plans always stay in the menu.",
+      "notInPlan": "Not in your plan (read-only)",
+      "save": "Save menu",
+      "showAll": "Show all modules",
+      "saved": "Menu saved",
+      "saveFailed": "Could not save the menu"
     }
   },
   "SignupPage": {
@@ -3709,7 +3749,7 @@
     "holidayFrom": "From",
     "holidayTo": "To (optional)",
     "wakeTitle": "When to answer",
-    "wakeSectionHint": "For a number that is also your personal WhatsApp.",
+    "wakeSectionHint": "For a number that is also your personal WhatsApp. The assistant answers at any hour, every day of the year; your working hours only decide which slots it offers.",
     "wakeMode": "Answer only when the customer uses a wake word",
     "wakeModeHint": "The Appointment assistant and the AI agent of this number stay silent in a chat until the customer writes one of the words below. Personal messages get no automatic reply.",
     "wakeWords": "Wake words",
@@ -4109,5 +4149,15 @@
     "number": "A number (0-9)",
     "symbol": "A symbol (like @ # ! %)",
     "guessable": "Too easy to guess: avoid common words and your own email name."
+  },
+  "Help": {
+    "button": "Help",
+    "open": "Help: {topic}",
+    "steps": "How to set it up",
+    "links": "Useful links",
+    "language": "Language",
+    "opensNewTab": "opens in a new tab",
+    "support": "Still stuck? Write to <email>{address}</email>.",
+    "close": "Close"
   }
 }

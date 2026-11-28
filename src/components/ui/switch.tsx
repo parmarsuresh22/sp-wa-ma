@@ -4,6 +4,7 @@ import * as React from "react"
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
 
 import { cn } from "@/lib/utils"
+import { useReadOnlyArea } from "@/lib/plans/read-only-context"
 
 // Root: primary token when checked (responds to the active color theme),
 // slate when unchecked.
@@ -11,6 +12,8 @@ function Switch({
   className,
   ...props
 }: React.ComponentProps<typeof SwitchPrimitive.Root>) {
+  // Drawn with a <span>, so a disabled <fieldset> does not switch it off.
+  const readOnlyArea = useReadOnlyArea()
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
@@ -22,6 +25,7 @@ function Switch({
         className,
       )}
       {...props}
+      disabled={readOnlyArea || props.disabled}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"

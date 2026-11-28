@@ -4,6 +4,7 @@ import { Radio as RadioPrimitive } from "@base-ui/react/radio"
 import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group"
 
 import { cn } from "@/lib/utils"
+import { useReadOnlyArea } from "@/lib/plans/read-only-context"
 
 function RadioGroup({ className, ...props }: RadioGroupPrimitive.Props) {
   return (
@@ -16,6 +17,8 @@ function RadioGroup({ className, ...props }: RadioGroupPrimitive.Props) {
 }
 
 function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
+  // Drawn with a <span>, so a disabled <fieldset> does not switch it off.
+  const readOnlyArea = useReadOnlyArea()
   return (
     <RadioPrimitive.Root
       data-slot="radio-group-item"
@@ -24,6 +27,7 @@ function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
         className
       )}
       {...props}
+      disabled={readOnlyArea || props.disabled}
     >
       <RadioPrimitive.Indicator
         data-slot="radio-group-indicator"

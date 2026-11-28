@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Project · FOMS{% endblock %}
+{% block body %}
+<div class="container">
+  <div class="page-head">
+    <a href="/" class="btn ghost sm">← Projects</a>
+    <h1 id="projectName">Project</h1>
+    <div class="finder">
+      <input type="search" id="formSearch" placeholder="Search forms…" autocomplete="off">
+      <select id="formJump"><option value="">Jump to form…</option></select>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="archivedToggle">🗄 Show archived</button>
+    <button class="btn ghost" id="importBtn" title="Import a form from a JSON export">⤒ Import form</button>
+    <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+    <button class="btn primary" id="newFormBtn">+ Create New Form</button>
+  </div>
+  <p class="subtle" id="projectDesc"></p>
+  <div id="formGrid" class="grid"></div>
+</div>
+<script>const PROJECT_ID = {{ project_id }};</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/project.js') }}?v={{ asset_ver }}"></script>{% endblock %}

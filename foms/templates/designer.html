@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Designer · FOMS{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css">
+<script src="https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<!-- PDF.js + pdf-lib so the Preview/Test tab can render Secure Viewer & Watermarked Download -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+  if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+{% endblock %}
+{% block body %}
+<div class="designer-bar">
+  <a href="#" id="backLink" class="btn ghost sm">← Back</a>
+  <span class="name" id="formName">Form</span>
+  <span class="badge draft" id="statusBadge">draft</span>
+  <div class="spacer"></div>
+  <a class="btn ghost sm" id="fillLink" target="_blank">↗ New Form</a>
+  <a class="btn ghost sm" id="summaryLink">☰ Summary</a>
+  <button class="btn ghost sm" id="exportBtn" title="Export this form (design, workflow, submissions & lookups) as JSON">⤓ Export</button>
+  <button class="btn ghost sm" id="helpBtn" title="Designer help: tokens, formulas, components, API fetch & workflow">❓ Help</button>
+  <button class="btn" id="saveBtn">💾 Save</button>
+  <button class="btn green" id="publishBtn">🚀 Publish</button>
+  <button class="btn danger" id="unpublishBtn" style="display:none">Unpublish</button>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="design">Form Design</div>
+  <div class="tab" data-tab="database">Database</div>
+  <div class="tab" data-tab="workflow">Form Workflow</div>
+  <div class="tab" data-tab="preview">Preview / Test</div>
+</div>
+
+<!-- ============ DESIGN TAB ============ -->
+<div class="tab-pane active" id="pane-design">
+  <div class="design-wrap">
+    <!-- palette + settings -->
+    <div class="design-col left">
+      <h4>Components</h4>
+      <div id="palette"></div>
+
+      <div class="accordion">
+        <div class="ahead">Roles</div>
+        <div id="rolesBox" class="chip-list"></div>
+        <div class="mini-add"><input id="roleInput" type="text" placeholder="New role"><button class="btn sm" id="addRoleBtn">Add</button></div>
+      </div>
+
+      <div class="accordion">
+        <div class="ahead">Workflow Stages</div>
+        <div id="stagesBox" class="chip-list"></div>
+        <div class="mini-add"><input id="stageInput" type="text" placeholder="New stage"><button class="btn sm" id="addStageBtn">Add</button></div>
+      </div>
+
+      <div class="accordion">
+        <div class="ahead">Email Templates</div>
+        <div id="emailsBox" class="btnlist"></div>
+        <button class="btn sm ghost" id="addEmailBtn" style="margin-top:6px">+ Add email</button>
+      </div>
+
+      <div class="accordion">
+        <div class="ahead">Summary Page — who can edit</div>
+        <div id="summaryRolesBox" class="chip-list"></div>
+        <p class="subtle" style="font-size:11px;margin:6px 0 0">Tick roles allowed to submit/edit on the Summary page. None ticked = everyone can edit.</p>
+      </div>
+
+      <div class="accordion">
+        <div class="ahead">Submission Rule</div>
+        <label class="field" style="margin-bottom:8px"><span>Allow</span>
+          <select id="subMode">
+            <option value="multiple">Multiple submissions</option>
+            <option value="single">Single submission per value</option>
+          </select>
+        </label>
+        <label class="field" id="subKeyField" style="display:none"><span>Unique field (parameter)</span>
+          <select id="subKey"></select>
+        </label>
+        <p class="subtle" style="font-size:11px;margin:2px 0 0">Single = reject a new submission if the chosen field's value already exists in the database.</p>
+      </div>
+    </div>
+
+    <!-- canvas -->
+    <div class="design-col">
+      <div class="canvas">
+        <div class="form-title" id="canvasTitle">Form</div>
+        <p class="subtle" style="margin-top:0">Drag components, <b>Sections</b> and <b>Buttons</b> from the left onto the form. Drop fields/buttons inside a Section to group them. Click any item to edit its properties, visibility and read-only rules.</p>
+        <div class="dropzone" id="dropzone"></div>
+      </div>
+    </div>
+
+    <!-- properties -->
+    <div class="design-col right">
+      <h4>Properties</h4>
+      <div id="propsPanel"><p class="subtle">Select a component to edit its properties, validation and role/stage visibility.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DATABASE TAB ============ -->
+<div class="tab-pane" id="pane-database">
+  <div class="container" style="max-width:100%">
+    <div class="section">
+      <h3>Form Schema (components)</h3>
+      <div class="tablewrap"><table class="data" id="schemaTable"></table></div>
+    </div>
+    <div class="section">
+      <h3>Submissions <span class="subtle" id="subCount"></span></h3>
+      <div class="flex" style="gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" id="subSearch" placeholder="🔍 Search submissions…" style="max-width:280px">
+        <input type="text" id="editorName" placeholder="Your name (for edits)" style="max-width:200px">
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn" id="extractBtn">⤓ Extract</button>
+      </div>
+      <div id="extractTasks" class="wrap-gap" style="margin-bottom:10px"></div>
+      <div class="tablewrap"><table class="data" id="subTable"></table></div>
+    </div>
+    <div class="section">
+      <h3>Pre-fill Lookups (CSV / Excel)</h3>
+      <p class="subtle" style="margin-top:0">Upload a data file, choose a <b>key column</b> and the form field it matches, then map columns → form fields. When a user enters a matching key value while filling the form, the mapped fields auto-fill.</p>
+      <div class="flex" style="gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <input type="file" id="lookupFile" accept=".csv,.xlsx" style="max-width:300px">
+        <button class="btn" id="lookupUploadBtn">⤒ Upload data</button>
+      </div>
+      <div id="lookupList" class="wrap-gap"></div>
+    </div>
+
+    <div class="section">
+      <div class="flex" style="margin-bottom:8px"><h3 style="margin:0">Email Log</h3><div style="flex:1"></div><button class="btn sm" id="emailExtractBtn">⤓ Extract</button></div>
+      <div class="tablewrap"><table class="data" id="emailTable"></table></div>
+    </div>
+    <div class="section">
+      <h3>Published Versions (schema/flow backups)</h3>
+      <div class="tablewrap"><table class="data" id="verTable"></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WORKFLOW TAB ============ -->
+<div class="tab-pane" id="pane-workflow">
+  <div class="wf-toolbar">
+    <span class="subtle">Flow for button:</span>
+    <select id="wfButtonSelect" style="width:auto;min-width:160px"></select>
+    <span class="pill" id="wfHint">Drag nodes in, then drag from a node's right dot to the next node's left dot.</span>
+    <div class="spacer" style="flex:1"></div>
+    <div class="wf-zoom">
+      <button class="btn sm ghost" id="wfZoomOut" title="Zoom out">−</button>
+      <button class="btn sm ghost" id="wfZoomReset" title="Reset zoom">⤢</button>
+      <button class="btn sm ghost" id="wfZoomIn" title="Zoom in">+</button>
+    </div>
+    <button class="btn sm" id="wfCopyBtn" title="Copy selected node(s) — Shift/Ctrl-click to select several (Ctrl+C)">⧉ Copy</button>
+    <button class="btn sm" id="wfCopyFlowBtn" title="Copy the whole flow except the start node">⧉⧉ Copy flow</button>
+    <button class="btn sm" id="wfPasteBtn" title="Paste here — also works across workflows/forms (Ctrl+V)">⧉ Paste</button>
+    <button class="btn sm" id="wfDeleteBtn" title="Delete selected node">🗑 Delete node</button>
+    <button class="btn sm danger" id="wfClearBtn">Clear flow</button>
+  </div>
+  <div class="wf-wrap">
+    <div class="wf-pal">
+      <h4 style="margin-top:0;color:var(--muted);font-size:12px;text-transform:uppercase">Nodes</h4>
+      <div id="wfPalette"></div>
+    </div>
+    <div id="drawflow"></div>
+  </div>
+</div>
+
+<!-- ============ PREVIEW / TEST TAB ============ -->
+<div class="tab-pane" id="pane-preview">
+  <div class="container" style="max-width:1040px">
+    <div class="hint">🧪 <b>Preview / Test</b> runs your current <b>working</b> design + workflow (no publish needed). Submissions and emails are <b>simulated</b> — nothing is saved or sent. Pick a role/stage, fill the form, and click a button to run its workflow; the trace appears under that button.</div>
+    <div class="flex" style="gap:16px;margin-bottom:14px;flex-wrap:wrap">
+      <label class="field" style="margin:0"><span>Acting as (role)</span><select id="pvRole" style="min-width:160px"></select></label>
+      <label class="field" style="margin:0"><span>Workflow stage</span><select id="pvStage" style="min-width:160px"></select></label>
+      <div style="flex:1"></div>
+      <button class="btn ghost sm" id="pvReset" style="align-self:flex-end">↺ Reset form</button>
+    </div>
+    <div id="pvBody" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start"></div>
+    <div id="pvErrors" class="hint" style="display:none;border-color:var(--red);color:#fca5a5;margin-top:12px"></div>
+  </div>
+</div>
+
+<script>const FORM_ID = {{ form_id }};</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/designer.js') }}?v={{ asset_ver }}"></script>{% endblock %}

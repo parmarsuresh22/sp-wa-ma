@@ -282,3 +282,12 @@ html[data-theme="rose"] {
   .auth-col-down { animation-duration: 110s; }
   .auth-blob, .auth-card, .auth-icon { animation: none; }
 }
+
+/* A part of the portal outside the plan is read-only. Real form
+   controls are switched off by the disabled <fieldset>; this catches
+   whatever is drawn with other elements (switches, tick boxes, sliders,
+   editable text) so nothing in there reacts to a click. */
+.plan-read-only :is([role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [contenteditable="true"], [draggable="true"]) {
+  pointer-events: none;
+  cursor: not-allowed;
+}

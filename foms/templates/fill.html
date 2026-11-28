@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}New Form · FOMS{% endblock %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- PDF.js (secure view-only rendering) and pdf-lib (watermarked downloads) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+  if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+{% endblock %}
+{% block body %}
+<div class="container" style="max-width:1040px">
+  <div class="page-head">
+    <a href="#" id="backLink" class="btn ghost sm">← Summary</a>
+    <h1 id="formTitle">Form</h1>
+    <span class="badge draft" id="statusBadge" style="display:none"></span>
+    <div class="spacer"></div>
+  </div>
+
+  <div class="flex" style="gap:16px;margin-bottom:18px">
+    <label class="field" style="margin:0">
+      <span>You are acting as (role)</span>
+      <select id="roleSelect" style="min-width:160px"></select>
+    </label>
+    <label class="field" style="margin:0">
+      <span>Current workflow stage</span>
+      <select id="stageSelect" style="min-width:160px"></select>
+    </label>
+  </div>
+
+  <div id="formBody" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start"></div>
+  <p id="noBtnNote" class="subtle" style="display:none">No buttons are visible for this role/stage.</p>
+
+  <div id="errors" class="hint" style="display:none;border-color:var(--red);color:#fca5a5"></div>
+
+  <div class="flex" id="buttonBar" style="gap:10px;margin-top:20px"></div>
+</div>
+<script>
+  const FORM_ID = {{ form_id }};
+  const EDIT_SUBMISSION = new URLSearchParams(location.search).get('submission');
+</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/fill.js') }}?v={{ asset_ver }}"></script>{% endblock %}

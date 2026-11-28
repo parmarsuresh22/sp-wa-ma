@@ -52,7 +52,9 @@
     "service": "Service Today",
     "plans": "Plans",
     "notInPlan": "Not in your plan (read-only)",
-    "planLine": "{plan} plan"
+    "planLine": "{plan} plan",
+    "formStudio": "Form Studio",
+    "formStudioHint": "FOMS, shown to the platform admin only. It runs on your own computer: start it with launch_foms.bat in the foms folder first."
   },
   "Header": {
     "dashboard": "Painel",
@@ -69,7 +71,16 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
     "menuSettings": "Configurações",
-    "menuSignOut": "Sair"
+    "menuSignOut": "Sair",
+    "help": "Help",
+    "posts": "Posts",
+    "appointments": "Appointments",
+    "events": "Events",
+    "service": "Service Today",
+    "flows": "Flows",
+    "agents": "AI Agents",
+    "data": "Data tables",
+    "plans": "Plans"
   },
   "ModeToggle": {
     "switchMode": "Mudar para o modo {mode}"
@@ -2209,7 +2220,20 @@
         "bridgeManagedNote": "A ponte em que este número roda é gerenciada pelo wacrm; seu endereço e chave nunca aparecem aqui.",
         "acceptAndLink": "Entendi, vincular"
       },
-      "readOnlyHint": "Somente administradores podem alterar os números de WhatsApp."
+      "readOnlyHint": "Somente administradores podem alterar os números de WhatsApp.",
+      "firstConnect": {
+        "title": "Connect your first WhatsApp number",
+        "description": "Choose how to connect. The steps are below, in English and Hindi.",
+        "webTitle": "WhatsApp Web",
+        "webBadge": "Easiest",
+        "webDesc": "Scan a QR code with your phone. Ready in a few minutes. For chats, appointments and reminders.",
+        "apiTitle": "Business API",
+        "apiDesc": "The official Meta API. Needed for templates and broadcasts. Takes longer to set up.",
+        "linkWeb": "Link WhatsApp Web",
+        "waiting": "Your request is waiting for approval. The QR code will appear on this page.",
+        "apiFormBelow": "Enter the details from Meta in the form below.",
+        "askAdmin": "Only an owner or admin of the account can connect a number."
+      }
     },
     "sections": {
       "overview": "Visão geral",
@@ -2225,7 +2249,8 @@
       "inbox": "Caixa de entrada",
       "members": "Membros da equipe",
       "api": "Chaves de API",
-      "wishes": "Felicitações"
+      "wishes": "Felicitações",
+      "menu": "Menu modules"
     },
     "groups": {
       "account": "Conta",
@@ -2447,7 +2472,11 @@
       "autoReplyOnDesc": "Limita o bot a um número. Rascunhos na caixa de entrada funcionam em todos.",
       "loading": "Carregando…",
       "handoffEnabled": "Encaminhar a uma pessoa quando necessário",
-      "handoffEnabledDesc": "Ligado: o bot para de responder nessa conversa e a encaminha a uma pessoa quando o cliente pede ou quando não consegue ajudar. Desligado: o bot sempre responde e nunca se pausa."
+      "handoffEnabledDesc": "Ligado: o bot para de responder nessa conversa e a encaminha a uma pessoa quando o cliente pede ou quando não consegue ajudar. Desligado: o bot sempre responde e nunca se pausa.",
+      "getKeyLead": "No key yet?",
+      "getKeyLink": "Create your {provider} API key",
+      "getKeyTail": "Sign in there, create a key, copy it and paste it above.",
+      "getKeyCompatible": "Create the key on the website of the service whose address you entered above."
     },
     "aiKnowledge": {
       "loadFailed": "Falha ao carregar a base de conhecimento",
@@ -2568,6 +2597,17 @@
       "amPm": "AM ou PM",
       "am": "AM",
       "pm": "PM"
+    },
+    "menuModules": {
+      "title": "Menu modules",
+      "description": "Choose the modules shown in the menu for everyone in this account. Untick the ones your business does not use to keep the menu short.",
+      "ownerOnly": "Only the owner of the account can change this.",
+      "hint": "A module you untick is only left out of the menu. It keeps working, nothing in it is deleted, and you can tick it back any time. Settings and Plans always stay in the menu.",
+      "notInPlan": "Not in your plan (read-only)",
+      "save": "Save menu",
+      "showAll": "Show all modules",
+      "saved": "Menu saved",
+      "saveFailed": "Could not save the menu"
     }
   },
   "SignupPage": {
@@ -3709,7 +3749,7 @@
     "holidayFrom": "From",
     "holidayTo": "To (optional)",
     "wakeTitle": "When to answer",
-    "wakeSectionHint": "For a number that is also your personal WhatsApp.",
+    "wakeSectionHint": "For a number that is also your personal WhatsApp. The assistant answers at any hour, every day of the year; your working hours only decide which slots it offers.",
     "wakeMode": "Answer only when the customer uses a wake word",
     "wakeModeHint": "The Appointment assistant and the AI agent of this number stay silent in a chat until the customer writes one of the words below. Personal messages get no automatic reply.",
     "wakeWords": "Wake words",
@@ -4109,5 +4149,15 @@
     "number": "A number (0-9)",
     "symbol": "A symbol (like @ # ! %)",
     "guessable": "Too easy to guess: avoid common words and your own email name."
+  },
+  "Help": {
+    "button": "Help",
+    "open": "Help: {topic}",
+    "steps": "How to set it up",
+    "links": "Useful links",
+    "language": "Language",
+    "opensNewTab": "opens in a new tab",
+    "support": "Still stuck? Write to <email>{address}</email>.",
+    "close": "Close"
   }
 }

@@ -54,6 +54,8 @@ interface AccountSummary {
   brand_logo_url?: string | null;
   /** Subscription plan (migration 082). */
   plan_key?: string | null;
+  /** Modules the owner hid from the menu (migration 087). */
+  menu_hidden?: string[];
 }
 
 /**
@@ -291,6 +293,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               brand_name: account.brand_name ?? null,
               brand_logo_url: account.brand_logo_url ?? null,
               plan_key: (account as { plan_key?: string | null }).plan_key ?? null,
+              menu_hidden: Array.isArray((account as { menu_hidden?: unknown }).menu_hidden)
+                ? ((account as { menu_hidden: string[] }).menu_hidden)
+                : [],
             };
           }
         }

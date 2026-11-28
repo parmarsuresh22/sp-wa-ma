@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react';
 
 import { useAuth } from '@/hooks/use-auth';
 import { planHasFeature, type PlanFeature } from '@/lib/plans/plans';
+import { ReadOnlyArea } from '@/lib/plans/read-only-context';
 
 /** The strip that says why a page can be read but not used. */
 export function PlanLockNotice({ text, sticky }: { text: string; sticky?: boolean }) {
@@ -47,8 +48,8 @@ export function PlanFeatureGate({ feature, children }: { feature: PlanFeature; c
   return (
     <>
       <PlanLockNotice text={t('featureLocked', { plan: plan?.name ?? '' })} />
-      <fieldset disabled className="min-w-0 opacity-70">
-        {children}
+      <fieldset disabled aria-readonly="true" className="plan-read-only min-w-0 opacity-70">
+        <ReadOnlyArea>{children}</ReadOnlyArea>
       </fieldset>
     </>
   );

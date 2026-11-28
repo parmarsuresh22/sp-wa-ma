@@ -1,0 +1,3 @@
+# Form Studio is a separate Python service; it is not part of the web deployment.
+foms
+launch_atlas.bat

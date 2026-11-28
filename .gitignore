@@ -49,3 +49,11 @@ supabase/.temp/
 # local n8n workflow exports (contain Meta access tokens)
 /WhatsApp Bot.json
 *.n8n.json
+
+# Form Studio (foms/): its own database, logs and Python files stay local
+/foms/foms.db
+/foms/extracts/
+/foms/.venv/
+/foms/*.log
+__pycache__/
+*.pyc

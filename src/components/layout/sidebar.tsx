@@ -4,7 +4,7 @@ import { canSeeSection, sectionForPath } from "@/lib/auth/sections";
 import { pathLockedByPlan } from "@/lib/plans/plans";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -26,6 +26,8 @@ import {
   Ticket,
   Lock,
   CreditCard,
+  ExternalLink,
+  FileInput,
   Wrench,
   User,
   UserCog,
@@ -120,6 +122,18 @@ const bottomNavItems = [
   { href: "/plans", labelKey: "plans", icon: CreditCard },
 ];
 
+// Form Studio (FOMS) is a separate service only the platform admin
+// uses. The server says whether this person may see its link, and where
+// it runs; asked once per page load, and anyone else gets "no".
+let formStudioAsked: Promise<string | null> | null = null;
+function askFormStudio(): Promise<string | null> {
+  formStudioAsked ??= fetch("/api/foms/access", { cache: "no-store" })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data: { url?: string } | null) => (data && typeof data.url === "string" ? data.url : null))
+    .catch(() => null);
+  return formStudioAsked;
+}
+
 interface SidebarProps {
   /** Controlled on mobile by the Header's hamburger button. Ignored on lg+. */
   open?: boolean;
@@ -137,11 +151,24 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   // there is a name or a logo to show.
   const branded =
     !!account?.brand_enabled && (!!account.brand_name?.trim() || !!account.brand_logo_url);
-  // Only the sections this member may open (migration 076).
+  // Only the sections this member may open (migration 076), less the
+  // modules the owner left out of the menu (migration 087).
+  const menuHidden = account?.menu_hidden ?? [];
   const visibleNav = navItems.filter((item) => {
     const section = sectionForPath(item.href);
-    return !section || canSeeSection(accountRole, allowedSections, section);
+    if (!section) return true;
+    return canSeeSection(accountRole, allowedSections, section) && !menuHidden.includes(section);
   });
+  const [formStudioUrl, setFormStudioUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void askFormStudio().then((url) => {
+      if (alive) setFormStudioUrl(url);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -346,6 +373,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
+            {formStudioUrl && (
+              <li>
+                <a
+                  href={formStudioUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t("formStudioHint")}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:py-2"
+                >
+                  <FileInput className="h-4 w-4" />
+                  <span className="flex-1">{t("formStudio")}</span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                </a>
+              </li>
+            )}
           </ul>
         </nav>
 

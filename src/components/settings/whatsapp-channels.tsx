@@ -44,6 +44,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { SettingsPanelHead } from './settings-panel-head';
+import { HelpButton, HelpLangSwitch, HelpSteps, useHelpLang } from '@/components/help/help-button';
+import { HELP_TOPICS } from '@/lib/help/topics';
 import { WhatsAppConfig } from './whatsapp-config';
 
 type Selection = { kind: 'channel'; id: string } | { kind: 'new-meta' } | null;
@@ -148,12 +150,13 @@ export function WhatsAppChannels() {
   );
 
   // What the page shows: the user's pick when it still exists, else
-  // the default channel, else (fresh account) the blank Meta form.
+  // the default channel, else (fresh account) the first-time chooser,
+  // which opens on WhatsApp Web.
   const effective: Selection = useMemo(() => {
     if (!channels) return selection;
     if (selection?.kind === 'new-meta') return selection;
     if (selection?.kind === 'channel' && channels.some((c) => c.id === selection.id)) return selection;
-    if (channels.length === 0) return { kind: 'new-meta' };
+    if (channels.length === 0) return null;
     const def = channels.find((c) => c.is_default) ?? channels[0];
     return { kind: 'channel', id: def.id };
   }, [channels, selection]);
@@ -222,6 +225,9 @@ export function WhatsAppChannels() {
     [refresh],
   );
 
+  // Nothing connected yet: lead the person through their first number.
+  const firstTime = !!channels && channels.length === 0;
+
   return (
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead
@@ -229,7 +235,8 @@ export function WhatsAppChannels() {
         description={t('description')}
         action={
           canEditSettings ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <HelpButton topic="whatsapp" variant="icon" />
               <Button
                 variant="outline"
                 size="sm"
@@ -386,6 +393,16 @@ export function WhatsAppChannels() {
         </div>
       ) : null}
 
+      {firstTime && (
+        <FirstConnect
+          choice={effective?.kind === 'new-meta' ? 'api' : 'web'}
+          onChoose={(next) => setSelection(next === 'api' ? { kind: 'new-meta' } : null)}
+          canEdit={canEditSettings}
+          waiting={openRequests.some((r) => r.status === 'pending')}
+          onLinkWeb={() => setAddBridgeOpen(true)}
+        />
+      )}
+
       {/* Selected channel */}
       {effective?.kind === 'new-meta' && (
         <>
@@ -431,6 +448,114 @@ export function WhatsAppChannels() {
         <p className="mt-6 text-xs text-muted-foreground">{tw('readOnlyHint')}</p>
       )}
     </section>
+  );
+}
+
+// ------------------------------------------------------------
+// First number: choose how to connect, with the steps in English
+// and Hindi
+// ------------------------------------------------------------
+
+function FirstConnect({
+  choice,
+  onChoose,
+  canEdit,
+  waiting,
+  onLinkWeb,
+}: {
+  choice: 'web' | 'api';
+  onChoose: (choice: 'web' | 'api') => void;
+  canEdit: boolean;
+  /** A WhatsApp Web request is already waiting for approval. */
+  waiting: boolean;
+  onLinkWeb: () => void;
+}) {
+  const t = useTranslations('Settings.whatsapp.firstConnect');
+  const [lang, setLang] = useHelpLang();
+  const topic = choice === 'web' ? HELP_TOPICS.whatsappWeb : HELP_TOPICS.whatsappApi;
+  const options = [
+    { id: 'web' as const, icon: Smartphone, title: t('webTitle'), desc: t('webDesc'), badge: t('webBadge') },
+    { id: 'api' as const, icon: Zap, title: t('apiTitle'), desc: t('apiDesc'), badge: null },
+  ];
+
+  return (
+    <div className="mb-6 rounded-xl border border-primary/40 bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-foreground">{t('title')}</h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('description')}</p>
+        </div>
+        <HelpLangSwitch lang={lang} onChange={setLang} />
+      </div>
+
+      <div role="radiogroup" aria-label={t('title')} className="mt-4 grid gap-3 sm:grid-cols-2">
+        {options.map((o) => {
+          const active = choice === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChoose(o.id)}
+              className={cn(
+                'flex items-start gap-3 rounded-xl border p-3 text-left transition-colors',
+                active ? 'border-primary bg-primary/5 ring-1 ring-primary/40' : 'border-border hover:bg-muted/50',
+              )}
+            >
+              <span
+                className={cn(
+                  'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full',
+                  active ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
+                )}
+              >
+                <o.icon className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
+                  {o.title}
+                  {o.badge && (
+                    <Badge variant="outline" className="h-5 border-primary/50 px-1.5 text-[10px] font-normal text-primary">
+                      {o.badge}
+                    </Badge>
+                  )}
+                </span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{o.desc}</span>
+              </span>
+              <span
+                aria-hidden
+                className={cn(
+                  'mt-1 flex size-4 shrink-0 items-center justify-center rounded-full border',
+                  active ? 'border-primary' : 'border-border',
+                )}
+              >
+                {active && <span className="size-2 rounded-full bg-primary" />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-background p-4">
+        <p className="text-sm font-semibold text-foreground">{topic.title[lang]}</p>
+        <p className="mt-1 mb-3 text-sm text-muted-foreground">{topic.intro[lang]}</p>
+        <HelpSteps topic={topic} lang={lang} />
+        {choice === 'web' ? (
+          canEdit && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button onClick={onLinkWeb} disabled={waiting}>
+                <QrCode className="size-4" />
+                {t('linkWeb')}
+              </Button>
+              {waiting && <span className="text-xs text-amber-300">{t('waiting')}</span>}
+            </div>
+          )
+        ) : (
+          <p className="mt-4 text-sm font-medium text-foreground">{t('apiFormBelow')}</p>
+        )}
+        {!canEdit && <p className="mt-4 text-xs text-amber-300">{t('askAdmin')}</p>}
+      </div>
+    </div>
   );
 }
 

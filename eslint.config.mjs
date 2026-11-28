@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Vendored minified opus-recorder encoder worker (served statically).
     "public/opus/**",
+    // Form Studio (FOMS): a separate Python service with its own plain scripts.
+    "foms/**",
   ]),
 ]);
 

@@ -5,6 +5,7 @@ import {
   Inbox,
   KeyRound,
   LayoutGrid,
+  ListChecks,
   Palette,
   PlugZap,
   Shield,
@@ -38,6 +39,7 @@ export const SETTINGS_SECTIONS = [
   'fields',
   'deals',
   'members',
+  'menu',
   'api',
 ] as const;
 
@@ -67,6 +69,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
+  menu: { id: 'menu', label: 'Menu modules', icon: ListChecks, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
 };
 

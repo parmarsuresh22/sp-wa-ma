@@ -52,6 +52,10 @@ const BrandingPanel = dynamic(
   () => import('@/components/settings/branding-panel').then((m) => m.BrandingPanel),
   { loading: () => <PanelSkeleton /> },
 );
+const MenuModulesPanel = dynamic(
+  () => import('@/components/settings/menu-modules-panel').then((m) => m.MenuModulesPanel),
+  { loading: () => <PanelSkeleton /> },
+);
 const WhatsAppChannels = dynamic(
   () => import('@/components/settings/whatsapp-channels').then((m) => m.WhatsAppChannels),
   { loading: () => <PanelSkeleton /> },
@@ -158,6 +162,7 @@ function SettingsPageInner() {
     ),
     deals: () => <DealsSettings />,
     members: () => <MembersTab />,
+    menu: () => <MenuModulesPanel />,
     api: () => (
       <PlanFeatureGate feature="api_keys">
         <ApiKeysSettings />

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { HelpButton } from '@/components/help/help-button';
+import { AI_KEY_PAGES } from '@/lib/help/topics';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
@@ -359,7 +361,10 @@ export function AiConfig() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ai-key">{t('apiKey')}</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="ai-key">{t('apiKey')}</Label>
+                <HelpButton topic="agents" variant="icon" />
+              </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
@@ -406,6 +411,25 @@ export function AiConfig() {
                   {t('testKey')}
                 </Button>
               </div>
+              {/* Where the key of the chosen provider is created. */}
+              {provider !== 'openai_compatible' ? (
+                <p className="text-xs text-muted-foreground">
+                  {t('getKeyLead')}{' '}
+                  <a
+                    href={AI_KEY_PAGES[provider].url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
+                  >
+                    {t('getKeyLink', { provider: AI_KEY_PAGES[provider].name })}
+                    <ExternalLink className="size-3" />
+                  </a>
+                  {' '}
+                  {t('getKeyTail')}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{t('getKeyCompatible')}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -436,7 +460,16 @@ export function AiConfig() {
               <p className="text-xs text-muted-foreground">
                 {t('embeddingsHint', {
                   sameKeyText: provider === 'openai' ? t('sameKeyText') : '',
-                })}
+                })}{' '}
+                <a
+                  href={AI_KEY_PAGES.openai.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
+                >
+                  {t('getKeyLink', { provider: AI_KEY_PAGES.openai.name })}
+                  <ExternalLink className="size-3" />
+                </a>
               </p>
             </div>
           </CardContent>

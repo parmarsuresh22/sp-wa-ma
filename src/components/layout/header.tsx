@@ -1,7 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { HelpButton } from "@/components/help/help-button";
+import { helpTopicForPage } from "@/lib/help/topics";
 import { useAuth } from "@/hooks/use-auth";
 import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
 import {
@@ -26,8 +29,29 @@ const pageTitles: Record<string, string> = {
   "/pipelines": "pipelines",
   "/broadcasts": "broadcasts",
   "/automations": "automations",
+  "/posts": "posts",
+  "/appointments": "appointments",
+  "/events": "events",
+  "/service": "service",
+  "/flows": "flows",
+  "/agents": "agents",
+  "/data": "data",
+  "/plans": "plans",
   "/settings": "settings",
 };
+
+/**
+ * Help for whichever page (and Settings section) is open. Reads the
+ * address, so it sits in its own Suspense boundary.
+ */
+function PageHelp() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const topic = helpTopicForPage(pathname ?? "", searchParams.get("tab"));
+  if (!topic) return null;
+  // Remounted per topic so an open window never shows another page's text.
+  return <HelpButton key={topic} topic={topic} />;
+}
 
 function getPageTitleKey(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
@@ -74,6 +98,9 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        <Suspense fallback={null}>
+          <PageHelp />
+        </Suspense>
         <ModeToggle />
 
         <DropdownMenu>

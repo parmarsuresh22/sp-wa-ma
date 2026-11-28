@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Settings · FOMS{% endblock %}
+{% block body %}
+<div class="container" style="max-width:1120px">
+  <div class="page-head">
+    <a href="/" class="btn ghost sm">← Projects</a>
+    <h1>Settings</h1>
+  </div>
+
+  <div class="settings-layout">
+    <nav class="settings-nav" id="settingsNav">
+      <button class="active" data-pane="appearance">🎨 Appearance</button>
+      <button data-pane="email">✉️ Email sender accounts</button>
+      <button data-pane="master">🗄️ Master database</button>
+    </nav>
+
+    <div class="settings-content">
+      <!-- ---- Appearance / Theme ---- -->
+      <section class="settings-pane active" id="pane-appearance">
+        <h3>Appearance</h3>
+        <p class="subtle" style="margin-top:0">Pick a theme for the portal. It applies instantly and is remembered on this device.</p>
+        <div class="theme-grid" id="themeGrid"></div>
+      </section>
+
+      <!-- ---- Email sender accounts (+ test email) ---- -->
+      <section class="settings-pane" id="pane-email">
+        <h3>Email sender accounts</h3>
+        <p class="subtle" style="margin-top:0">Configure one or more sender accounts (SendGrid or SMTP). In each email template you pick which sender to use. Leave secrets blank to keep the saved value.</p>
+        <div id="accounts"></div>
+        <div class="flex" style="gap:10px;margin-top:6px">
+          <button class="btn" id="addAccountBtn">+ Add account</button>
+          <button class="btn primary" id="saveBtn">Save all</button>
+        </div>
+
+        <div class="ruleblk" style="margin-top:24px">
+          <h5>Send a test email</h5>
+          <div class="flex" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <label class="field" style="margin:0;min-width:200px"><span>Using account</span><select id="testAccount"></select></label>
+            <label class="field" style="flex:1;margin:0;min-width:200px"><span>Send test to</span><input type="email" id="testTo" placeholder="you@company.com"></label>
+            <button class="btn" id="testBtn">Send test</button>
+          </div>
+          <div id="testResult" class="hint" style="display:none;margin-top:12px"></div>
+        </div>
+      </section>
+
+      <!-- ---- Master database ---- -->
+      <section class="settings-pane" id="pane-master">
+        <div class="flex" style="justify-content:space-between">
+          <h3 style="margin:0">Master database</h3>
+          <button class="btn sm" id="masterRefresh">↻ Refresh</button>
+        </div>
+        <p class="subtle" style="margin-top:6px">Read-only view of all data across every project and form. Submissions from every form appear together in one table.</p>
+        <div class="tabs subtabs" id="masterTabs">
+          <div class="tab active" data-mtab="submissions">Submissions</div>
+          <div class="tab" data-mtab="forms">Forms</div>
+          <div class="tab" data-mtab="projects">Projects</div>
+          <div class="tab" data-mtab="emails">Emails</div>
+        </div>
+        <div id="masterBody"></div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/settings.js') }}?v={{ asset_ver }}"></script>{% endblock %}
