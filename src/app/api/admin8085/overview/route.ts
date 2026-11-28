@@ -42,6 +42,7 @@ export async function GET() {
           plan_key: owner?.plan_key,
           owner_name: owner?.owner_name ?? null,
           owner_email: owner?.owner_email ?? a.owner_email ?? null,
+          blocked_at: owner?.blocked_at ?? null,
         }
       }),
       requests: requests.rows.map((r) => ({

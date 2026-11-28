@@ -30,6 +30,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CheckCircle, KeyRound, Loader2, MailX } from "lucide-react";
+import { PasswordRules } from "@/components/auth/password-rules";
+import { missingPasswordRules, passwordTooGuessable } from "@/lib/auth/password";
 
 type Status = "checking" | "ready" | "expired" | "done";
 
@@ -38,6 +40,7 @@ export default function ResetPasswordPage() {
   const supabase = createClient();
 
   const [status, setStatus] = useState<Status>("checking");
+  const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +51,9 @@ export default function ResetPasswordPage() {
     // The callback wrote the session cookies server-side; the browser
     // client reads them here. No user → the link didn't yield a session.
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!cancelled) setStatus(user ? "ready" : "expired");
+      if (cancelled) return;
+      setEmail(user?.email ?? null);
+      setStatus(user ? "ready" : "expired");
     });
     return () => {
       cancelled = true;
@@ -63,9 +68,13 @@ export default function ResetPasswordPage() {
       setError(t("passwordsMismatch"));
       return;
     }
-    // Same floor as /signup.
-    if (password.length < 6) {
-      setError(t("passwordTooShort"));
+    // Same rules as /signup.
+    if (missingPasswordRules(password).length > 0) {
+      setError(t("passwordWeak"));
+      return;
+    }
+    if (passwordTooGuessable(password, email)) {
+      setError(t("passwordGuessable"));
       return;
     }
 
@@ -195,6 +204,7 @@ export default function ResetPasswordPage() {
                 required
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
+              <PasswordRules password={password} email={email} />
             </div>
 
             <div className="flex flex-col gap-2">

@@ -243,3 +243,27 @@ html[data-theme="rose"] {
     @apply font-sans;
   }
 }
+
+/* Sign-in screen (src/components/auth/auth-shell.tsx): two columns of
+ * feature cards sliding slowly past each other, and two soft lights.
+ * Each column holds its list twice, so sliding by half its height
+ * loops without a seam. */
+@keyframes auth-col-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+@keyframes auth-col-down {
+  from { transform: translateY(-50%); }
+  to { transform: translateY(0); }
+}
+@keyframes auth-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8%, -6%) scale(1.18); }
+}
+.auth-col-up { animation: auth-col-up 46s linear infinite; will-change: transform; }
+.auth-col-down { animation: auth-col-down 54s linear infinite; will-change: transform; }
+.auth-blob { animation: auth-blob 14s ease-in-out infinite; }
+.auth-blob-slow { animation-duration: 20s; animation-direction: reverse; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-col-up, .auth-col-down, .auth-blob { animation: none; }
+}

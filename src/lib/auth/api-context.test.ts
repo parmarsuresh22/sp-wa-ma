@@ -14,8 +14,10 @@ vi.mock("@/lib/flows/admin-client", () => ({
 // Mock the store so we control which row a hash resolves to.
 const findActiveKeyByHash = vi.fn<(hash: string) => Promise<ApiKeyRow | null>>();
 const touchLastUsed = vi.fn();
+const isAccountBlocked = vi.fn<(accountId: string) => Promise<boolean>>();
 vi.mock("@/lib/api-keys/store", () => ({
   findActiveKeyByHash: (hash: string) => findActiveKeyByHash(hash),
+  isAccountBlocked: (accountId: string) => isAccountBlocked(accountId),
   touchLastUsed: (id: string) => touchLastUsed(id),
 }));
 
@@ -47,6 +49,8 @@ beforeEach(() => {
   __resetRateLimitForTests();
   findActiveKeyByHash.mockReset();
   touchLastUsed.mockReset();
+  isAccountBlocked.mockReset();
+  isAccountBlocked.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -135,6 +139,14 @@ describe("requireApiKey", () => {
     findActiveKeyByHash.mockResolvedValue(row({ scopes: ["messages:send"] }));
     const ctx = await requireApiKey(reqWith(`Bearer ${KEY}`), "messages:send");
     expect(ctx.accountId).toBe("acct-1");
+  });
+
+  it("403s for a key of an account the platform has blocked", async () => {
+    findActiveKeyByHash.mockResolvedValue(row());
+    isAccountBlocked.mockResolvedValue(true);
+    await expectApiError(requireApiKey(reqWith(`Bearer ${KEY}`)), "forbidden", 403);
+    expect(isAccountBlocked).toHaveBeenCalledWith("acct-1");
+    expect(touchLastUsed).not.toHaveBeenCalled();
   });
 
   it("429s once the per-key budget is exhausted", async () => {

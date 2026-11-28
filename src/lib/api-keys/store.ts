@@ -34,6 +34,24 @@ export interface ApiKeyRow {
  * client (RLS-bypassing); the hash is the only credential, so this
  * is the moment that establishes the caller's account.
  */
+/**
+ * Whether the platform admin has blocked the account (migration 085).
+ * A failed read answers "not blocked": a hiccup must not switch off
+ * every integration of every customer.
+ */
+export async function isAccountBlocked(accountId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin()
+    .from('accounts')
+    .select('blocked_at')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (error) {
+    console.error('[api-keys/store] account lookup error:', error.message);
+    return false;
+  }
+  return !!(data as { blocked_at?: string | null } | null)?.blocked_at;
+}
+
 export async function findActiveKeyByHash(
   hash: string
 ): Promise<ApiKeyRow | null> {

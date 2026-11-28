@@ -148,6 +148,23 @@ and polish.
 
 ### Fixed
 
+- **Blocking an account.** The platform admin page has a Block account /
+  Reactivate account button on every account. While an account is
+  blocked none of its people can sign in or use the portal or its API
+  keys; the sign-in screen says the account is blocked and gives the
+  address to write to. Nothing of the account is deleted (migration 085).
+- **Plan, number limit and blocked state can only be set by the
+  platform.** An account's own admin could change these columns of their
+  account row straight from the browser; the database now refuses it
+  (migration 085).
+- **Strong passwords.** Sign-up, password reset and the password form in
+  Settings require at least 8 characters with a capital letter, a small
+  letter, a number and a symbol, refuse common passwords and the
+  person's own email name, and show the rules ticking off while typing.
+- **Sign-in screen.** Shows "Atlas by LLC Solution" and, moving slowly
+  behind or beside the form, what the portal does for a business and for
+  an individual. The movement stops for people who ask for reduced motion.
+
 - **Subscription plans (migration required: `082_plans.sql`).** Two
   plans, Standard and Premium, assigned per account from a dropdown on
   the platform admin page; a new plan replaces the old one. The admin

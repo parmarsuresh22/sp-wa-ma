@@ -272,6 +272,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               hint: accountErr.hint,
               code: accountErr.code,
             });
+          } else if (account && (account as { blocked_at?: string | null }).blocked_at) {
+            // The platform blocked this account while this person was
+            // signed in (or they joined it afterwards): end the session
+            // and show the reason on the sign-in screen.
+            await supabase.auth.signOut().catch(() => undefined);
+            window.location.href = "/login?error=blocked";
+            return;
           } else if (account) {
             accountRow = {
               id: account.id,

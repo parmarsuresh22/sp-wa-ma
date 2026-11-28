@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSuperAdmin } from '@/lib/admin/super-admin'
 import { forgetPlans } from '@/lib/plans/server'
+import { BLOCK_DURATION } from '@/lib/auth/blocked'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -69,7 +70,7 @@ export async function GET(request: Request, { params }: Params) {
   }
 
   const [account, members, channels, ai, flows, automations, broadcasts, tables] = await Promise.all([
-    db.from('accounts').select('id, name, created_at, web_number_limit, plan_key').eq('id', id).maybeSingle(),
+    db.from('accounts').select('id, name, created_at, web_number_limit, plan_key, blocked_at').eq('id', id).maybeSingle(),
     db
       .from('profiles')
       .select('user_id, full_name, email, account_role, created_at')
@@ -149,7 +150,10 @@ export async function GET(request: Request, { params }: Params) {
  * Body: { web_number_limit: number }  — 0 to 50, or
  *       { plan_key: string }          — the subscription. It replaces
  *       the plan the account had, and sets the number limit to the new
- *       plan's.
+ *       plan's, or
+ *       { blocked: boolean }          — block the account (none of its
+ *       people can sign in or use the portal; they are told to write to
+ *       support) or reactivate it. Nothing of the account is deleted.
  */
 export async function PATCH(request: Request, { params }: Params) {
   const admin = await getSuperAdmin()
@@ -159,6 +163,42 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!UUID.test(id)) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  if (typeof body?.blocked === 'boolean') {
+    const blocked = body.blocked
+    const { data: members, error: membersError } = await admin.db
+      .from('profiles')
+      .select('user_id')
+      .eq('account_id', id)
+    if (membersError) return NextResponse.json({ error: membersError.message }, { status: 500 })
+    const userIds = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id)
+    // Blocking the account you are signed in with would lock the
+    // platform admin out of this very page.
+    if (blocked && userIds.includes(admin.userId)) {
+      return NextResponse.json({ error: 'This is your own account; it cannot be blocked.' }, { status: 400 })
+    }
+    const { data: changed, error: blockError } = await admin.db
+      .from('accounts')
+      .update({ blocked_at: blocked ? new Date().toISOString() : null })
+      .eq('id', id)
+      .select('id')
+    if (blockError) return NextResponse.json({ error: blockError.message }, { status: 500 })
+    if (!changed || changed.length === 0) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
+    // The sign-in service refuses each of its people from now on (and
+    // stops renewing sessions they already have), or lets them back in.
+    const refused: string[] = []
+    await Promise.all(
+      userIds.map(async (userId) => {
+        const { error } = await admin.db.auth.admin.updateUserById(userId, {
+          ban_duration: blocked ? BLOCK_DURATION : 'none',
+        })
+        if (error) refused.push(userId)
+      }),
+    )
+    if (refused.length > 0) {
+      console.error('[admin] sign-in state not changed for', refused.length, 'member(s) of account', id)
+    }
+    return NextResponse.json({ success: true, blocked, members: userIds.length, failed: refused.length })
+  }
   if (typeof body?.plan_key === 'string') {
     const { data: plan } = await admin.db
       .from('plans')

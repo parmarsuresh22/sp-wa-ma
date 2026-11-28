@@ -16,7 +16,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { UsersRound } from "lucide-react";
-import { BrandMark } from '@/components/brand/brand-mark';
+import { AuthShell } from '@/components/auth/auth-shell';
+import { SUPPORT_EMAIL, isBlockedSignIn } from '@/lib/auth/blocked';
 
 // `useSearchParams` opts the component out of static prerendering
 // unless it sits under a Suspense boundary. We split the form into
@@ -47,6 +48,10 @@ function LoginPageInner() {
       : linkError === "link_invalid"
         ? t("linkInvalid")
         : null;
+  // The account was blocked by the platform: said plainly, with the
+  // address to write to. Arrives either from a refused sign-in or from
+  // the portal sending a signed-in member of a blocked account here.
+  const [blocked, setBlocked] = useState(linkError === "blocked");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,6 +62,7 @@ function LoginPageInner() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setBlocked(false);
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -65,7 +71,8 @@ function LoginPageInner() {
     });
 
     if (error) {
-      setError(error.message);
+      if (isBlockedSignIn(error)) setBlocked(true);
+      else setError(error.message);
       setLoading(false);
       return;
     }
@@ -85,15 +92,13 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
+    <AuthShell>
+      <Card className="w-full max-w-md border-border bg-card shadow-xl">
         <CardHeader className="items-center text-center">
-          {inviteToken ? (
+          {inviteToken && (
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <UsersRound className="h-6 w-6 text-primary" />
             </div>
-          ) : (
-            <BrandMark className="mb-2 h-12 w-12" />
           )}
           <CardTitle className="text-xl text-foreground">
             {inviteToken ? t('titleAccept') : t('titleWelcome')}
@@ -109,6 +114,20 @@ function LoginPageInner() {
             {linkErrorMessage && !error && (
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
                 {linkErrorMessage}
+              </div>
+            )}
+            {blocked && (
+              <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                <p className="font-semibold">{t('blockedTitle')}</p>
+                <p className="mt-1">
+                  {t.rich('blockedText', {
+                    email: () => (
+                      <a href={`mailto:${SUPPORT_EMAIL}`} className="inline-block font-medium underline">
+                        {SUPPORT_EMAIL}
+                      </a>
+                    ),
+                  })}
+                </p>
               </div>
             )}
             {error && (
@@ -178,6 +197,6 @@ function LoginPageInner() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

@@ -16,7 +16,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CheckCircle, UsersRound } from "lucide-react";
-import { BrandMark } from '@/components/brand/brand-mark';
+import { AuthShell } from '@/components/auth/auth-shell';
+import { PasswordRules } from '@/components/auth/password-rules';
+import { missingPasswordRules, passwordTooGuessable } from '@/lib/auth/password';
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -56,8 +58,12 @@ function SignupPageInner() {
       return;
     }
 
-    if (password.length < 6) {
-      setError(t("passwordTooShort"));
+    if (missingPasswordRules(password).length > 0) {
+      setError(t("passwordWeak"));
+      return;
+    }
+    if (passwordTooGuessable(password, email)) {
+      setError(t("passwordGuessable"));
       return;
     }
 
@@ -101,8 +107,8 @@ function SignupPageInner() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <Card className="w-full max-w-md border-border bg-card">
+      <AuthShell>
+        <Card className="w-full max-w-md border-border bg-card shadow-xl">
           <CardHeader className="items-center text-center">
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <CheckCircle className="h-6 w-6 text-primary" />
@@ -136,20 +142,18 @@ function SignupPageInner() {
             </Link>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
+    <AuthShell>
+      <Card className="w-full max-w-md border-border bg-card shadow-xl">
         <CardHeader className="items-center text-center">
-          {inviteToken ? (
+          {inviteToken && (
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <UsersRound className="h-6 w-6 text-primary" />
             </div>
-          ) : (
-            <BrandMark className="mb-2 h-12 w-12" />
           )}
           <CardTitle className="text-xl text-foreground">
             {inviteToken ? t("titleJoin") : t("title")}
@@ -203,12 +207,14 @@ function SignupPageInner() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
+              <PasswordRules password={password} email={email} />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -250,6 +256,6 @@ function SignupPageInner() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

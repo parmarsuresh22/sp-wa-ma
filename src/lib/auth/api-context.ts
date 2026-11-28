@@ -28,9 +28,10 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ACCOUNT_BLOCKED_MESSAGE } from './blocked';
 
 import { supabaseAdmin } from '@/lib/flows/admin-client';
-import { findActiveKeyByHash, touchLastUsed } from '@/lib/api-keys/store';
+import { findActiveKeyByHash, isAccountBlocked, touchLastUsed } from '@/lib/api-keys/store';
 import { hashApiKey, looksLikeApiKey } from '@/lib/api-keys/keys';
 import { hasScope, type ApiScope } from '@/lib/api-keys/scopes';
 import { forbidden, rateLimited, unauthorized } from '@/lib/api/v1/respond';
@@ -106,6 +107,11 @@ export async function requireApiKey(
 
   if (scope && !hasScope(row.scopes, scope)) {
     throw forbidden(`This API key is missing the '${scope}' scope`);
+  }
+
+  // A blocked account's keys stop working with it (migration 085).
+  if (await isAccountBlocked(row.account_id)) {
+    throw forbidden(ACCOUNT_BLOCKED_MESSAGE);
   }
 
   touchLastUsed(row.id);

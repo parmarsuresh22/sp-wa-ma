@@ -17,8 +17,10 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { useTranslations } from 'next-intl';
+import { PasswordRules } from '@/components/auth/password-rules';
+import { MIN_PASSWORD_LENGTH, missingPasswordRules, passwordTooGuessable } from '@/lib/auth/password';
 
-const MIN_PASSWORD = 8;
+const MIN_PASSWORD = MIN_PASSWORD_LENGTH;
 
 export function PasswordForm() {
   const t = useTranslations('Settings.profile');
@@ -37,8 +39,12 @@ export function PasswordForm() {
       toast.error(t('cannotChangeNoEmail'));
       return;
     }
-    if (next.length < MIN_PASSWORD) {
-      setConfirmError(t('passwordTooShort', { min: MIN_PASSWORD }));
+    if (missingPasswordRules(next).length > 0) {
+      setConfirmError(t('passwordWeak'));
+      return;
+    }
+    if (passwordTooGuessable(next, profile.email)) {
+      setConfirmError(t('passwordGuessable'));
       return;
     }
     if (next !== confirm) {
@@ -143,6 +149,8 @@ export function PasswordForm() {
               />
             </div>
           </div>
+
+          <PasswordRules password={next} email={profile?.email} />
 
           {confirmError && (
             <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">

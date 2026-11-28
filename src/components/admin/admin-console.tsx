@@ -10,6 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toast } from 'sonner';
 import {
   ArrowLeft,
+  Ban,
   Check,
   ChevronRight,
   Loader2,
@@ -28,6 +29,7 @@ import { useStickToBottom } from '@/hooks/use-stick-to-bottom';
 import { usePageSize } from '@/hooks/use-page-size';
 import { ListPager } from '@/components/ui/list-pager';
 import type { AdminHome } from '@/lib/admin/overview';
+import { SUPPORT_EMAIL } from '@/lib/auth/blocked';
 
 // ------------------------------------------------------------
 // Shapes returned by /api/admin8085/*
@@ -41,6 +43,8 @@ interface AccountStats {
   owner_name?: string | null;
   web_number_limit: number;
   plan_key?: string;
+  /** Set while the account is blocked. */
+  blocked_at?: string | null;
   // The usage counts arrive a moment after the list itself (they read
   // far more data), so every one of them may still be missing.
   last_sign_in_at?: string | null;
@@ -599,7 +603,10 @@ function AccountsSection({
             >
               <span className="flex items-start gap-2">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{accountTitle(a)}</span>
+                  <span className="block truncate text-sm font-medium">
+                    {accountTitle(a)}
+                    {a.blocked_at && <BlockedBadge />}
+                  </span>
                   <span className="block truncate text-xs text-muted-foreground">{accountSubtitle(a)}</span>
                 </span>
                 <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -653,7 +660,10 @@ function AccountsSection({
                 onClick={() => onOpen(a.account_id)}
               >
                 <td className={td}>
-                  <p className="font-medium">{accountTitle(a)}</p>
+                  <p className="font-medium">
+                    {accountTitle(a)}
+                    {a.blocked_at && <BlockedBadge />}
+                  </p>
                   <p className="text-xs text-muted-foreground">{accountSubtitle(a)}</p>
                 </td>
                 <td className={cn(td, 'whitespace-nowrap text-xs')}>{when(a.created_at)}</td>
@@ -689,6 +699,10 @@ function AccountsSection({
       </div>
     </section>
   );
+}
+
+function BlockedBadge() {
+  return <Badge className="ml-2 h-5 bg-red-500/20 px-1.5 text-[10px] text-red-400">Blocked</Badge>;
 }
 
 // ------------------------------------------------------------
@@ -756,6 +770,32 @@ function AccountDetail({
     setLimit(String(stats.web_number_limit));
   }
   const [savingLimit, setSavingLimit] = useState(false);
+  const [savingBlock, setSavingBlock] = useState(false);
+  const isBlocked = !!stats.blocked_at;
+
+  async function setBlocked(blocked: boolean) {
+    const ok = window.confirm(
+      blocked
+        ? `Block ${accountTitle(stats)}?\n\nNobody of this account will be able to sign in or use the portal. They will see that the account is blocked and be asked to write to ${SUPPORT_EMAIL}. Nothing is deleted.`
+        : `Reactivate ${accountTitle(stats)}?\n\nIts people will be able to sign in again.`,
+    );
+    if (!ok) return;
+    setSavingBlock(true);
+    try {
+      const res = await api<{ failed?: number }>(`/api/admin8085/accounts/${stats.account_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocked }),
+      });
+      if (res.failed) toast.warning(`Saved, but ${res.failed} member(s) could not be updated at the sign-in service. Try again.`);
+      else toast.success(blocked ? 'Account blocked' : 'Account reactivated');
+      await onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingBlock(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -810,7 +850,10 @@ function AccountDetail({
           All accounts
         </Button>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold leading-tight">{accountTitle(stats)}</h2>
+          <h2 className="truncate text-base font-semibold leading-tight">
+            {accountTitle(stats)}
+            {isBlocked && <BlockedBadge />}
+          </h2>
           <p className="truncate text-xs text-muted-foreground">
             {accountSubtitle(stats)} · joined {when(stats.created_at)}
           </p>
@@ -835,6 +878,32 @@ function AccountDetail({
             Save
           </Button>
         </div>
+      </div>
+
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5',
+          isBlocked ? 'border-red-500/40 bg-red-500/10' : 'border-border bg-card',
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">{isBlocked ? 'This account is blocked' : 'Account is active'}</p>
+          <p className="text-xs text-muted-foreground">
+            {isBlocked
+              ? `Blocked ${when(stats.blocked_at)}. Its people cannot sign in; they are told to write to ${SUPPORT_EMAIL}.`
+              : 'Blocking stops everyone of this account from signing in. They see a blocked message with the address to write to. Nothing is deleted.'}
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant={isBlocked ? 'default' : 'outline'}
+          className={isBlocked ? undefined : 'border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-400'}
+          disabled={savingBlock}
+          onClick={() => void setBlocked(!isBlocked)}
+        >
+          {savingBlock ? <Loader2 className="size-4 animate-spin" /> : isBlocked ? <Check className="size-4" /> : <Ban className="size-4" />}
+          {isBlocked ? 'Reactivate account' : 'Block account'}
+        </Button>
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-border">

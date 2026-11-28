@@ -34,6 +34,7 @@ import { canSeeSection, cleanSections, type SectionKey } from "./sections";
 import { getT } from "@/lib/i18n/translate";
 import { PlanLimitError, planAllows, type Plan } from "@/lib/plans/plans";
 import { loadPlan } from "@/lib/plans/server";
+import { ACCOUNT_BLOCKED_MESSAGE } from "./blocked";
 
 const t = getT("LibErrors.auth");
 
@@ -60,6 +61,15 @@ export class ForbiddenError extends Error {
   }
 }
 
+/** The platform admin blocked this account (migration 085). */
+export class AccountBlockedError extends ForbiddenError {
+  readonly code = "account_blocked" as const;
+  constructor() {
+    super(ACCOUNT_BLOCKED_MESSAGE);
+    this.name = "AccountBlockedError";
+  }
+}
+
 /**
  * Convert one of the typed errors above (or anything else) into a
  * `NextResponse`. Routes can do:
@@ -73,6 +83,9 @@ export class ForbiddenError extends Error {
  * server internals out of the wire.
  */
 export function toErrorResponse(err: unknown): NextResponse {
+  if (err instanceof AccountBlockedError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+  }
   if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
@@ -181,6 +194,11 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     // account_id points at no readable account row — orphaned profile
     // or an RLS gap. Same "can't scope this user" outcome as above.
     throw new ForbiddenError(t("notLinked"));
+  }
+  // A blocked account can do nothing through the server, whoever of its
+  // people is asking and however fresh their session.
+  if ((account as { blocked_at?: string | null }).blocked_at) {
+    throw new AccountBlockedError();
   }
 
   return {

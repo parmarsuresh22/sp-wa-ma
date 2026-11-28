@@ -48,7 +48,12 @@ export async function middleware(request: NextRequest) {
   // they can accept the invitation in one click. Without this,
   // a forwarded invite link to someone who's already signed in
   // would silently drop them on /dashboard.
-  if (user && (
+  // A member of a blocked account is sent to /login?error=blocked to
+  // read why. Their session may still be alive at that moment, so that
+  // one address is left alone instead of bouncing back to the dashboard.
+  const blockedNotice =
+    request.nextUrl.pathname === '/login' && request.nextUrl.searchParams.get('error') === 'blocked'
+  if (user && !blockedNotice && (
     request.nextUrl.pathname === '/login' ||
     request.nextUrl.pathname === '/signup' ||
     request.nextUrl.pathname === '/forgot-password'

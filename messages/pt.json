@@ -14,7 +14,9 @@
     "noAccount": "Não tem uma conta?",
     "createAccount": "Criar conta",
     "linkExpired": "Esse link expirou. Para redefinir a senha, use “Esqueceu a senha?” para pedir um novo; se estava confirmando seu e-mail, cadastre-se novamente.",
-    "linkInvalid": "Não foi possível entrar com esse link. Se estava confirmando seu e-mail, ele já pode estar verificado — basta entrar abaixo. Para redefinir a senha, peça um novo link e abra-o no mesmo navegador em que o solicitou."
+    "linkInvalid": "Não foi possível entrar com esse link. Se estava confirmando seu e-mail, ele já pode estar verificado — basta entrar abaixo. Para redefinir a senha, peça um novo link e abra-o no mesmo navegador em que o solicitou.",
+    "blockedTitle": "This account is blocked",
+    "blockedText": "You cannot sign in because this account has been blocked. To ask for it to be reactivated, please write to <email></email>"
   },
   "Sidebar": {
     "title": "Atlas",
@@ -2281,7 +2283,9 @@
       "signOutEverywhere": "Sair de todos os lugares",
       "signOutFailed": "Falha ao sair: {message}",
       "avatarAlt": "Avatar",
-      "fullNamePlaceholder": "Maria Souza"
+      "fullNamePlaceholder": "Maria Souza",
+      "passwordWeak": "Choose a stronger password: at least 8 characters with a capital letter, a small letter, a number and a symbol.",
+      "passwordGuessable": "That password is too easy to guess. Avoid common words such as \"password\" and your own email name."
     },
     "appearance": {
       "title": "Aparência",
@@ -2581,13 +2585,15 @@
     "emailLabel": "E-mail",
     "emailPlaceholder": "voce@exemplo.com",
     "passwordLabel": "Senha",
-    "passwordPlaceholder": "Pelo menos 6 caracteres",
+    "passwordPlaceholder": "8+ characters, mixed",
     "confirmPasswordLabel": "Confirmar senha",
     "confirmPasswordPlaceholder": "Repita sua senha",
     "creating": "Criando conta...",
     "submit": "Criar conta",
     "haveAccount": "Já tem uma conta?",
-    "signIn": "Entrar"
+    "signIn": "Entrar",
+    "passwordWeak": "Choose a stronger password: at least 8 characters with a capital letter, a small letter, a number and a symbol.",
+    "passwordGuessable": "That password is too easy to guess. Avoid common words such as \"password\" and your own email name."
   },
   "ForgotPasswordPage": {
     "checkEmailTitle": "Verifique seu e-mail",
@@ -2604,7 +2610,7 @@
     "title": "Escolha uma nova senha",
     "desc": "Informe uma nova senha para a sua conta.",
     "passwordLabel": "Nova senha",
-    "passwordPlaceholder": "Pelo menos 6 caracteres",
+    "passwordPlaceholder": "8+ characters, mixed",
     "confirmPasswordLabel": "Confirmar nova senha",
     "confirmPasswordPlaceholder": "Repita a nova senha",
     "submit": "Atualizar senha",
@@ -2618,7 +2624,9 @@
     "backToSignIn": "Voltar ao login",
     "successTitle": "Senha atualizada",
     "successDesc": "Você está conectado com a nova senha.",
-    "continueToDashboard": "Ir para o painel"
+    "continueToDashboard": "Ir para o painel",
+    "passwordWeak": "Choose a stronger password: at least 8 characters with a capital letter, a small letter, a number and a symbol.",
+    "passwordGuessable": "That password is too easy to guess. Avoid common words such as \"password\" and your own email name."
   },
   "JoinPage": {
     "fail": {
@@ -4035,5 +4043,62 @@
       "wishes": "Wish scheduler",
       "api_keys": "API keys"
     }
+  },
+  "AuthShowcase": {
+    "byline": "by LLC Solution",
+    "footer": "Atlas by LLC Solution",
+    "headline": "Every customer conversation on WhatsApp, looked after in one place.",
+    "subline": "For a business with a team and for one person working alone: reply, remind, book and follow up without missing anyone.",
+    "business": "Business",
+    "individual": "Individual",
+    "inbox": {
+      "title": "One shared inbox",
+      "text": "Every WhatsApp chat in one place, for you and your whole team."
+    },
+    "service": {
+      "title": "Service reminders",
+      "text": "Customers hear from you when their next service is due."
+    },
+    "broadcasts": {
+      "title": "Broadcasts",
+      "text": "Send an offer or an update to all your customers in one go."
+    },
+    "wishes": {
+      "title": "Wishes on time",
+      "text": "Birthday and anniversary wishes that go out by themselves."
+    },
+    "ai": {
+      "title": "AI agent",
+      "text": "Answers customers day and night, in their own language."
+    },
+    "appointments": {
+      "title": "Appointments",
+      "text": "Bookings on WhatsApp, confirmed with a card and a QR code."
+    },
+    "events": {
+      "title": "Event passes",
+      "text": "Passes sent on WhatsApp and scanned quickly at the gate."
+    },
+    "contacts": {
+      "title": "Contacts in order",
+      "text": "Your phone contacts brought in, tagged and easy to find."
+    },
+    "pipelines": {
+      "title": "Pipelines",
+      "text": "Follow every lead from the first hello to the closed deal."
+    },
+    "automations": {
+      "title": "Automations and flows",
+      "text": "Replies and follow-ups that run without anyone typing."
+    }
+  },
+  "PasswordRules": {
+    "title": "Your password needs:",
+    "length": "At least 8 characters",
+    "lower": "A small letter (a-z)",
+    "upper": "A capital letter (A-Z)",
+    "number": "A number (0-9)",
+    "symbol": "A symbol (like @ # ! %)",
+    "guessable": "Too easy to guess: avoid common words and your own email name."
   }
 }
