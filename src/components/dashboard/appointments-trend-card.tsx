@@ -120,7 +120,7 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
     `/appointments?channel=${channelId ?? state.channelId}${day ? `&day=${day}` : ''}`
 
   return (
-    <Card className="lg:w-1/2">
+    <Card>
       <CardHeader>
         <CardTitle>{t('dashCalendarTitle')}</CardTitle>
         <CardDescription>{t('dashCalendarHint', { count: counts.get(today) ?? 0 })}</CardDescription>
@@ -131,7 +131,7 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
         </CardAction>
       </CardHeader>
       <CardContent>
-        <div className="mx-auto w-full max-w-sm">
+        <div className="mx-auto w-full max-w-xs">
           <div className="flex items-center justify-between">
             <button type="button" aria-label={t('prevMonth')} onClick={() => move(-1)} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
               <ChevronLeft className="size-4" />
@@ -141,7 +141,7 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
               <ChevronRight className="size-4" />
             </button>
           </div>
-          <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[11px] text-muted-foreground">
+          <div className="mt-2 grid grid-cols-7 gap-x-1 gap-y-1.5 text-center text-[11px] text-muted-foreground">
             {Array.from({ length: 7 }, (_, i) => (
               <span key={i}>
                 {new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', weekday: 'narrow' }).format(new Date(Date.UTC(2024, 0, 1 + i)))}
@@ -153,13 +153,15 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
                   key={c}
                   href={link(c)}
                   className={cn(
-                    'flex h-10 flex-col items-center justify-center rounded-md border text-xs leading-none text-foreground hover:border-primary',
+                    'relative flex h-8 items-center justify-center rounded-md border text-xs leading-none text-foreground hover:border-primary',
                     c === today ? 'border-primary bg-primary/15 font-semibold' : 'border-transparent',
                   )}
                 >
                   {Number(c.slice(8))}
                   {(counts.get(c) ?? 0) > 0 && (
-                    <span className="mt-0.5 rounded-full bg-primary/30 px-1 text-[10px] leading-[14px]">{counts.get(c)}</span>
+                    <span className="absolute -right-0.5 -top-1 min-w-3.5 rounded-full bg-primary px-0.5 text-center text-[9px] font-semibold leading-[14px] text-primary-foreground">
+                      {counts.get(c)}
+                    </span>
                   )}
                 </Link>
               ) : (
@@ -170,6 +172,22 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * The appointments row at the top of the dashboard: a small calendar
+ * and, filling the rest of the row, the appointments chart. Both show
+ * under the same condition, so the row is either complete or absent.
+ */
+export function AppointmentsDashboardRow({ channelId }: { channelId?: string | null }) {
+  const state = useEnabledAppointments(channelId)
+  if (!state) return null
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(250px,1fr)_minmax(0,3fr)]">
+      <AppointmentsCalendarCard channelId={channelId} />
+      <AppointmentsTrendCard channelId={channelId} />
+    </div>
   )
 }
 

@@ -52,6 +52,7 @@ import {
 } from '@/lib/whatsapp/providers/types'
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
 import { accountIsBlocked } from '@/lib/auth/blocked-server'
+import { assistantsMayAnswer } from '@/lib/appointments/wake'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -927,7 +928,20 @@ export async function processInboundMessage(
     })
     eventsConsumed = events.consumed
   }
-  if (!eventsConsumed && !ctx.isGroup && !contentConsumed && !interactiveReplyId && inboundText.trim()) {
+  // "Answer only when woken" (migration 086): on a number that is also
+  // somebody's personal WhatsApp, the Appointment assistant and the AI
+  // agent stay out of a chat until the customer writes a wake word.
+  const assistantsAwake =
+    !eventsConsumed && !ctx.isGroup && !contentConsumed && !interactiveReplyId && inboundText.trim()
+      ? await assistantsMayAnswer(supabaseAdmin(), {
+          accountId,
+          channelId: ctx.channelId,
+          conversationId: conversation.id,
+          contactId: contactRecord.id,
+          text: inboundText,
+        })
+      : false
+  if (assistantsAwake) {
     const appointment = !appointmentsInPlan
       ? { consumed: false }
       : await dispatchInboundToAppointments({

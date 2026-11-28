@@ -148,6 +148,14 @@ and polish.
 
 ### Fixed
 
+- **Answer only when woken.** Appointments settings have a "When to
+  answer" section for numbers that are also a personal WhatsApp: the
+  Appointment assistant and the AI agent stay silent in a chat until the
+  customer writes one of the business's wake words (suggested ones are
+  filled in), keep answering that chat for a set time, then sleep again.
+  A contact tagged "Personal" is never auto-answered. Off by default
+  (migration 086).
+
 - **Blocking an account.** The platform admin page has a Block account /
   Reactivate account button on every account. While an account is
   blocked none of its people can sign in or use the portal or its API

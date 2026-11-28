@@ -7,6 +7,7 @@
 // between the two with `Intl`, so daylight-saving zones work too.
 // ============================================================
 
+import { cleanWakeMinutes, cleanWakeWords } from './wake'
 import { REPLY_LANGUAGES } from '@/lib/ai/languages'
 
 export type ReminderMode = 'none' | 'same_day' | 'day_before'
@@ -46,6 +47,16 @@ export interface AppointmentSettings {
   confirm_template_language: string | null
   reminder_template: string | null
   reminder_template_language: string | null
+  /**
+   * Answer only when woken (migration 086): the assistants stay silent
+   * in a chat until a wake word arrives. For numbers that also get
+   * personal messages.
+   */
+  wake_mode: boolean
+  /** The wake words in force (the suggested ones until the business sets its own). */
+  wake_words: string[]
+  /** Minutes a woken chat stays awake after its last message. */
+  wake_minutes: number
 }
 
 export { REPLY_LANGUAGES }
@@ -314,6 +325,9 @@ export function parseSettingsInput(
             ),
           ].slice(0, 10)
         : [],
+      wake_mode: raw.wake_mode === true,
+      wake_words: cleanWakeWords(raw.wake_words),
+      wake_minutes: cleanWakeMinutes(raw.wake_minutes),
       confirm_template: text(raw.confirm_template, 200),
       confirm_template_language: text(raw.confirm_template_language, 20),
       reminder_template: text(raw.reminder_template, 200),

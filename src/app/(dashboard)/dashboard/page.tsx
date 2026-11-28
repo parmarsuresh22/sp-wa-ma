@@ -26,7 +26,7 @@ import { derivePresence } from '@/lib/presence'
 
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { AttentionRow } from '@/components/dashboard/attention-row'
-import { AppointmentsCalendarCard, AppointmentsTrendCard } from '@/components/dashboard/appointments-trend-card'
+import { AppointmentsDashboardRow } from '@/components/dashboard/appointments-trend-card'
 import { CampaignsCard } from '@/components/dashboard/campaigns-card'
 import { KpiRow } from '@/components/dashboard/kpi-row'
 import { MessageVolumeCard } from '@/components/dashboard/message-volume-card'
@@ -185,7 +185,7 @@ function DashboardPageInner() {
         <>
           {/* First thing on the page when appointments are in use;
               renders nothing otherwise. */}
-          {sees('appointments') && <AppointmentsCalendarCard channelId={channelId} />}
+          {sees('appointments') && <AppointmentsDashboardRow channelId={channelId} />}
           {seesInbox && <AttentionRow data={data} now={now} onlineCount={onlineCount} />}
           {seesInbox && <KpiRow data={data} currency={defaultCurrency} />}
 
@@ -195,9 +195,6 @@ function DashboardPageInner() {
               <ReplyQueueCard data={data} now={now} />
             </div>
           )}
-
-          {/* Renders nothing unless booking in chat is on for a number. */}
-          {sees('appointments') && <AppointmentsTrendCard channelId={channelId} />}
 
           {(sees('pipelines') || seesInbox || sees('broadcasts')) && (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">

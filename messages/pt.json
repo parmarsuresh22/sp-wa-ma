@@ -3707,7 +3707,16 @@
     "languageAuto": "Auto (the customer's own language)",
     "languageHint": "The assistant answers in this language, and the confirmation, moved, cancelled and reminder messages are sent in it too. It understands every language whichever you choose.",
     "holidayFrom": "From",
-    "holidayTo": "To (optional)"
+    "holidayTo": "To (optional)",
+    "wakeTitle": "When to answer",
+    "wakeSectionHint": "For a number that is also your personal WhatsApp.",
+    "wakeMode": "Answer only when the customer uses a wake word",
+    "wakeModeHint": "The Appointment assistant and the AI agent of this number stay silent in a chat until the customer writes one of the words below. Personal messages get no automatic reply.",
+    "wakeWords": "Wake words",
+    "wakeWordsHint": "Separate them with commas. A word also counts with an ending: \"book\" wakes on \"booking\", not on \"facebook\". Short phrases work too.",
+    "wakeWordsReset": "Use the suggested words",
+    "wakeMinutes": "Keep answering after the last message (minutes)",
+    "wakePersonalHint": "A woken chat goes back to sleep after that time; other chats are not affected. A contact with the tag \"Personal\" is never answered automatically, even with a wake word."
   },
   "Events": {
     "title": "Events",

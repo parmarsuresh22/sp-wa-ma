@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { DEFAULT_WAKE_WORDS, cleanWakeWords } from '@/lib/appointments/wake';
 import { toast } from 'sonner';
 import {
   CalendarCheck,
@@ -1672,6 +1673,8 @@ function SettingsTab({
   const [saving, setSaving] = useState(false);
   const [holiday, setHoliday] = useState('');
   const [holidayTo, setHolidayTo] = useState('');
+  // The wake words as typed; null until the field is touched.
+  const [wakeText, setWakeText] = useState<string | null>(null);
   const set = <K extends keyof AppointmentSettings>(key: K, value: AppointmentSettings[K]) =>
     setS((prev) => ({ ...prev, [key]: value }));
 
@@ -1898,6 +1901,65 @@ function SettingsTab({
               {t('addQuestion')}
             </Button>
           </div>
+        </Section>
+
+        <Section title={t('wakeTitle')} hint={t('wakeSectionHint')}>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--primary)]"
+              checked={!!s.wake_mode}
+              disabled={off}
+              onChange={(e) => set('wake_mode', e.target.checked)}
+            />
+            <span>
+              {t('wakeMode')}
+              <span className="block text-xs text-muted-foreground">{t('wakeModeHint')}</span>
+            </span>
+          </label>
+          {s.wake_mode && (
+            <div className="space-y-3">
+              <Label text={t('wakeWords')}>
+                <textarea
+                  rows={3}
+                  className={cn(field, 'h-auto w-full py-2')}
+                  disabled={off}
+                  value={wakeText ?? (s.wake_words ?? []).join(', ')}
+                  placeholder={DEFAULT_WAKE_WORDS.join(', ')}
+                  onChange={(e) => {
+                    setWakeText(e.target.value);
+                    set('wake_words', cleanWakeWords(e.target.value));
+                  }}
+                />
+              </Label>
+              <p className="text-xs text-muted-foreground">{t('wakeWordsHint')}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={off}
+                onClick={() => {
+                  setWakeText(null);
+                  set('wake_words', [...DEFAULT_WAKE_WORDS]);
+                }}
+              >
+                {t('wakeWordsReset')}
+              </Button>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Label text={t('wakeMinutes')}>
+                  <input
+                    type="number"
+                    min={5}
+                    max={1440}
+                    className={cn(field, 'w-full')}
+                    disabled={off}
+                    value={s.wake_minutes ?? 30}
+                    onChange={(e) => set('wake_minutes', Number(e.target.value))}
+                  />
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">{t('wakePersonalHint')}</p>
+            </div>
+          )}
         </Section>
 
         <Section title={t('reminder')} hint={t('reminderHint')}>

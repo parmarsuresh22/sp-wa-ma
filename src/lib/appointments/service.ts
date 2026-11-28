@@ -10,6 +10,7 @@
 // and change their own appointments.
 // ============================================================
 
+import { cleanWakeMinutes, wakeWordsInForce } from './wake'
 import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -152,6 +153,9 @@ export function settingsFromRow(
     confirm_template_language: (r.confirm_template_language as string) ?? null,
     reminder_template: (r.reminder_template as string) ?? null,
     reminder_template_language: (r.reminder_template_language as string) ?? null,
+    wake_mode: r.wake_mode === true,
+    wake_words: wakeWordsInForce(Array.isArray(r.wake_words) ? (r.wake_words as string[]) : []),
+    wake_minutes: cleanWakeMinutes(r.wake_minutes),
   }
 }
 
