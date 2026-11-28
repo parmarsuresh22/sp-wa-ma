@@ -53,8 +53,8 @@
     "plans": "Plans",
     "notInPlan": "Not in your plan (read-only)",
     "planLine": "{plan} plan",
-    "formStudio": "Form Studio",
-    "formStudioHint": "FOMS, shown to the platform admin only. It runs on your own computer: start it with launch_foms.bat in the foms folder first."
+    "formStudio": "AEDA Forms",
+    "formStudioHint": "AEDA Forms (FOMS), shown to the platform admin only. It runs on your own computer: start it with launch_foms.bat in the foms folder first."
   },
   "Header": {
     "dashboard": "Painel",

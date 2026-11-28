@@ -130,7 +130,13 @@ function askFormStudio(): Promise<string | null> {
   formStudioAsked ??= fetch("/api/foms/access", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : null))
     .then((data: { url?: string } | null) => (data && typeof data.url === "string" ? data.url : null))
-    .catch(() => null);
+    .catch(() => null)
+    .then((url) => {
+      // A "no" is not kept: the next page asks again, so a hiccup (or a
+      // sign-in that had not settled yet) never hides the link for good.
+      if (!url) formStudioAsked = null;
+      return url;
+    });
   return formStudioAsked;
 }
 
@@ -349,6 +355,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
+            {/* AEDA Forms (FOMS): the platform admin only. */}
+            {formStudioUrl && (
+              <li>
+                <a
+                  href={formStudioUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t("formStudioHint")}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:py-2"
+                >
+                  <FileInput className="h-4 w-4" />
+                  <span className="flex-1">{t("formStudio")}</span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                </a>
+              </li>
+            )}
           </ul>
 
           <div className="my-4 border-t border-border" />
@@ -373,21 +395,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
-            {formStudioUrl && (
-              <li>
-                <a
-                  href={formStudioUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={t("formStudioHint")}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:py-2"
-                >
-                  <FileInput className="h-4 w-4" />
-                  <span className="flex-1">{t("formStudio")}</span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                </a>
-              </li>
-            )}
           </ul>
         </nav>
 
