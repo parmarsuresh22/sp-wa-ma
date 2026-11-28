@@ -1,5 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { recoverBridgeChannelsSometimes } from '@/lib/whatsapp/bridge-keepalive'
+import { supabaseAdmin as keepAliveDb } from '@/lib/flows/admin-client'
 import { readCappedBody } from '@/lib/whatsapp/webhook-body'
 import {
   ackToStatus,
@@ -112,6 +114,9 @@ export async function POST(
     } catch (err) {
       console.error('[bridge-webhook] processing failed:', err)
     }
+    // Traffic on one number is the moment to look after the others:
+    // numbers that dropped are started again (migration 088).
+    await recoverBridgeChannelsSometimes(keepAliveDb())
   })
 
   return NextResponse.json({ status: 'received' })

@@ -61,6 +61,20 @@ export interface RecoveryResult {
   failed: number
 }
 
+let lastSweepAt = 0
+
+/**
+ * The same, for callers that fire very often (every incoming event of
+ * every number): at most one look per minute per server instance. This
+ * is what keeps the numbers of every account connected even when no
+ * scheduler calls the portal.
+ */
+export async function recoverBridgeChannelsSometimes(db: SupabaseClient): Promise<void> {
+  if (Date.now() - lastSweepAt < 60_000) return
+  lastSweepAt = Date.now()
+  await recoverBridgeChannels(db)
+}
+
 type Row = ChannelRow & { updated_at?: string | null; bridge_keep_stopped?: boolean | null }
 
 /**
