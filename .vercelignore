@@ -1,3 +1,4 @@
-# Form Studio is a separate Python service; it is not part of the web deployment.
-foms
-launch_atlas.bat
+# The original Python application is kept for reference; it is not part of the web deployment.
+# Anchored with a leading slash: a bare "foms" would also drop src/lib/foms and src/components/foms.
+/foms
+/launch_atlas.bat
