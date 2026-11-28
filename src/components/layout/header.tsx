@@ -37,6 +37,7 @@ const pageTitles: Record<string, string> = {
   "/agents": "agents",
   "/data": "data",
   "/plans": "plans",
+  "/aeda-forms": "aedaForms",
   "/settings": "settings",
 };
 

@@ -148,6 +148,14 @@ and polish.
 
 ### Fixed
 
+- **AEDA Forms is a module of the portal.** Projects, forms, a designer
+  (ten field types, required, choices, widths, stages), preview,
+  publish with kept versions, a public link anyone can fill in without
+  signing in, and an Answers table with search, stages, editing and CSV
+  download. Stored in Supabase (migration 089). Shown to the platform
+  admin only for now. The earlier Python copy stays in `foms/` for
+  reference; the menu no longer links to it.
+
 - **WhatsApp Web numbers reconnect by themselves.** A session that
   failed, stopped or never finished starting is started again every few
   minutes, from the scheduled job and whenever the list of numbers is

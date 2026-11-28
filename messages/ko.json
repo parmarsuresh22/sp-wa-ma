@@ -54,7 +54,8 @@
     "notInPlan": "Not in your plan (read-only)",
     "planLine": "{plan} plan",
     "formStudio": "AEDA Forms",
-    "formStudioHint": "AEDA Forms (FOMS), shown to the platform admin only. It runs on your own computer: start it with launch_foms.bat in the foms folder first."
+    "formStudioHint": "AEDA Forms: build forms and collect answers. Shown to the platform admin only for now.",
+    "adminOnly": "Admin"
   },
   "Header": {
     "dashboard": "대시보드",
@@ -80,7 +81,8 @@
     "flows": "Flows",
     "agents": "AI Agents",
     "data": "Data tables",
-    "plans": "Plans"
+    "plans": "Plans",
+    "aedaForms": "AEDA Forms"
   },
   "ModeToggle": {
     "switchMode": "{mode} 모드로 전환"

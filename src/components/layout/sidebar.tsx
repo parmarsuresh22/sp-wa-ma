@@ -26,7 +26,6 @@ import {
   Ticket,
   Lock,
   CreditCard,
-  ExternalLink,
   FileInput,
   Wrench,
   User,
@@ -122,14 +121,14 @@ const bottomNavItems = [
   { href: "/plans", labelKey: "plans", icon: CreditCard },
 ];
 
-// Form Studio (FOMS) is a separate service only the platform admin
-// uses. The server says whether this person may see its link, and where
-// it runs; asked once per page load, and anyone else gets "no".
+// AEDA Forms (migration 089) is shown to the platform admin only while
+// it is being tried out. The server says whether this person may see
+// it; asked once per page load, and anyone else gets "no".
 let formStudioAsked: Promise<string | null> | null = null;
 function askFormStudio(): Promise<string | null> {
-  formStudioAsked ??= fetch("/api/foms/access", { cache: "no-store" })
+  formStudioAsked ??= fetch("/api/aeda-forms/access", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : null))
-    .then((data: { url?: string } | null) => (data && typeof data.url === "string" ? data.url : null))
+    .then((data: { allowed?: boolean } | null) => (data?.allowed === true ? "/aeda-forms" : null))
     .catch(() => null)
     .then((url) => {
       // A "no" is not kept: the next page asks again, so a hiccup (or a
@@ -358,17 +357,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             {/* AEDA Forms (FOMS): the platform admin only. */}
             {formStudioUrl && (
               <li>
-                <a
+                <Link
                   href={formStudioUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   title={t("formStudioHint")}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:py-2"
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                    pathname.startsWith(formStudioUrl)
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
                 >
                   <FileInput className="h-4 w-4" />
                   <span className="flex-1">{t("formStudio")}</span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                </a>
+                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300">
+                    {t("adminOnly")}
+                  </span>
+                </Link>
               </li>
             )}
           </ul>

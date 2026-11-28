@@ -383,6 +383,31 @@ export const HELP_TOPICS = {
     },
     links: [{ label: { en: 'Email support', hi: 'Support को email करें' }, url: 'mailto:llc.sirohi.in@gmail.com' }],
   },
+  aedaForms: {
+    title: { en: 'AEDA Forms', hi: 'AEDA Forms' },
+    intro: {
+      en: 'Build a form, publish it, share its link, and collect the answers in the portal.',
+      hi: 'फ़ॉर्म बनाएं, publish करें, उसका लिंक भेजें, और जवाब portal में इकट्ठा करें।',
+    },
+    steps: {
+      en: [
+        'Create a project (a folder), then a form inside it.',
+        'In Design, add fields from the list, click a field to change its label, choices and width, and use the arrows to reorder.',
+        'Click Preview to try the form. Nothing sent from the preview is saved.',
+        'Click Publish. A published form is locked; click "Unpublish to edit" to change it. Every publish is kept as a version.',
+        'Copy the link and send it to people, for example on WhatsApp. They fill it in without signing in.',
+        'Open Answers to search, change the stage, edit or delete an answer, and download everything as a CSV file for Excel.',
+      ],
+      hi: [
+        'पहले project (एक फ़ोल्डर) बनाएं, फिर उसके अंदर फ़ॉर्म।',
+        'Design में सूची से fields जोड़ें, किसी field पर क्लिक करके उसका label, विकल्प और चौड़ाई बदलें, और तीरों से क्रम बदलें।',
+        'फ़ॉर्म आज़माने के लिए Preview दबाएं। Preview से भेजा गया कुछ भी save नहीं होता।',
+        'Publish दबाएं। Publish किया हुआ फ़ॉर्म lock रहता है; बदलने के लिए "Unpublish to edit" दबाएं। हर publish एक version के रूप में रखा जाता है।',
+        'लिंक copy करके लोगों को भेजें, जैसे WhatsApp पर। वे बिना sign in किए भर सकते हैं।',
+        'Answers खोलकर खोजें, stage बदलें, जवाब edit या delete करें, और सब कुछ Excel के लिए CSV फ़ाइल में download करें।',
+      ],
+    },
+  },
   settings: {
     title: { en: 'Settings', hi: 'सेटिंग्स' },
     intro: {
@@ -740,6 +765,7 @@ const PAGES: { path: string; topic: HelpTopicKey }[] = [
   { path: '/agents', topic: 'agents' },
   { path: '/data', topic: 'data' },
   { path: '/plans', topic: 'plans' },
+  { path: '/aeda-forms', topic: 'aedaForms' },
 ]
 
 /** The help topic of a page; null where the portal has nothing to say. */
