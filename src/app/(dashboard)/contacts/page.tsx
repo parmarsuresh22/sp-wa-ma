@@ -66,6 +66,7 @@ import { pageAfterRangeError, pageAfterShrink } from '@/lib/contacts/page-bounds
 import { usePageSize } from '@/hooks/use-page-size';
 import { ListPager } from '@/components/ui/list-pager';
 import { RefreshCw } from 'lucide-react';
+import { SyncContactsDialog } from '@/components/contacts/sync-contacts-dialog';
 
 
 interface ContactWithTags extends Contact {
@@ -256,25 +257,10 @@ export default function ContactsPage() {
     fetchContacts();
   }, [fetchContacts]);
 
-  // "Sync from phone": only for a WhatsApp Web number chosen above. The
+  // "Sync from phone": for the WhatsApp number chosen above. The
   // phone's contacts land under that number and no other.
-  const syncChannel = (channels ?? []).find((c) => c.id === channelId && c.provider === 'waha') ?? null;
-  const [syncing, setSyncing] = useState(false);
-  const syncFromPhone = async () => {
-    if (!syncChannel) return;
-    setSyncing(true);
-    try {
-      const res = await fetch(`/api/whatsapp/channels/${syncChannel.id}/sync-contacts`, { method: 'POST' });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; found?: number; added?: number };
-      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-      toast.success(t('syncDone', { found: data.found ?? 0, added: data.added ?? 0 }));
-      fetchContacts();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncing(false);
-    }
-  };
+  const syncChannel = (channels ?? []).find((c) => c.id === channelId) ?? null;
+  const [syncOpen, setSyncOpen] = useState(false);
 
   function openAddForm() {
     setEditContact(null);
@@ -409,12 +395,11 @@ export default function ContactsPage() {
           {canEdit && syncChannel && (
             <Button
               variant="outline"
-              disabled={syncing}
-              onClick={() => void syncFromPhone()}
+              onClick={() => setSyncOpen(true)}
               title={t('syncHint')}
               className="border-border text-muted-foreground hover:bg-muted"
             >
-              <RefreshCw className={syncing ? 'size-4 animate-spin' : 'size-4'} />
+              <RefreshCw className="size-4" />
               {t('syncBtn')}
             </Button>
           )}
@@ -891,6 +876,17 @@ export default function ContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {syncOpen && syncChannel && (
+        <SyncContactsDialog
+          channel={{
+            id: syncChannel.id,
+            name: syncChannel.label || syncChannel.display_phone || '',
+            isWeb: syncChannel.provider === 'waha',
+          }}
+          onClose={() => setSyncOpen(false)}
+          onDone={() => fetchContacts()}
+        />
+      )}
     </div>
   );
 }
