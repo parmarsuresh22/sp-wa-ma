@@ -15,29 +15,99 @@ export interface DeviceContact {
   name: string | null
 }
 
-/**
- * The people in a bridge's contact list: saved contacts with a real
- * phone number. Groups, broadcast lists, hidden-number ids and the
- * phone's own number are left out. Pure.
- */
-export function pickDeviceContacts(raw: unknown, ownNumber?: string | null): DeviceContact[] {
-  const own = (ownNumber ?? '').replace(/\D/g, '')
-  const seen = new Map<string, DeviceContact>()
+/** What a sync saw, in numbers — to tell why a list came out short. */
+export interface DeviceContactStats {
+  total: number
+  phoneIds: number
+  hiddenIds: number
+  hiddenResolved: number
+  groupsAndLists: number
+  notSaved: number
+  kept: number
+}
+
+const PHONE_ID = /@(c\.us|s\.whatsapp\.net)$/
+const digitsOf = (v: unknown) => (typeof v === 'string' ? v.split('@')[0].replace(/\D/g, '') : '')
+const idOf = (v: unknown): string =>
+  typeof v === 'string'
+    ? v
+    : typeof (v as { _serialized?: unknown } | null)?._serialized === 'string'
+      ? (v as { _serialized: string })._serialized
+      : ''
+
+/** `<digits>@lid` → phone digits, from the bridge's list of hidden ids. */
+export function lidMapFrom(raw: unknown): Map<string, string> {
+  const map = new Map<string, string>()
   for (const item of Array.isArray(raw) ? raw : []) {
     const r = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
-    const id = typeof r.id === 'string' ? r.id : typeof (r.id as { _serialized?: unknown })?._serialized === 'string' ? ((r.id as { _serialized: string })._serialized) : ''
-    if (!/@(c\.us|s\.whatsapp\.net)$/.test(id)) continue
+    const lid = idOf(r.lid)
+    const pn = digitsOf(idOf(r.pn))
+    if (lid && pn) map.set(lid.split('@')[0], pn)
+  }
+  return map
+}
+
+/**
+ * The people in a bridge's contact list: contacts with a real phone
+ * number. Groups, broadcast lists, blocked people and the phone's own
+ * number are left out.
+ *
+ * WhatsApp now lists many people under a hidden id (`…@lid`) instead of
+ * their number; `lids` (from the bridge) turns those back into numbers,
+ * and an entry that carries its number in another field is read from
+ * there. When the bridge marks which entries are saved in the phone's
+ * address book, only those are kept; when it marks none, everyone with
+ * a number is. Pure.
+ */
+export function pickDeviceContacts(
+  raw: unknown,
+  ownNumber?: string | null,
+  lids: Map<string, string> = new Map(),
+): { contacts: DeviceContact[]; stats: DeviceContactStats } {
+  const list = (Array.isArray(raw) ? raw : []).map((item) => (item && typeof item === 'object' ? item : {}) as Record<string, unknown>)
+  const own = (ownNumber ?? '').replace(/\D/g, '')
+  // Does this bridge tell saved contacts apart at all?
+  const marksSaved = list.some((r) => r.isMyContact === true)
+  const stats: DeviceContactStats = { total: list.length, phoneIds: 0, hiddenIds: 0, hiddenResolved: 0, groupsAndLists: 0, notSaved: 0, kept: 0 }
+  const seen = new Map<string, DeviceContact>()
+
+  for (const r of list) {
+    const id = idOf(r.id)
+    let digits = ''
+    if (PHONE_ID.test(id)) {
+      stats.phoneIds++
+      digits = digitsOf(id)
+    } else if (id.endsWith('@lid')) {
+      stats.hiddenIds++
+      digits =
+        lids.get(id.split('@')[0]) ||
+        digitsOf(idOf(r.phoneNumber)) ||
+        digitsOf(idOf(r.jid)) ||
+        digitsOf(idOf(r.pn)) ||
+        (typeof r.number === 'string' ? r.number.replace(/\D/g, '') : '')
+      if (digits) stats.hiddenResolved++
+    } else {
+      stats.groupsAndLists++
+      continue
+    }
     if (r.isGroup === true || r.isMe === true || r.isBlocked === true) continue
-    // Only people saved in the phone's address book, when the bridge says.
-    if (r.isMyContact === false) continue
-    const digits = id.split('@')[0].replace(/\D/g, '')
+    if (marksSaved && r.isMyContact !== true) {
+      stats.notSaved++
+      continue
+    }
     if (digits.length < 8 || digits.length > 15 || digits === own) continue
     const pick = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : null)
-    const name = pick(r.name) ?? pick(r.shortName) ?? pick(r.pushname) ?? pick(r.pushName) ?? null
+    const name = pick(r.name) ?? pick(r.shortName) ?? pick(r.verifiedName) ?? pick(r.pushname) ?? pick(r.pushName) ?? null
+    // Without the saved mark, a nameless entry is a stranger from a group.
+    if (!marksSaved && !name) {
+      stats.notSaved++
+      continue
+    }
     const had = seen.get(digits)
     if (!had || (!had.name && name)) seen.set(digits, { digits, name })
   }
-  return [...seen.values()]
+  stats.kept = seen.size
+  return { contacts: [...seen.values()], stats }
 }
 
 const CHUNK = 500

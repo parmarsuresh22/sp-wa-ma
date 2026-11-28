@@ -37,6 +37,8 @@ interface EndpointRow {
   id: string;
   url: string;
   secret: string;
+  /** The WhatsApp number it listens to (migration 084); null = every number. */
+  channel_id?: string | null;
 }
 
 /**
@@ -52,12 +54,32 @@ export async function dispatchWebhookEvent(
   try {
     const { data: rows, error } = await db
       .from('webhook_endpoints')
-      .select('id, url, secret')
+      .select('*')
       .eq('account_id', accountId)
       .eq('is_active', true)
       .contains('events', [event]);
 
     if (error || !rows || rows.length === 0) return;
+
+    // An endpoint registered for one WhatsApp number is not told about
+    // chats on the account's other numbers. The number of an event is
+    // that of its conversation; an event about no conversation (a
+    // contact, say) goes to every endpoint.
+    let endpoints = rows as EndpointRow[];
+    if (endpoints.some((r) => r.channel_id)) {
+      const d = (data && typeof data === 'object' ? data : {}) as { channel_id?: unknown; conversation_id?: unknown };
+      let eventChannel = typeof d.channel_id === 'string' ? d.channel_id : null;
+      if (!eventChannel && typeof d.conversation_id === 'string') {
+        const { data: conv } = await db
+          .from('conversations')
+          .select('channel_id')
+          .eq('id', d.conversation_id)
+          .maybeSingle();
+        eventChannel = (conv as { channel_id?: string | null } | null)?.channel_id ?? null;
+      }
+      if (eventChannel) endpoints = endpoints.filter((r) => !r.channel_id || r.channel_id === eventChannel);
+      if (endpoints.length === 0) return;
+    }
 
     // Sign the exact bytes we send so a receiver can recompute the
     // HMAC over the raw request body. `id` is a per-delivery uuid the
@@ -73,7 +95,7 @@ export async function dispatchWebhookEvent(
     const tsSeconds = Math.floor(Date.now() / 1000);
 
     await Promise.allSettled(
-      (rows as EndpointRow[]).map((row) =>
+      endpoints.map((row) =>
         deliverOne(db, row, event, payload, tsSeconds)
       )
     );

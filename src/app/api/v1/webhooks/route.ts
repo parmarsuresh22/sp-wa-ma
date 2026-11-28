@@ -79,6 +79,8 @@ export async function POST(request: Request) {
       .from('webhook_endpoints')
       .insert({
         account_id: ctx.accountId,
+        // Listens to the number of the key that registers it.
+        channel_id: ctx.channelId ?? null,
         created_by: ctx.createdBy,
         url,
         secret: encrypt(secret),

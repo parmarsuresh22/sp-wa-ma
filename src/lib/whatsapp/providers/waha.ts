@@ -370,6 +370,27 @@ export function createWahaClient(cfg: WahaClientConfig) {
     async listContacts(session: string): Promise<unknown> {
       return call('GET', `/api/contacts/all?session=${encodeURIComponent(session)}`)
     },
+    /**
+     * Every hidden id the bridge knows with the phone number behind it
+     * ([{ lid, pn }]), read page by page. Empty when the bridge has no
+     * such list.
+     */
+    async listLids(session: string): Promise<unknown[]> {
+      const all: unknown[] = []
+      const size = 100
+      for (let page = 0; page < 200; page++) {
+        let rows: unknown
+        try {
+          rows = await call('GET', `/api/${encodeURIComponent(session)}/lids?limit=${size}&offset=${page * size}`)
+        } catch {
+          break
+        }
+        if (!Array.isArray(rows) || rows.length === 0) break
+        all.push(...rows)
+        if (rows.length < size) break
+      }
+      return all
+    },
     async profilePictureUrl(session: string, chatId: string): Promise<string | null> {
       try {
         const r = await call<Record<string, unknown>>(

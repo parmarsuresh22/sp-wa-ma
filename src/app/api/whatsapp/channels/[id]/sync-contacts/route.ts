@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { loadChannel } from '@/lib/whatsapp/channels'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { createWahaClient } from '@/lib/whatsapp/providers/waha'
-import { MAX_SYNC_CONTACTS, pickDeviceContacts, saveDeviceContacts } from '@/lib/whatsapp/contact-sync'
+import { MAX_SYNC_CONTACTS, lidMapFrom, pickDeviceContacts, saveDeviceContacts } from '@/lib/whatsapp/contact-sync'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 
 type Params = { params: Promise<{ id: string }> }
@@ -37,10 +37,13 @@ export async function POST(_request: Request, { params }: Params) {
     }
 
     let raw: unknown
+    let lids: unknown[] = []
     try {
-      raw = await createWahaClient({ baseUrl: channel.bridge_base_url, apiKey: decrypt(channel.access_token) }).listContacts(
-        channel.bridge_session,
-      )
+      const bridge = createWahaClient({ baseUrl: channel.bridge_base_url, apiKey: decrypt(channel.access_token) })
+      raw = await bridge.listContacts(channel.bridge_session)
+      // Many people are listed under a hidden id now; this list gives
+      // their numbers back.
+      lids = await bridge.listLids(channel.bridge_session)
     } catch (err) {
       console.error('[contact-sync] the bridge did not return contacts:', err instanceof Error ? err.message : err)
       return NextResponse.json(
@@ -49,9 +52,23 @@ export async function POST(_request: Request, { params }: Params) {
       )
     }
 
-    const contacts = pickDeviceContacts(raw, channel.display_phone)
+    const { contacts, stats } = pickDeviceContacts(raw, channel.display_phone, lidMapFrom(lids))
     const result = await saveDeviceContacts(db, { accountId, channelId: channel.id, userId, contacts })
-    return NextResponse.json({ ...result, capped: contacts.length > MAX_SYNC_CONTACTS })
+    // What this run saw, in numbers only — so a short list can be
+    // explained afterwards without asking the customer for details.
+    const summary = { at: new Date().toISOString(), lids: lids.length, ...stats, ...result }
+    console.log('[contact-sync]', channel.id, JSON.stringify(summary))
+    await db
+      .from('internal_settings')
+      .upsert(
+        { key: `contact_sync_last:${channel.id}`, value: JSON.stringify(summary), updated_at: summary.at },
+        { onConflict: 'key' },
+      )
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+    return NextResponse.json({ ...result, stats, capped: contacts.length > MAX_SYNC_CONTACTS })
   } catch (err) {
     return toErrorResponse(err)
   }
