@@ -39,6 +39,28 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
+  // "Hide menu" on a computer, for working full screen. Remembered in
+  // this browser; the menu then opens as a drawer from the top bar.
+  const [menuHidden, setMenuHidden] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("atlas-menu-hidden") === "1") setMenuHidden(true);
+    } catch {
+      /* private window: the menu stays */
+    }
+  }, []);
+  const toggleMenuHidden = useCallback(() => {
+    setMenuHidden((was) => {
+      try {
+        window.localStorage.setItem("atlas-menu-hidden", was ? "0" : "1");
+      } catch {
+        /* not remembered, still applied */
+      }
+      return !was;
+    });
+    setSidebarOpen(false);
+  }, []);
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
@@ -68,9 +90,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       {/* Desktop alerts for new customer messages (opt-in via Settings →
           Your profile). Headless — renders nothing. */}
       <BrowserNotificationsListener />
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} hidden={menuHidden} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onOpenSidebar={() => setSidebarOpen(true)} />
+        <Header onOpenSidebar={() => setSidebarOpen(true)} menuHidden={menuHidden} onToggleMenuHidden={toggleMenuHidden} />
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Above every page: writes are being rejected and here's why.

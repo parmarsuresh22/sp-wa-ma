@@ -140,15 +140,20 @@ function askFormStudio(): Promise<string | null> {
 }
 
 interface SidebarProps {
-  /** Controlled on mobile by the Header's hamburger button. Ignored on lg+. */
+  /** The drawer is open: on a phone, or on a computer while the menu is hidden. */
   open?: boolean;
   onClose?: () => void;
+  /**
+   * The menu is hidden on a computer too (full-screen working): it then
+   * behaves as on a phone, a drawer opened from the top bar.
+   */
+  hidden?: boolean;
 }
 
 import { useTranslations } from "next-intl";
 import { BrandMark } from "@/components/brand/brand-mark";
 
-export function Sidebar({ open = false, onClose }: SidebarProps) {
+export function Sidebar({ open = false, onClose, hidden = false }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, allowedSections, signOut, plan } = useAuth();
@@ -223,7 +228,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         aria-label={t("closeMenu")}
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-30 bg-background/70 backdrop-blur-sm transition-opacity lg:hidden",
+          "fixed inset-0 z-30 bg-background/70 backdrop-blur-sm transition-opacity",
+          !hidden && "lg:hidden",
           open
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0",
@@ -237,7 +243,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           "transition-transform duration-200 ease-out will-change-transform",
           open ? "translate-x-0" : "-translate-x-full",
           // Desktop: static, always visible — reset all the mobile framing.
-          "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
+          !hidden && "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
         )}
         aria-label={t("primaryNav")}
       >
@@ -284,7 +290,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             type="button"
             onClick={onClose}
             aria-label={t("closeMenu")}
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+              !hidden && "lg:hidden",
+            )}
           >
             <X className="h-5 w-5" />
           </button>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSuperAdmin } from '@/lib/admin/super-admin'
+import { fomsAccess } from '@/lib/foms/api'
 
 /**
  * GET /api/aeda-forms/access
@@ -8,7 +8,7 @@ import { getSuperAdmin } from '@/lib/admin/super-admin'
  * admin, 404 for everyone else, while the module is being tried out.
  */
 export async function GET() {
-  const admin = await getSuperAdmin()
-  if (!admin) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const allowed = await fomsAccess().catch(() => null)
+  if (!allowed) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ allowed: true }, { headers: { 'Cache-Control': 'no-store' } })
 }

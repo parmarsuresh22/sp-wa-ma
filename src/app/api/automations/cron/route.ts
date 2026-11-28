@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse, after } from 'next/server'
 import { recoverBridgeChannels } from '@/lib/whatsapp/bridge-keepalive'
+import { runDueExtractTasks } from '@/lib/foms/api'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
   claimPendingExecution,
@@ -46,6 +47,8 @@ export async function GET(request: Request) {
   const admin = supabaseAdmin()
   // WhatsApp Web numbers that dropped are brought back (migration 088).
   after(() => recoverBridgeChannels(admin).then(() => undefined))
+  // Scheduled extracts of AEDA Forms that are due (migration 091).
+  after(() => runDueExtractTasks(admin).then(() => undefined))
   // Steps waiting for a blocked account stay waiting (migration 085).
   const { data: due, error } = await withoutBlocked(
     admin

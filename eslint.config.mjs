@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "public/opus/**",
     // Form Studio (FOMS): a separate Python service with its own plain scripts.
     "foms/**",
+    // The original AEDA Forms screens, copied as they are.
+    "public/aeda-static/**",
   ]),
 ]);
 

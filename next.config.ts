@@ -161,6 +161,17 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [...SECURITY_HEADERS],
       },
+      {
+        // AEDA Forms pages are whole documents of their own, shown in a
+        // frame on /aeda-forms. Same-origin framing only; this rule comes
+        // last so it replaces the DENY above for these pages alone.
+        source: "/aeda/:path*",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+      {
+        source: "/aeda",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
 };

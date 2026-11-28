@@ -82,7 +82,10 @@
     "agents": "AI Agents",
     "data": "Data tables",
     "plans": "Plans",
-    "aedaForms": "AEDA Forms"
+    "aedaForms": "AEDA Forms",
+    "fullScreen": "Full screen",
+    "hideMenu": "Hide the menu (full screen)",
+    "showMenu": "Show the menu"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"

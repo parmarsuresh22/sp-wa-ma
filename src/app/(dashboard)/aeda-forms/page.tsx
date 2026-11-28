@@ -1,17 +1,17 @@
 import { Suspense } from 'react';
 
-import { FormsStudio } from '@/components/aeda-forms/forms-studio';
+import { AedaFrame } from '@/components/foms/aeda-frame';
 
 /**
- * AEDA Forms (migration 089). Shown to the platform admin only while
- * the module is being tried out; the server answers "not found" to
- * everyone else, and the page then says it is not available.
+ * AEDA Forms (migration 091): the original FOMS application, shown as
+ * it is. Platform admin only while the module is being tried out; the
+ * server answers "not found" to everyone else.
  */
 export default function AedaFormsPage() {
   return (
-    // The studio reads the address (?project=, ?form=, ?view=).
+    // The frame reads the address (?p= is the page open inside it).
     <Suspense fallback={null}>
-      <FormsStudio />
+      <AedaFrame />
     </Suspense>
   );
 }

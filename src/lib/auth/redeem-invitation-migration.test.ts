@@ -10,6 +10,12 @@ const migrations = readdirSync(migrationsDir)
   .map((name) => ({ name, sql: readFileSync(join(migrationsDir, name), "utf8") }));
 
 const tablesWithoutDomainData = new Set([
+  // Migration 089, dropped again by 091 (the first, smaller AEDA Forms).
+  // The tables no longer exist; their successors (foms_*) are checked.
+  "aeda_form_projects",
+  "aeda_forms",
+  "aeda_form_versions",
+  "aeda_form_submissions",
   "profiles",
   "account_invitations",
   "member_presence",

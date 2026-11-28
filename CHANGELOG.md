@@ -148,6 +148,20 @@ and polish.
 
 ### Fixed
 
+- **AEDA Forms is the original application, as it is.** The module now
+  shows the original FOMS screens unchanged (same pages, styles and
+  scripts, built by `scripts/build-aeda.mjs`), and its Python backend is
+  rebuilt route for route on Supabase (`src/lib/foms`, migration 091):
+  projects, forms, the designer with roles, stages, rules and formulas,
+  the per-button workflow editor and engine, preview, publish and
+  versions, lookups, submissions with run traces, email through SendGrid
+  or SMTP, extracts to CSV and Excel (now or scheduled), export and
+  import, Settings and the master database. The original's own
+  end-to-end test gives the same output against both backends. Replaces
+  the smaller first version of the module. Platform admin only for now.
+- **Full screen.** A button in the top bar hides the menu on a computer;
+  the menu then opens as a drawer. Remembered in the browser.
+
 - **AEDA Forms is a module of the portal.** Projects, forms, a designer
   (ten field types, required, choices, widths, stages), preview,
   publish with kept versions, a public link anyone can fill in without

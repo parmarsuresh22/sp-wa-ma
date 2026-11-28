@@ -6,7 +6,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { HelpButton } from "@/components/help/help-button";
 import { helpTopicForPage } from "@/lib/help/topics";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import { LogOut, Maximize2, Menu, Minimize2, Settings as SettingsIcon, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Avatar,
   AvatarFallback,
@@ -66,11 +67,14 @@ interface HeaderProps {
   /** Wired to the shell's drawer state. Used only on mobile — the
    *  hamburger button is hidden on lg+. */
   onOpenSidebar?: () => void;
+  /** The menu is hidden on a computer (full-screen working). */
+  menuHidden?: boolean;
+  onToggleMenuHidden?: () => void;
 }
 
 import { useTranslations } from "next-intl";
 
-export function Header({ onOpenSidebar }: HeaderProps) {
+export function Header({ onOpenSidebar, menuHidden = false, onToggleMenuHidden }: HeaderProps) {
   const t = useTranslations("Header");
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
@@ -89,7 +93,11 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           type="button"
           onClick={onOpenSidebar}
           aria-label={t("openMenu")}
-          className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            // With the menu hidden this opens it as a drawer on a computer too.
+            !menuHidden && "lg:hidden",
+          )}
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -99,6 +107,20 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        {/* Full screen: hide the menu on a computer, or bring it back. */}
+        {onToggleMenuHidden && (
+          <button
+            type="button"
+            onClick={onToggleMenuHidden}
+            aria-pressed={menuHidden}
+            aria-label={menuHidden ? t("showMenu") : t("hideMenu")}
+            title={menuHidden ? t("showMenu") : t("hideMenu")}
+            className="hidden h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:inline-flex"
+          >
+            {menuHidden ? <Minimize2 className="size-[18px]" /> : <Maximize2 className="size-[18px]" />}
+            <span className="hidden xl:inline">{menuHidden ? t("showMenu") : t("fullScreen")}</span>
+          </button>
+        )}
         <Suspense fallback={null}>
           <PageHelp />
         </Suspense>
