@@ -148,6 +148,15 @@ and polish.
 
 ### Fixed
 
+- **AEDA Forms follows the portal's appearance.** Light or dark mode and
+  the accent colour chosen in Settings → Appearance now apply to every
+  AEDA Forms page, and change there as soon as they are changed in the
+  portal. Its own theme picker is replaced by a note pointing to the
+  portal's setting, and the separate blue banner is gone: the path
+  (Projects / project / form) is a plain line on the page.
+- **AEDA Forms dates.** Dates showed as "Invalid Date"; they are sent
+  in the format the original screens expect.
+
 - **AEDA Forms is the original application, as it is.** The module now
   shows the original FOMS screens unchanged (same pages, styles and
   scripts, built by `scripts/build-aeda.mjs`), and its Python backend is

@@ -71,7 +71,13 @@ function blocks(html) {
   return out
 }
 
-const base = read('base.html')
+// The portal's appearance (Settings → Appearance) applied to every page,
+// right after the original's own stylesheet so it wins.
+const appearance = fs.readFileSync(path.join(root, 'scripts', 'aeda-appearance.html'), 'utf8').replace(/\r\n/g, '\n')
+const headBlock = '{% block head %}{% endblock %}'
+const rawBase = read('base.html')
+if (!rawBase.includes(headBlock)) throw new Error('base.html: the head block was not found')
+const base = rawBase.replace(headBlock, () => appearance + headBlock)
 const pages = {}
 for (const name of ['landing', 'project', 'designer', 'summary', 'fill', 'settings']) {
   const own = blocks(read(`${name}.html`))

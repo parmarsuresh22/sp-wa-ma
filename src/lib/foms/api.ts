@@ -90,6 +90,17 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
   return res.data
 }
 
+/**
+ * A moment the way the original backend wrote it: UTC, with no zone at
+ * the end ("2026-11-28T16:34:50.497"). Its screens add the "Z"
+ * themselves, so a zone here would make every date "Invalid Date".
+ */
+export function ts(v: unknown): string | null {
+  if (v === null || v === undefined || v === '') return null
+  const d = new Date(String(v))
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().replace(/Z$/, '')
+}
+
 const obj = (v: unknown): Json => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : {})
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
 const intId = (raw: string | undefined): number => {
@@ -153,8 +164,8 @@ async function formsToDicts(ctx: FomsContext, forms: Row[]): Promise<Json[]> {
     published_version_id: f.published_version_id ?? null,
     version_count: versions.get(Number(f.id)) ?? 0,
     submission_count: subs.get(Number(f.id)) ?? 0,
-    created_at: f.created_at ?? null,
-    updated_at: f.updated_at ?? null,
+    created_at: ts(f.created_at),
+    updated_at: ts(f.updated_at),
   }))
 }
 const formToDict = async (ctx: FomsContext, form: Row): Promise<Json> => (await formsToDicts(ctx, [form]))[0]
@@ -171,7 +182,7 @@ async function projectToDict(ctx: FomsContext, p: Row): Promise<Json> {
     name: p.name,
     description: p.description ?? '',
     archived: p.archived === true,
-    created_at: p.created_at ?? null,
+    created_at: ts(p.created_at),
     form_count: count ?? 0,
   }
 }
@@ -180,7 +191,7 @@ const versionToDict = (v: Row, payload = false): Json => ({
   id: v.id,
   form_id: v.form_id,
   version_no: v.version_no,
-  published_at: v.published_at ?? null,
+  published_at: ts(v.published_at),
   ...(payload ? { schema: obj(v.schema_json), workflow: obj(v.workflow_json) } : {}),
 })
 
@@ -196,8 +207,8 @@ const submissionToDict = (s: Row): Json => ({
   last_ok: s.last_ok !== false,
   last_trace: s.last_trace ?? null,
   traces: arr(s.traces),
-  created_at: s.created_at ?? null,
-  updated_at: s.updated_at ?? null,
+  created_at: ts(s.created_at),
+  updated_at: ts(s.updated_at),
 })
 
 const emailToDict = (e: Row): Json => ({
@@ -209,7 +220,7 @@ const emailToDict = (e: Row): Json => ({
   subject: e.subject ?? '',
   body: e.body ?? '',
   attachment: e.attachment ?? '',
-  sent_at: e.sent_at ?? null,
+  sent_at: ts(e.sent_at),
 })
 
 const taskToDict = (t: Row): Json => ({
@@ -226,8 +237,8 @@ const taskToDict = (t: Row): Json => ({
   day: t.day,
   timezone: t.timezone,
   active: t.active === true,
-  last_run: t.last_run ?? null,
-  next_run: t.next_run ?? null,
+  last_run: ts(t.last_run),
+  next_run: ts(t.next_run),
 })
 
 const lookupToDict = (lt: Row, includeRows = false): Json => ({
@@ -372,7 +383,7 @@ function cell(sub: Row, key: string): unknown {
   if (key === 'id') return sub.id
   if (key === 'stage') return sub.stage ?? ''
   if (key === 'status') return sub.status ?? ''
-  if (key === 'created_at') return sub.created_at ?? ''
+  if (key === 'created_at') return ts(sub.created_at) ?? ''
   if (key === 'modified_by') return sub.modified_by ?? ''
   const v = obj(sub.data)[key]
   // An uploaded file is stored as { name, type, data }: its name is what a table shows.
@@ -895,7 +906,7 @@ export async function handleFoms(request: Request, path: string[]): Promise<Resp
       const rows = check(await db.from('foms_email_logs').select('*').eq('form_id', fid).eq('account_id', accountId).order('id', { ascending: false })) as Row[]
       const { content, ext } = buildTableFile(
         columns.map((col) => EMAIL_LABELS[col] ?? col),
-        rows.map((row) => columns.map((col) => row[col] ?? '')),
+        rows.map((row) => columns.map((col) => (col === 'sent_at' ? ts(row[col]) : row[col]) ?? '')),
         data.file_type === 'xlsx' ? 'xlsx' : 'csv',
         'Emails',
       )
@@ -1058,7 +1069,7 @@ export async function handleFoms(request: Request, path: string[]): Promise<Resp
         description: p.description ?? '',
         archived: p.archived === true,
         form_count: forms.filter((f) => f.project_id === p.id).length,
-        created_at: p.created_at ?? null,
+        created_at: ts(p.created_at),
       })),
       forms: forms.map((f) => ({
         id: f.id,
@@ -1068,7 +1079,7 @@ export async function handleFoms(request: Request, path: string[]): Promise<Resp
         status: f.status,
         archived: f.archived === true,
         submission_count: subCount.get(Number(f.id)) ?? 0,
-        updated_at: f.updated_at ?? null,
+        updated_at: ts(f.updated_at),
       })),
       submissions: subs.map((x) => ({
         id: x.id,
@@ -1080,8 +1091,8 @@ export async function handleFoms(request: Request, path: string[]): Promise<Resp
         status: x.status ?? '',
         modified_by: x.modified_by ?? '',
         data: obj(x.data),
-        created_at: x.created_at ?? null,
-        updated_at: x.updated_at ?? null,
+        created_at: ts(x.created_at),
+        updated_at: ts(x.updated_at),
       })),
       emails: emails.map(emailToDict),
     })

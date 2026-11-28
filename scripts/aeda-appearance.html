@@ -1,0 +1,90 @@
+<!-- Added by the portal (scripts/build-aeda.mjs): AEDA Forms follows the
+     Appearance chosen in the portal's Settings (light or dark, and the
+     accent colour) instead of its own themes. The portal keeps both
+     choices in this browser's storage, which these pages share. -->
+<style id="atlas-appearance">
+  /* Stronger than the original's [data-theme] rules, so the portal's choice wins. */
+  html[data-atlas-mode="dark"] {
+    --bg: oklch(0.13 0.01 260);
+    --bg-2: oklch(0.16 0.01 260);
+    --panel: oklch(0.18 0.01 260);
+    --panel-2: oklch(0.22 0.01 260);
+    --border: oklch(0.28 0.01 260);
+    --text: oklch(0.985 0 0);
+    --muted: oklch(0.65 0.01 260);
+    --primary-2: color-mix(in oklch, var(--primary) 70%, white);
+    --bg-glow: color-mix(in oklch, var(--primary) 10%, oklch(0.13 0.01 260));
+    --shadow: 0 6px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+  html[data-atlas-mode="light"] {
+    --bg: oklch(0.99 0.002 260);
+    --bg-2: oklch(0.967 0.003 260);
+    --panel: oklch(1 0 0);
+    --panel-2: oklch(0.967 0.003 260);
+    --border: oklch(0.922 0.004 260);
+    --text: oklch(0.21 0.01 260);
+    --muted: oklch(0.52 0.015 260);
+    --primary-2: color-mix(in oklch, var(--primary) 85%, black);
+    --bg-glow: color-mix(in oklch, var(--primary) 6%, oklch(0.99 0.002 260));
+    --green: #16a34a;
+    --amber: #d97706;
+    --red: #dc2626;
+    --shadow: 0 6px 24px rgba(20, 30, 80, .12);
+    color-scheme: light;
+  }
+  html[data-atlas-accent="violet"]  { --primary: oklch(0.526 0.247 293); --on-primary: oklch(0.985 0 0); }
+  html[data-atlas-accent="emerald"] { --primary: oklch(0.62 0.16 162);   --on-primary: oklch(0.16 0.02 162); }
+  html[data-atlas-accent="cobalt"]  { --primary: oklch(0.585 0.2 254);   --on-primary: oklch(0.985 0 0); }
+  html[data-atlas-accent="amber"]   { --primary: oklch(0.745 0.16 65);   --on-primary: oklch(0.18 0.03 65); }
+  html[data-atlas-accent="rose"]    { --primary: oklch(0.645 0.22 16);   --on-primary: oklch(0.985 0 0); }
+
+  /* No banner of its own: inside the portal the module is one more page.
+     The blue band and the "AEDA forms" name go; what stays is a plain
+     line with the path (Projects / project / form) on the page itself. */
+  html[data-atlas-mode] .topbar { background: transparent; border-bottom: 0; padding: 10px 22px 0; }
+  html[data-atlas-mode] .topbar .brand { display: none; }
+  html[data-atlas-mode] .topbar .crumbs b { color: var(--text); }
+  html[data-atlas-mode] .topbar .crumbs,
+  html[data-atlas-mode] .topbar .crumbs a { color: var(--muted); }
+  /* Nothing to show (the Projects page has no path): no line at all. */
+  html[data-atlas-mode] .topbar:has(> .crumbs:empty):not(:has(> .spacer ~ *)) { display: none; }
+  /* Text on the accent colour, readable on the light accents too. */
+  html[data-atlas-mode] .btn.primary,
+  html[data-atlas-mode] .comp.btnitem .bprev { color: var(--on-primary); }
+  /* The original's own theme picker gives way to the portal's. */
+  html[data-atlas-mode] #themeGrid,
+  html[data-atlas-mode] #pane-appearance > .subtle { display: none; }
+</style>
+<script>
+  (function () {
+    var MODES = ['dark', 'light'];
+    var ACCENTS = ['violet', 'emerald', 'cobalt', 'amber', 'rose'];
+    function apply() {
+      var mode = 'dark', accent = 'violet';
+      try {
+        var m = localStorage.getItem('wacrm.mode'), a = localStorage.getItem('wacrm.theme');
+        if (MODES.indexOf(m) !== -1) mode = m;
+        if (ACCENTS.indexOf(a) !== -1) accent = a;
+      } catch (e) { /* private window: the portal's defaults */ }
+      var d = document.documentElement;
+      d.setAttribute('data-atlas-mode', mode);
+      d.setAttribute('data-atlas-accent', accent);
+    }
+    apply();
+    // The portal's Settings changed in another tab, or in the page around this frame.
+    window.addEventListener('storage', function (e) {
+      if (!e.key || e.key === 'wacrm.mode' || e.key === 'wacrm.theme') apply();
+    });
+    window.addEventListener('pageshow', apply);
+    document.addEventListener('DOMContentLoaded', function () {
+      var pane = document.getElementById('pane-appearance');
+      if (!pane) return;
+      var note = document.createElement('p');
+      note.className = 'subtle';
+      note.style.marginTop = '0';
+      note.innerHTML = 'AEDA Forms follows the appearance of the portal. To change light or dark mode and the accent colour, open <a href="/settings?tab=appearance" target="_top">Settings → Appearance</a> in the portal.';
+      pane.appendChild(note);
+    });
+  })();
+</script>
