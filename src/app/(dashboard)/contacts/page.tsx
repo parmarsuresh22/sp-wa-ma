@@ -65,6 +65,7 @@ import {
 import { pageAfterRangeError, pageAfterShrink } from '@/lib/contacts/page-bounds';
 import { usePageSize } from '@/hooks/use-page-size';
 import { ListPager } from '@/components/ui/list-pager';
+import { RefreshCw } from 'lucide-react';
 
 
 interface ContactWithTags extends Contact {
@@ -255,6 +256,26 @@ export default function ContactsPage() {
     fetchContacts();
   }, [fetchContacts]);
 
+  // "Sync from phone": only for a WhatsApp Web number chosen above. The
+  // phone's contacts land under that number and no other.
+  const syncChannel = (channels ?? []).find((c) => c.id === channelId && c.provider === 'waha') ?? null;
+  const [syncing, setSyncing] = useState(false);
+  const syncFromPhone = async () => {
+    if (!syncChannel) return;
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/whatsapp/channels/${syncChannel.id}/sync-contacts`, { method: 'POST' });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; found?: number; added?: number };
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      toast.success(t('syncDone', { found: data.found ?? 0, added: data.added ?? 0 }));
+      fetchContacts();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   function openAddForm() {
     setEditContact(null);
     setEditContactTags([]);
@@ -384,7 +405,19 @@ export default function ContactsPage() {
             {totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canEdit && syncChannel && (
+            <Button
+              variant="outline"
+              disabled={syncing}
+              onClick={() => void syncFromPhone()}
+              title={t('syncHint')}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              <RefreshCw className={syncing ? 'size-4 animate-spin' : 'size-4'} />
+              {t('syncBtn')}
+            </Button>
+          )}
           {canEditSettings && (
             <Button
               variant="outline"

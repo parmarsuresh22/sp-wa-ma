@@ -19,6 +19,8 @@ export interface ApiKeyRow {
   id: string;
   account_id: string;
   created_by: string | null;
+  /** The WhatsApp number the key sends from (migration 083); null = the account default. */
+  channel_id?: string | null;
   name: string;
   scopes: string[];
   expires_at: string | null;
@@ -37,7 +39,7 @@ export async function findActiveKeyByHash(
 ): Promise<ApiKeyRow | null> {
   const { data, error } = await supabaseAdmin()
     .from('api_keys')
-    .select('id, account_id, created_by, name, scopes, expires_at, revoked_at')
+    .select('*')
     .eq('key_hash', hash)
     .maybeSingle();
 

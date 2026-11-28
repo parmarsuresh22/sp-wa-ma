@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account'
+import { numberApprovalRequired } from '@/lib/admin/number-approval'
+import { approveWebNumberRequest } from '@/lib/whatsapp/web-number-requests'
+import { publicOrigin } from '@/lib/whatsapp/public-origin'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import {
@@ -78,6 +81,25 @@ export async function POST(request: Request) {
       .single()
     if (error || !data) {
       return NextResponse.json({ error: error?.message ?? 'Could not save the request' }, { status: 500 })
+    }
+
+    // With approval switched off on the admin page (migration 083), the
+    // request is approved here and now: the number is created on the
+    // bridge and the customer goes straight to its QR code. If that
+    // fails, the request simply waits for the admin as before.
+    if (!(await numberApprovalRequired(db))) {
+      try {
+        const approved = await approveWebNumberRequest(db, (data as WebNumberRequestRow).id, {
+          decidedBy: userId,
+          origin: publicOrigin(request),
+        })
+        return NextResponse.json(
+          { request: toPublicRequest(approved.request), channel_id: approved.channel.id, auto_approved: true },
+          { status: 201 },
+        )
+      } catch (err) {
+        console.error('[web-number-requests] automatic approval failed, left pending:', err instanceof Error ? err.message : err)
+      }
     }
 
     return NextResponse.json(

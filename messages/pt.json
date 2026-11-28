@@ -589,7 +589,10 @@
       "filterByTag": "Filtrar por {name}",
       "removeTagFilter": "Remover o filtro {name}",
       "selectContact": "Selecionar {name}",
-      "filterByNumber": "Número"
+      "filterByNumber": "Número",
+      "syncBtn": "Sync from phone",
+      "syncHint": "Copy the contacts saved on the phone of this WhatsApp number. They show under this number only.",
+      "syncDone": "{found, plural, one {# contact} other {# contacts}} on the phone, {added} new here."
     },
     "form": {
       "addTitle": "Adicionar contato",
@@ -2341,7 +2344,13 @@
       "newKeyTitle": "Nova chave de API",
       "newKeyDesc": "Nomeie-a conforme a integração que vai usá-la e conceda apenas os escopos necessários.",
       "done": "Concluído",
-      "networkError": "Não foi possível conectar ao servidor"
+      "networkError": "Não foi possível conectar ao servidor",
+      "numberLabel": "WhatsApp number",
+      "numberChoose": "Choose the number this key sends from",
+      "numberHint": "Messages and broadcasts sent with this key go out from this number.",
+      "numberRequired": "Choose the WhatsApp number this key will send from",
+      "sendsFrom": "Sends from",
+      "defaultNumber": "the default number"
     },
     "deals": {
       "title": "Negócios e moeda",

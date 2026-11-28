@@ -108,9 +108,10 @@ export async function POST(request: Request) {
     // steps share `SendMessageError`, so one catch maps the whole
     // pipeline to the envelope.
     // Optional `channel_id`: which of the account's WhatsApp numbers to
-    // send from. Omitted → the account's default channel.
+    // send from. Omitted → the number the API key was made for, and for
+    // a key without one the account's default channel.
     const channelId =
-      typeof body.channel_id === 'string' && body.channel_id ? body.channel_id : null;
+      typeof body.channel_id === 'string' && body.channel_id ? body.channel_id : ctx.channelId;
 
     const resolved = await resolveConversationByPhone(
       ctx.supabase,

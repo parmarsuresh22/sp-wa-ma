@@ -589,7 +589,10 @@
       "filterByTag": "{name}(으)로 필터링",
       "removeTagFilter": "{name} 필터 제거",
       "selectContact": "{name} 선택",
-      "filterByNumber": "번호"
+      "filterByNumber": "번호",
+      "syncBtn": "Sync from phone",
+      "syncHint": "Copy the contacts saved on the phone of this WhatsApp number. They show under this number only.",
+      "syncDone": "{found, plural, one {# contact} other {# contacts}} on the phone, {added} new here."
     },
     "form": {
       "addTitle": "연락처 추가",
@@ -2341,7 +2344,13 @@
       "newKeyTitle": "새 API 키",
       "newKeyDesc": "이 키를 사용할 연동 서비스의 이름을 붙이고, 필요한 권한 범위만 부여하세요.",
       "done": "완료",
-      "networkError": "서버에 연결할 수 없습니다"
+      "networkError": "서버에 연결할 수 없습니다",
+      "numberLabel": "WhatsApp number",
+      "numberChoose": "Choose the number this key sends from",
+      "numberHint": "Messages and broadcasts sent with this key go out from this number.",
+      "numberRequired": "Choose the WhatsApp number this key will send from",
+      "sendsFrom": "Sends from",
+      "defaultNumber": "the default number"
     },
     "deals": {
       "title": "딜 & 통화",

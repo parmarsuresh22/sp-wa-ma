@@ -44,7 +44,7 @@ const MAX_EXPIRY_DAYS = 365;
 // Columns safe to expose. `key_hash` is deliberately excluded — it
 // never leaves the server.
 const SAFE_COLUMNS =
-  'id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at';
+  'id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at, channel_id';
 
 export async function GET() {
   try {
@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       name?: unknown;
       scopes?: unknown;
       expiresInDays?: unknown;
+      channel_id?: unknown;
     } | null;
 
     const rawName = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -126,6 +127,23 @@ export async function POST(request: Request) {
       ).toISOString();
     }
 
+    // Every new key is made for one WhatsApp number of this account.
+    const channelId = typeof body?.channel_id === 'string' ? body.channel_id : '';
+    const { data: channel } = /^[0-9a-f-]{36}$/i.test(channelId)
+      ? await ctx.supabase
+          .from('whatsapp_config')
+          .select('id')
+          .eq('id', channelId)
+          .eq('account_id', ctx.accountId)
+          .maybeSingle()
+      : { data: null };
+    if (!channel) {
+      return NextResponse.json(
+        { error: 'Choose the WhatsApp number this key will send from' },
+        { status: 400 }
+      );
+    }
+
     const { plaintext, hash, prefix } = generateApiKey();
 
     const { data, error } = await ctx.supabase
@@ -138,6 +156,7 @@ export async function POST(request: Request) {
         key_hash: hash,
         scopes,
         expires_at: expiresAt,
+        channel_id: channelId,
       })
       .select(SAFE_COLUMNS)
       .single();

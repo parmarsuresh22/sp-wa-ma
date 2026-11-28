@@ -1,6 +1,7 @@
 'use client';
 
 import { AccountPlanPicker, AccountPlansList, PlansSection, accountSubtitle, accountTitle } from './plans-admin';
+import { NumberApprovalToggle } from './approval-toggle';
 
 /* The platform admin page (/admin8085). One person uses it, so its
  * text is plain English rather than routed through the locale files. */
@@ -213,6 +214,7 @@ export function AdminConsole({ email, initial }: { email: string; initial: Admin
           />
         ) : overview ? (
           <>
+            <NumberApprovalToggle />
             <RequestsSection
               requests={overview.requests}
               accountName={accountName}

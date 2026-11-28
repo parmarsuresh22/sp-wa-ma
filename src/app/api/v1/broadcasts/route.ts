@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       channelId:
         typeof body.channel_id === 'string' && body.channel_id
           ? body.channel_id
-          : null,
+          : ctx.channelId,
     });
 
     // Fan out after the response is sent. Uses the same service-role

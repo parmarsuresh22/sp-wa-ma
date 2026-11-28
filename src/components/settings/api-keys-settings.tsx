@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
+import { useChannels, channelLabel } from '@/hooks/use-channels';
 import {
   API_SCOPES,
   SCOPE_DESCRIPTIONS,
@@ -52,6 +53,7 @@ interface ApiKey {
   expires_at: string | null;
   revoked_at: string | null;
   created_at: string;
+  channel_id?: string | null;
 }
 
 function fmtDate(iso: string): string {
@@ -77,6 +79,12 @@ export function ApiKeysSettings() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const { channels } = useChannels();
+  const numberName = (id: string | null | undefined) => {
+    const c = (channels ?? []).find((x) => x.id === id);
+    if (!c) return t('defaultNumber');
+    return `${channelLabel(c)}${c.display_phone && c.label ? ` · ${c.display_phone}` : ''}`;
+  };
 
   const load = useCallback(async () => {
     try {
@@ -213,6 +221,9 @@ export function ApiKeysSettings() {
                       <p className="text-muted-foreground mt-0.5 font-mono text-xs">
                         {k.key_prefix}…
                       </p>
+                      <p className="text-muted-foreground mt-0.5 text-xs">
+                        {t('sendsFrom')}: {numberName(k.channel_id)}
+                      </p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {k.scopes.length === 0 ? (
                           <span className="text-muted-foreground text-xs">
@@ -292,6 +303,9 @@ function CreateKeyDialog({
   const t = useTranslations('Settings.apiKeys');
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<ApiScope[]>([]);
+  // The WhatsApp number the key will send from: asked for every time.
+  const { channels } = useChannels();
+  const [channelId, setChannelId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   // Once set, we switch from the form to the reveal view.
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -299,6 +313,7 @@ function CreateKeyDialog({
   function reset() {
     setName('');
     setScopes([]);
+    setChannelId('');
     setSubmitting(false);
     setCreatedKey(null);
   }
@@ -315,12 +330,16 @@ function CreateKeyDialog({
       toast.error(t('nameRequired'));
       return;
     }
+    if (!channelId) {
+      toast.error(t('numberRequired'));
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch('/api/account/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed, scopes }),
+        body: JSON.stringify({ name: trimmed, scopes, channel_id: channelId }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -417,6 +436,28 @@ function CreateKeyDialog({
                   placeholder={t('namePlaceholder')}
                   onChange={(e) => setName(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="api-key-number" className="text-muted-foreground">
+                  {t('numberLabel')}
+                </Label>
+                <select
+                  id="api-key-number"
+                  value={channelId}
+                  onChange={(e) => setChannelId(e.target.value)}
+                  className="h-9 w-full rounded-md border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary"
+                >
+                  <option value="">{t('numberChoose')}</option>
+                  {(channels ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {channelLabel(c)}
+                      {c.display_phone && c.label ? ` · ${c.display_phone}` : ''}
+                      {c.provider === 'waha' ? ' (WhatsApp Web)' : ' (Business API)'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-muted-foreground text-xs">{t('numberHint')}</p>
               </div>
 
               <div className="space-y-2">

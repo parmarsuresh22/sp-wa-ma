@@ -363,6 +363,13 @@ export function createWahaClient(cfg: WahaClientConfig) {
      * The address of a chat's WhatsApp profile photo, or null when there
      * is none (or it is hidden by the person's privacy settings).
      */
+    /**
+     * Everyone in the phone's WhatsApp contact list, as the bridge
+     * gives them (the caller picks the people out).
+     */
+    async listContacts(session: string): Promise<unknown> {
+      return call('GET', `/api/contacts/all?session=${encodeURIComponent(session)}`)
+    },
     async profilePictureUrl(session: string, chatId: string): Promise<string | null> {
       try {
         const r = await call<Record<string, unknown>>(

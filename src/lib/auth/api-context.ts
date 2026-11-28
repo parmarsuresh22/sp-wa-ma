@@ -49,6 +49,11 @@ export interface ApiKeyContext {
   scopes: string[];
   /** Who minted the key (null if that user was later removed). */
   createdBy: string | null;
+  /**
+   * The WhatsApp number this key sends from (migration 083). Null on a
+   * key made before that: the account default number is used.
+   */
+  channelId: string | null;
 }
 
 /**
@@ -112,5 +117,6 @@ export async function requireApiKey(
     keyId: row.id,
     scopes: row.scopes,
     createdBy: row.created_by,
+    channelId: row.channel_id ?? null,
   };
 }

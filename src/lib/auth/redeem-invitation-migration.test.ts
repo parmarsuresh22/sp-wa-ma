@@ -46,6 +46,9 @@ const tablesWithoutDomainData = new Set([
   "service_settings",
   "service_customers",
   "service_visits",
+  // Migration 083. A row ties a contact to a WhatsApp number (NOT NULL
+  // FK to whatsapp_config, which redeem_invitation checks).
+  "contact_channels",
 ]);
 
 function accountScopedTables(): Set<string> {
