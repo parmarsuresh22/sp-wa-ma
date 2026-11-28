@@ -10,6 +10,7 @@
 // and change their own appointments.
 // ============================================================
 
+import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
@@ -773,14 +774,18 @@ export async function runAppointmentReminders(
   db: SupabaseClient,
   now: Date = new Date(),
 ): Promise<{ due: number; sent: number; failed: number }> {
-  const { data, error } = await db
-    .from('appointments')
-    .select('*')
-    .eq('status', 'booked')
-    .is('reminder_sent_at', null)
-    .not('reminder_at', 'is', null)
-    .lte('reminder_at', now.toISOString())
-    .gt('starts_at', now.toISOString())
+  // Appointments of a blocked account are passed over (migration 085).
+  const { data, error } = await withoutBlocked(
+    db
+      .from('appointments')
+      .select('*')
+      .eq('status', 'booked')
+      .is('reminder_sent_at', null)
+      .not('reminder_at', 'is', null)
+      .lte('reminder_at', now.toISOString())
+      .gt('starts_at', now.toISOString()),
+    await blockedAccountIds(),
+  )
     .order('reminder_at', { ascending: true })
     .limit(100)
   if (error) throw new Error(error.message)

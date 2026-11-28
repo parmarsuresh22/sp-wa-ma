@@ -7,6 +7,7 @@
 // Server-only.
 // ============================================================
 
+import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 import { randomBytes, randomInt } from 'node:crypto'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -733,13 +734,17 @@ const REMINDERS_PER_RUN = 40
  * conditional UPDATE), so overlapping calls never remind twice.
  */
 export async function runEventReminders(db: SupabaseClient, now: Date): Promise<{ due: number; sent: number; failed: number }> {
-  const { data } = await db
-    .from('events')
-    .select(EVENT_SELECT)
-    .neq('status', 'cancelled')
-    .gt('reminder_hours', 0)
-    .gt('starts_at', now.toISOString())
-    .lte('starts_at', new Date(now.getTime() + 168 * 3_600_000).toISOString())
+  // Events of a blocked account are passed over (migration 085).
+  const { data } = await withoutBlocked(
+    db
+      .from('events')
+      .select(EVENT_SELECT)
+      .neq('status', 'cancelled')
+      .gt('reminder_hours', 0)
+      .gt('starts_at', now.toISOString())
+      .lte('starts_at', new Date(now.getTime() + 168 * 3_600_000).toISOString()),
+    await blockedAccountIds(),
+  )
   const events = ((data ?? []) as Record<string, unknown>[])
     .map(normalizeEvent)
     .filter((e) => Date.parse(e.starts_at) - e.reminder_hours * 3_600_000 <= now.getTime())

@@ -245,9 +245,10 @@ html[data-theme="rose"] {
 }
 
 /* Sign-in screen (src/components/auth/auth-shell.tsx): two columns of
- * feature cards sliding slowly past each other, and two soft lights.
- * Each column holds its list twice, so sliding by half its height
- * loops without a seam. */
+ * feature cards sliding past each other, each card breathing a little
+ * and its icon glowing in turn, over three drifting lights. Each column
+ * holds its list twice, so sliding by half its height loops without a
+ * seam. */
 @keyframes auth-col-up {
   from { transform: translateY(0); }
   to { transform: translateY(-50%); }
@@ -258,12 +259,26 @@ html[data-theme="rose"] {
 }
 @keyframes auth-blob {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(8%, -6%) scale(1.18); }
+  33% { transform: translate(14%, -10%) scale(1.25); }
+  66% { transform: translate(-8%, 12%) scale(0.9); }
 }
-.auth-col-up { animation: auth-col-up 46s linear infinite; will-change: transform; }
-.auth-col-down { animation: auth-col-down 54s linear infinite; will-change: transform; }
-.auth-blob { animation: auth-blob 14s ease-in-out infinite; }
-.auth-blob-slow { animation-duration: 20s; animation-direction: reverse; }
+@keyframes auth-card {
+  0%, 100% { transform: translateX(0) scale(1); }
+  50% { transform: translateX(6px) scale(1.025); }
+}
+@keyframes auth-icon {
+  0%, 70%, 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  80% { transform: scale(1.18); box-shadow: 0 0 0 8px color-mix(in oklab, var(--primary) 22%, transparent); }
+}
+.auth-col-up { animation: auth-col-up 24s linear infinite; will-change: transform; }
+.auth-col-down { animation: auth-col-down 30s linear infinite; will-change: transform; }
+.auth-blob { animation: auth-blob 9s ease-in-out infinite; }
+.auth-blob-slow { animation-duration: 13s; animation-direction: reverse; }
+.auth-blob-mid { animation-duration: 11s; animation-delay: -4s; }
+.auth-card { animation: auth-card 6s ease-in-out infinite; }
+.auth-icon { animation: auth-icon 7s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .auth-col-up, .auth-col-down, .auth-blob { animation: none; }
+  .auth-col-up { animation-duration: 90s; }
+  .auth-col-down { animation-duration: 110s; }
+  .auth-blob, .auth-card, .auth-icon { animation: none; }
 }

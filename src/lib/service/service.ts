@@ -8,6 +8,7 @@
 // no balance to check before a message goes out.
 // ============================================================
 
+import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { loadChannel } from '@/lib/whatsapp/channels'
@@ -362,12 +363,16 @@ export async function runServiceReminders(
   // A day either side of UTC covers every time zone; the exact day is
   // decided per number below.
   const utcDay = now.toISOString().slice(0, 10)
-  const { data, error } = await db
-    .from('service_visits')
-    .select('*, customer:service_customers(id, contact_id, channel_id, name, status)')
-    .eq('status', 'active')
-    .gte('next_visit', addDays(utcDay, -1))
-    .lte('next_visit', addDays(utcDay, 2))
+  // Visits of a blocked account are passed over (migration 085).
+  const { data, error } = await withoutBlocked(
+    db
+      .from('service_visits')
+      .select('*, customer:service_customers(id, contact_id, channel_id, name, status)')
+      .eq('status', 'active')
+      .gte('next_visit', addDays(utcDay, -1))
+      .lte('next_visit', addDays(utcDay, 2)),
+    await blockedAccountIds(),
+  )
     .order('next_visit', { ascending: true })
     .limit(2000)
   if (error) throw new Error(error.message)

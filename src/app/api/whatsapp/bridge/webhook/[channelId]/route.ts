@@ -29,6 +29,7 @@ import { refreshContactAvatar } from '@/lib/whatsapp/avatar'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
 import { findExistingContact } from '@/lib/contacts/dedupe'
 import type { ChannelRow } from '@/lib/whatsapp/channels'
+import { accountIsBlocked } from '@/lib/auth/blocked-server'
 
 // Same headroom as the Meta webhook: media mirroring + engine fan-out
 // run inside `after()`.
@@ -97,6 +98,11 @@ export async function POST(
     console.warn(
       `[bridge-webhook] event for session "${env.session}" arrived on channel ${channelId} (session "${row.bridge_session}"); ignored`,
     )
+    return NextResponse.json({ status: 'ignored' })
+  }
+
+  // A blocked account (migration 085) takes nothing in.
+  if (await accountIsBlocked(row.account_id)) {
     return NextResponse.json({ status: 'ignored' })
   }
 

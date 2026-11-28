@@ -776,8 +776,8 @@ function AccountDetail({
   async function setBlocked(blocked: boolean) {
     const ok = window.confirm(
       blocked
-        ? `Block ${accountTitle(stats)}?\n\nNobody of this account will be able to sign in or use the portal. They will see that the account is blocked and be asked to write to ${SUPPORT_EMAIL}. Nothing is deleted.`
-        : `Reactivate ${accountTitle(stats)}?\n\nIts people will be able to sign in again.`,
+        ? `Block ${accountTitle(stats)}?\n\nEverything stops for this account: nobody of it can sign in, messages arriving for it are not taken in, and nothing is sent from its numbers (AI replies, automations, flows, reminders, wishes, broadcasts). Its people are asked to write to ${SUPPORT_EMAIL}. Nothing already saved is deleted.`
+        : `Reactivate ${accountTitle(stats)}?\n\nIts people will be able to sign in again, and messages, replies and reminders run again from now. Messages that arrived while it was blocked are not brought back.`,
     );
     if (!ok) return;
     setSavingBlock(true);
@@ -890,8 +890,8 @@ function AccountDetail({
           <p className="text-sm font-semibold">{isBlocked ? 'This account is blocked' : 'Account is active'}</p>
           <p className="text-xs text-muted-foreground">
             {isBlocked
-              ? `Blocked ${when(stats.blocked_at)}. Its people cannot sign in; they are told to write to ${SUPPORT_EMAIL}.`
-              : 'Blocking stops everyone of this account from signing in. They see a blocked message with the address to write to. Nothing is deleted.'}
+              ? `Blocked ${when(stats.blocked_at)}. Everything is stopped: no sign-in, no incoming messages, nothing sent. Its people are told to write to ${SUPPORT_EMAIL}.`
+              : 'Blocking stops everything for this account: sign-in, incoming messages and everything it sends (AI replies, automations, reminders, wishes, broadcasts). Nothing already saved is deleted.'}
           </p>
         </div>
         <Button

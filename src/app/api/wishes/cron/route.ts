@@ -6,6 +6,7 @@ import { runWishSchedule, type WishScheduleRow } from '@/lib/wishes/run'
 import { runAppointmentReminders } from '@/lib/appointments/service'
 import { runEventReminders } from '@/lib/events/service'
 import { runServiceReminders } from '@/lib/service/service'
+import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 
 // Sends are paced one a second, so a run can take a while.
 export const maxDuration = 300
@@ -92,11 +93,15 @@ export async function GET(request: Request) {
     }
   })
 
-  const { data, error } = await admin
-    .from('wish_schedules')
-    .select('*')
-    .eq('enabled', true)
-    .or(`next_run_at.is.null,next_run_at.lte.${now.toISOString()}`)
+  // Schedules of a blocked account are passed over (migration 085).
+  const { data, error } = await withoutBlocked(
+    admin
+      .from('wish_schedules')
+      .select('*')
+      .eq('enabled', true)
+      .or(`next_run_at.is.null,next_run_at.lte.${now.toISOString()}`),
+    await blockedAccountIds(),
+  )
     .order('next_run_at', { ascending: true, nullsFirst: true })
     .limit(200)
   if (error) {

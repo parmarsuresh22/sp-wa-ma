@@ -8,6 +8,7 @@ import {
   resumePendingExecution,
 } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
+import { blockedAccountIds, withoutBlocked } from '@/lib/auth/blocked-server'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -42,11 +43,15 @@ export async function GET(request: Request) {
   const requeued = await requeueStalledExecutions()
 
   const admin = supabaseAdmin()
-  const { data: due, error } = await admin
-    .from('automation_pending_executions')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('run_at', new Date().toISOString())
+  // Steps waiting for a blocked account stay waiting (migration 085).
+  const { data: due, error } = await withoutBlocked(
+    admin
+      .from('automation_pending_executions')
+      .select('*')
+      .eq('status', 'pending')
+      .lte('run_at', new Date().toISOString()),
+    await blockedAccountIds(),
+  )
     .order('run_at', { ascending: true })
     .limit(50)
 

@@ -120,7 +120,7 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
     `/appointments?channel=${channelId ?? state.channelId}${day ? `&day=${day}` : ''}`
 
   return (
-    <Card>
+    <Card className="lg:w-1/2">
       <CardHeader>
         <CardTitle>{t('dashCalendarTitle')}</CardTitle>
         <CardDescription>{t('dashCalendarHint', { count: counts.get(today) ?? 0 })}</CardDescription>
@@ -131,7 +131,7 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
         </CardAction>
       </CardHeader>
       <CardContent>
-        <div className="mx-auto w-full max-w-md">
+        <div className="mx-auto w-full max-w-sm">
           <div className="flex items-center justify-between">
             <button type="button" aria-label={t('prevMonth')} onClick={() => move(-1)} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
               <ChevronLeft className="size-4" />
@@ -153,13 +153,13 @@ export function AppointmentsCalendarCard({ channelId }: { channelId?: string | n
                   key={c}
                   href={link(c)}
                   className={cn(
-                    'flex aspect-square max-h-14 flex-col items-center justify-center rounded-md border text-xs text-foreground hover:border-primary',
+                    'flex h-10 flex-col items-center justify-center rounded-md border text-xs leading-none text-foreground hover:border-primary',
                     c === today ? 'border-primary bg-primary/15 font-semibold' : 'border-transparent',
                   )}
                 >
                   {Number(c.slice(8))}
                   {(counts.get(c) ?? 0) > 0 && (
-                    <span className="mt-0.5 rounded-full bg-primary/30 px-1 text-[10px] leading-4">{counts.get(c)}</span>
+                    <span className="mt-0.5 rounded-full bg-primary/30 px-1 text-[10px] leading-[14px]">{counts.get(c)}</span>
                   )}
                 </Link>
               ) : (

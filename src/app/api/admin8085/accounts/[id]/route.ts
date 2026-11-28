@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSuperAdmin } from '@/lib/admin/super-admin'
 import { forgetPlans } from '@/lib/plans/server'
 import { BLOCK_DURATION } from '@/lib/auth/blocked'
+import { forgetBlockedAccounts } from '@/lib/auth/blocked-server'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -183,6 +184,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .select('id')
     if (blockError) return NextResponse.json({ error: blockError.message }, { status: 500 })
     if (!changed || changed.length === 0) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
+    forgetBlockedAccounts()
     // The sign-in service refuses each of its people from now on (and
     // stops renewing sessions they already have), or lets them back in.
     const refused: string[] = []

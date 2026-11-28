@@ -51,6 +51,7 @@ import {
   matchInteractiveReply,
 } from '@/lib/whatsapp/providers/types'
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
+import { accountIsBlocked } from '@/lib/auth/blocked-server'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -212,6 +213,8 @@ async function resolveAccountForPhoneNumber(
     )
     return null
   }
+  // A blocked account takes nothing in, delivery updates included.
+  if (await accountIsBlocked(data[0].account_id)) return null
   return data[0].account_id
 }
 
@@ -357,6 +360,10 @@ export async function processMetaWebhook(body: { entry?: WhatsAppWebhookEntry[] 
       }
 
       const config = configRows[0]
+
+      // A blocked account (migration 085) takes nothing in: the message
+      // is not saved and nothing reacts to it.
+      if (await accountIsBlocked(config.account_id)) continue
 
       const decryptedAccessToken = decrypt(config.access_token)
 

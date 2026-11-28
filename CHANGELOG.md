@@ -153,6 +153,10 @@ and polish.
   blocked none of its people can sign in or use the portal or its API
   keys; the sign-in screen says the account is blocked and gives the
   address to write to. Nothing of the account is deleted (migration 085).
+  Blocking is a full stop: messages arriving for the account are not
+  taken in, nothing is sent from its numbers (AI replies, automations,
+  flows, reminders, wishes, broadcasts) and the scheduled jobs pass over
+  it, until it is reactivated.
 - **Plan, number limit and blocked state can only be set by the
   platform.** An account's own admin could change these columns of their
   account row straight from the browser; the database now refuses it

@@ -22,8 +22,9 @@ import { cn } from '@/lib/utils';
 /* The sign-in and sign-up screens: the form on one side and, moving
  * slowly behind it (phone) or beside it (wide screen), cards saying
  * what the portal does for a business and for one person working
- * alone. The movement is CSS only (globals.css) and stops for anyone
- * who asked their device for less motion. */
+ * alone. The movement is CSS only (globals.css); for anyone who asked
+ * their device for less motion it slows right down instead of stopping,
+ * because the moving cards are the point of the screen. */
 
 type Feature = { key: string; icon: LucideIcon; who: 'business' | 'individual' };
 
@@ -64,9 +65,16 @@ function Column({ items, direction, className }: { items: Feature[]; direction: 
         {[...items, ...items].map((f, i) => {
           const Icon = f.icon;
           return (
-            <li key={`${f.key}-${i}`} className="mb-4 rounded-2xl border border-border bg-card/90 p-4 shadow-sm">
+            <li
+              key={`${f.key}-${i}`}
+              className="auth-card mb-4 rounded-2xl border border-border bg-card/90 p-4 shadow-sm"
+              style={{ animationDelay: `${(i % items.length) * -1.3}s` }}
+            >
               <span className="flex items-center gap-2">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <span
+                  className="auth-icon flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+                  style={{ animationDelay: `${(i % items.length) * -0.7}s` }}
+                >
                   <Icon className="size-5 text-primary" />
                 </span>
                 <span
@@ -95,9 +103,10 @@ export function AuthShell({ children }: { children: ReactNode }) {
     <div className="relative min-h-screen overflow-hidden bg-background lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
       <aside className="pointer-events-none absolute inset-0 overflow-hidden lg:relative lg:inset-auto lg:border-r lg:border-border">
         <div aria-hidden="true" className="absolute inset-0">
-          <div className="auth-blob absolute -left-24 -top-24 size-80 rounded-full bg-primary/25 blur-3xl" />
-          <div className="auth-blob auth-blob-slow absolute -bottom-28 -right-20 size-96 rounded-full bg-[#ff6d5a]/20 blur-3xl" />
-          <div className="absolute inset-0 flex justify-center gap-4 px-4 opacity-25 [mask-image:linear-gradient(to_bottom,transparent,black_12%,black_88%,transparent)] lg:px-8 lg:opacity-100 lg:[mask-image:linear-gradient(to_bottom,transparent,black_10%,black_48%,transparent_64%)]">
+          <div className="auth-blob absolute -left-24 -top-24 size-80 rounded-full bg-primary/35 blur-3xl" />
+          <div className="auth-blob auth-blob-slow absolute -bottom-28 -right-20 size-96 rounded-full bg-[#ff6d5a]/30 blur-3xl" />
+          <div className="auth-blob auth-blob-mid absolute left-1/3 top-1/3 size-64 rounded-full bg-emerald-500/15 blur-3xl" />
+          <div className="absolute inset-0 flex justify-center gap-4 px-4 opacity-40 [mask-image:linear-gradient(to_bottom,transparent,black_12%,black_88%,transparent)] lg:px-8 lg:opacity-100 lg:[mask-image:linear-gradient(to_bottom,transparent,black_10%,black_48%,transparent_64%)]">
             <Column items={FEATURES.slice(0, half)} direction="up" />
             <Column items={FEATURES.slice(half)} direction="down" />
           </div>
